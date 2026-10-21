@@ -201,6 +201,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    testOptions {
+        // The history tests build a Room database on the JVM with a Context stub (ADR-0014).
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -236,7 +241,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.material.kolor)
     testImplementation(libs.paparazzi)
-    testImplementation(libs.robolectric)
+    testImplementation(libs.sqlite.bundled.jvm)
 }
 
 // Generated code (BuildConfig, etc.) follows its own conventions. The task

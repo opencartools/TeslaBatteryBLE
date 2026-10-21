@@ -2,7 +2,7 @@
 
 package com.dzid26.teslable.history
 
-import android.app.Application
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.dzid26.teslable.core.history.AppState
 import com.dzid26.teslable.core.history.BleRecord
 import com.dzid26.teslable.core.history.Command
@@ -12,22 +12,22 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
+import org.junit.rules.TemporaryFolder
 import java.time.Duration
 import java.time.Instant
-import kotlin.concurrent.thread
 
-@RunWith(RobolectricTestRunner::class)
 class RoomBackedRecordStoreTest {
+    @get:Rule
+    val folder = TemporaryFolder()
+
     private lateinit var db: HistoryDatabase
     private val now = NOW
 
     @Before
     fun open() {
-        db = HistoryDatabase.inMemory(RuntimeEnvironment.getApplication() as Application, onMainThread = true)
+        db = testDatabase(folder.root)
     }
 
     @After
@@ -117,32 +117,31 @@ class RoomBackedRecordStoreTest {
         store.append("car", RecordKind.DRIVE, drive)
         store.append("car", RecordKind.CHARGE, charge(NOW_S - 4))
 
-        val odometers = mutableListOf<Long?>()
-        db.openHelper.readableDatabase.query("SELECT odometer FROM records ORDER BY id").use {
-            while (it.moveToNext()) odometers += if (it.isNull(0)) null else it.getLong(0)
-        }
+        val odometers =
+            listOf(RecordKind.DRIVE, RecordKind.CHARGE).map {
+                db
+                    .records()
+                    .newest("car", it.id, 1)
+                    .single()
+                    .odometer
+            }
         assertEquals(listOf(1_234_567L, null), odometers)
     }
 
     @Test
     fun `the database file reopens with its records and its unique key`() {
-        val context = RuntimeEnvironment.getApplication() as Application
-        // Off the test's main thread, as the app uses it.
-        var rows = -1
-        var rowsAfterDuplicate = -1
-        thread {
-            val first = HistoryDatabase.open(context)
-            RoomBackedRecordStore(first, "phone-a").append("car", RecordKind.COMMAND, command(NOW_S))
-            first.close()
+        val context = TestContext(folder.root)
+        val driver = BundledSQLiteDriver()
+        val first = HistoryDatabase.open(context, driver)
+        RoomBackedRecordStore(first, "phone-a").append("car", RecordKind.COMMAND, command(NOW_S))
+        first.close()
 
-            val second = HistoryDatabase.open(context)
-            val reopened = RoomBackedRecordStore(second, "phone-a")
-            rows = reopened.rowCount()
-            reopened.append("car", RecordKind.COMMAND, command(NOW_S))
-            rowsAfterDuplicate = reopened.rowCount()
-            second.close()
-        }.join()
-        context.deleteDatabase(HistoryDatabase.FILE_NAME)
+        val second = HistoryDatabase.open(context, driver)
+        val reopened = RoomBackedRecordStore(second, "phone-a")
+        val rows = reopened.rowCount()
+        reopened.append("car", RecordKind.COMMAND, command(NOW_S))
+        val rowsAfterDuplicate = reopened.rowCount()
+        second.close()
 
         assertEquals(1, rows)
         assertEquals(1, rowsAfterDuplicate)

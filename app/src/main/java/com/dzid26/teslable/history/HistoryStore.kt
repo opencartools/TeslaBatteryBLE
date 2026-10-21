@@ -77,17 +77,16 @@ import java.time.Instant
  * (pre-1.0 reset).
  */
 class HistoryStore internal constructor(
-    context: Context,
+    private val historyDir: File,
     private val recordStoreProvider: Lazy<RecordStore>,
     private val scope: CoroutineScope,
 ) {
     constructor(context: Context) : this(
-        context,
+        File(context.filesDir, HISTORY_DIR_NAME),
         lazy { RoomBackedRecordStore(HistoryDatabase.open(context), OriginId.load(context)) },
         CoroutineScope(SupervisorJob() + Dispatchers.IO),
     )
 
-    private val historyDir = File(context.filesDir, HISTORY_DIR_NAME)
     private val mutex = Mutex()
 
     /** Opened on first use, which is always off the main thread: the open touches the database file. */

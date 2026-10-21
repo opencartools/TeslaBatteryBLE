@@ -2,7 +2,6 @@
 
 package com.dzid26.teslable.history
 
-import android.app.Application
 import com.dzid26.teslable.core.history.AppState
 import com.dzid26.teslable.core.history.BleRecord
 import com.dzid26.teslable.core.history.Command
@@ -17,9 +16,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -27,7 +23,6 @@ import java.time.Instant
 import java.util.zip.ZipInputStream
 
 /** The `.pblog` import and the log export around [RoomBackedRecordStore] (ADR-0014). */
-@RunWith(RobolectricTestRunner::class)
 class PblogMigrationTest {
     @get:Rule
     val folder = TemporaryFolder()
@@ -37,7 +32,7 @@ class PblogMigrationTest {
 
     @Before
     fun open() {
-        db = HistoryDatabase.inMemory(RuntimeEnvironment.getApplication() as Application, onMainThread = true)
+        db = testDatabase(folder.root)
         store = RoomBackedRecordStore(db, "phone-a", clock = { NOW })
     }
 

@@ -14,7 +14,10 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.SQLiteDriver
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.execSQL
 
 /**
  * One raw record (ADR-0014). [blob] is the encoded `BleRecord`, so unknown and future Tesla fields
@@ -140,6 +143,9 @@ internal abstract class HistoryDatabase : RoomDatabase() {
             object : Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) = db.execSQL(KEY_INDEX_SQL)
 
+                // The same, for a database opened through a [SQLiteDriver] (the JVM tests).
+                override fun onCreate(connection: SQLiteConnection) = connection.execSQL(KEY_INDEX_SQL)
+
                 override fun onOpen(db: SupportSQLiteDatabase) {
                     db.query("PRAGMA synchronous = NORMAL").close()
                 }
@@ -150,32 +156,50 @@ internal abstract class HistoryDatabase : RoomDatabase() {
          * recreated, and if that fails too the history runs from an empty in-memory one, so a damaged
          * file never crashes the app (ADR-0014). Call it off the main thread: it opens the file.
          */
-        fun open(context: Context): HistoryDatabase =
-            runCatching { opened(context) }
+        fun open(
+            context: Context,
+            driver: SQLiteDriver? = null,
+        ): HistoryDatabase =
+            runCatching { build(context, driver).also { it.warmUp() } }
                 .recoverCatching {
                     context.deleteDatabase(FILE_NAME)
-                    opened(context)
-                }.getOrElse { inMemory(context) }
+                    build(context, driver).also { it.warmUp() }
+                }.getOrElse { inMemory(context, driver = driver) }
 
-        private fun opened(context: Context): HistoryDatabase = build(context).also { it.openHelper.writableDatabase }
+        /** Opens the file now, so a damaged one fails here and not on the first write. */
+        private fun HistoryDatabase.warmUp() {
+            records().count()
+        }
 
-        /** An empty database that lives in memory: the last-resort fallback, and the tests' ([onMainThread] for them). */
+        /**
+         * An empty database that lives in memory: the last-resort fallback, and the tests' ([onMainThread]
+         * and a JVM [driver] are for them).
+         */
         fun inMemory(
             context: Context,
             onMainThread: Boolean = false,
+            driver: SQLiteDriver? = null,
         ): HistoryDatabase =
             Room
                 .inMemoryDatabaseBuilder(context, HistoryDatabase::class.java)
                 .addCallback(keyIndexCallback)
-                .apply { if (onMainThread) allowMainThreadQueries() }
-                .build()
+                .apply {
+                    if (onMainThread) allowMainThreadQueries()
+                    if (driver != null) setDriver(driver)
+                }.build()
 
-        private fun build(context: Context): HistoryDatabase =
+        private fun build(
+            context: Context,
+            driver: SQLiteDriver?,
+        ): HistoryDatabase =
             Room
                 .databaseBuilder(context, HistoryDatabase::class.java, FILE_NAME)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                 .fallbackToDestructiveMigration(true)
                 .addCallback(keyIndexCallback)
-                .build()
+                .apply {
+                    // A driver is only given by the JVM tests, which have no main Looper to tell threads apart.
+                    if (driver != null) setDriver(driver).allowMainThreadQueries()
+                }.build()
     }
 }

@@ -2,7 +2,6 @@
 
 package com.dzid26.teslable.history
 
-import android.app.Application
 import com.dzid26.teslable.core.history.BleRecord
 import com.dzid26.teslable.core.history.ProtoLog
 import com.tesla.generated.carserver.vehicle.ChargeState
@@ -12,10 +11,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
+import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -31,22 +29,23 @@ private object InlineDispatcher : CoroutineDispatcher() {
 }
 
 /** [HistoryStore]'s public API over the Room-backed records (ADR-0014). */
-@RunWith(RobolectricTestRunner::class)
 class HistoryStoreTest {
-    private val context = RuntimeEnvironment.getApplication() as Application
+    @get:Rule
+    val folder = TemporaryFolder()
+
+    private val historyDir get() = File(folder.root, "battery-history")
     private lateinit var db: HistoryDatabase
 
     @Before
     fun open() {
-        db = HistoryDatabase.inMemory(context, onMainThread = true)
-        File(context.filesDir, "battery-history").deleteRecursively()
+        db = testDatabase(folder.root)
     }
 
     @After
     fun close() = db.close()
 
     // InlineDispatcher runs the store's work on the calling thread, so each call has finished when it returns.
-    private fun store() = HistoryStore(context, lazy { RoomBackedRecordStore(db, "phone-a") }, CoroutineScope(InlineDispatcher))
+    private fun store() = HistoryStore(historyDir, lazy { RoomBackedRecordStore(db, "phone-a") }, CoroutineScope(InlineDispatcher))
 
     private fun reply(seconds: Long) = ChargeState(timestamp = Instant.ofEpochSecond(seconds), battery_level = 70)
 
@@ -68,7 +67,7 @@ class HistoryStoreTest {
     @Test
     fun `the files of an earlier version are imported on the first start`() {
         val now = Instant.now()
-        val dir = File(context.filesDir, "battery-history").apply { mkdirs() }
+        val dir = historyDir.apply { mkdirs() }
         val record = BleRecord(device_timestamp = now, charge_state = reply(now.epochSecond - 30))
         File(dir, "carA.charge.pblog").writeBytes(ProtoLog.encode(listOf(record)))
 
