@@ -85,7 +85,7 @@ internal fun TripStats(
 }
 
 @Composable
-private fun TripStat(
+internal fun TripStat(
     value: String,
     label: String,
     traffic: TripTraffic? = null,

@@ -391,6 +391,13 @@ internal fun CarScreen(
                         ratedKwhPerMile = health?.ratedKwhPerMile,
                         pricePerKwh = pricePerKwh,
                     )
+                    ChargeSessionsCard(
+                        remember(logs, vehicleCharges, nowMillis) {
+                            withLiveTail(vehicleCharges) { from ->
+                                chargeSessions(logs.battery.fromTime(from) { it.timestampMillis }, nowMillis ?: System.currentTimeMillis())
+                            }
+                        },
+                    )
                     rest?.let { DrainStatsCard(it, current) }
                     health?.let { BatteryHealthCard(it) }
                 }
