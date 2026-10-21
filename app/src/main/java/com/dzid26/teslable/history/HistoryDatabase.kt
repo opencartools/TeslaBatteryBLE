@@ -160,10 +160,10 @@ internal abstract class HistoryDatabase : RoomDatabase() {
             context: Context,
             driver: SQLiteDriver? = null,
         ): HistoryDatabase =
-            runCatching { build(context, driver).also { it.warmUp() } }
+            runCatching { build(context, driver).also { db -> db.warmUp() } }
                 .recoverCatching {
                     context.deleteDatabase(FILE_NAME)
-                    build(context, driver).also { it.warmUp() }
+                    build(context, driver).also { db -> db.warmUp() }
                 }.getOrElse { inMemory(context, driver = driver) }
 
         /** Opens the file now, so a damaged one fails here and not on the first write. */
