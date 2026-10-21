@@ -1,0 +1,103 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "cb6cee03b051d71aa882446b072e0343",
+    "entities": [
+      {
+        "tableName": "records",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `phoneTime` INTEGER NOT NULL, `odometer` INTEGER, `blob` BLOB NOT NULL, `vehicleId` TEXT NOT NULL, `kind` TEXT NOT NULL, `carTimestamp` INTEGER, `originId` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "phoneTime",
+            "columnName": "phoneTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "odometer",
+            "columnName": "odometer",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "blob",
+            "columnName": "blob",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key.vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key.kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key.carTimestamp",
+            "columnName": "carTimestamp",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "key.originId",
+            "columnName": "originId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_records_vehicleId_kind_carTimestamp",
+            "unique": false,
+            "columnNames": [
+              "vehicleId",
+              "kind",
+              "carTimestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_records_vehicleId_kind_carTimestamp` ON `${TABLE_NAME}` (`vehicleId`, `kind`, `carTimestamp`)"
+          },
+          {
+            "name": "index_records_vehicleId_odometer",
+            "unique": false,
+            "columnNames": [
+              "vehicleId",
+              "odometer"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_records_vehicleId_odometer` ON `${TABLE_NAME}` (`vehicleId`, `odometer`)"
+          },
+          {
+            "name": "index_records_phoneTime",
+            "unique": false,
+            "columnNames": [
+              "phoneTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_records_phoneTime` ON `${TABLE_NAME}` (`phoneTime`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cb6cee03b051d71aa882446b072e0343')"
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 # ADR-0014: Room storage for raw records and derived data
 
-Status: Proposed
+Status: Proposed (raw records in `history.db` landed; `owner.db` and `derived.db` are open)
 Date: 2026-10-21
 Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
 
@@ -66,6 +66,23 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   the new version (idempotent through the unique key), then renamed. ADR-0004's
   no-migration rule allows dropping them instead; importing keeps the owner's
   current real-car logs.
+
+## Implementation notes (raw records)
+
+- `carTimestamp` is the car's own `ChargeState`/`DriveState` timestamp and null for every other reply,
+  which `phoneTime` times. `odometer` (hundredths of a mile) comes from drive replies. Room has no
+  annotation for an expression index, so a database callback creates the unique key on
+  `(vehicleId, kind, coalesce(carTimestamp, phoneTime), originId)`; the entity declares the other
+  indexes, and one on `phoneTime` serves age retention. The app's own state has an empty vehicle id and
+  kind `app`. Two records of one series in the same millisecond from one origin collapse to one.
+- Retention runs at start and every 1,000 appends as `DELETE`s in one transaction: rows acquired over
+  90 days ago, then the oldest rows of any (vehicle, kind) series over 200,000. Summaries do not exist
+  yet, so nothing is folded first.
+- The first start under this version imports `<vehicleId>.<kind>.pblog` and `app.pblog` through the unique
+  key and renames them to `*.imported`. `history.db` and its `-wal`/`-shm` are excluded from backup;
+  the origin id lives in the no-backup directory.
+- `HistoryStore.exportLogs` writes the zip. A database that fails to open is deleted and recreated, and
+  failing that the history runs in memory.
 
 ## Consequences
 

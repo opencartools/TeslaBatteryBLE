@@ -23,7 +23,7 @@ import kotlin.math.roundToInt
  * real car, with the odometer moving only across the drives, so the
  * parked-drain projection can tell them apart. Every raw field is filled the way the car reports it, so the
  * chart, stats, and both projections read like real data. Runs once, only for
- * the demo car, and only when no history file exists; it never reaches a
+ * the demo car, and only when no history file exists (nor an imported one); it never reaches a
  * release build (debug source set plus [DemoMode]).
  */
 internal object DemoHistory {
@@ -48,7 +48,8 @@ internal object DemoHistory {
             runCatching { TeslaNames.bleName(DemoMode.DEMO_VIN) }.getOrNull() ?: return
         val dir = File(context.filesDir, HISTORY_DIR_NAME)
         val file = File(dir, "$vehicleId$LOG_SUFFIX")
-        if (file.exists()) return
+        // The history imports and renames the file on its first start, so seed only once.
+        if (file.exists() || File(dir, file.name + ".imported").exists()) return
         dir.mkdirs()
         val now = System.currentTimeMillis()
         val points = timeline()
