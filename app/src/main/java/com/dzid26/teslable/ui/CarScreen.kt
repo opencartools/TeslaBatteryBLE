@@ -391,10 +391,12 @@ internal fun CarScreen(
                         ratedKwhPerMile = health?.ratedKwhPerMile,
                         pricePerKwh = pricePerKwh,
                     )
+                    // Keyed on the minute as well, so a charge that ended while no sample came in stops saying "charging".
+                    val sessionsMinute = (nowMillis ?: rememberNowMillis()) / MILLIS_PER_MINUTE
                     ChargeSessionsCard(
-                        remember(logs, vehicleCharges, nowMillis) {
+                        remember(logs, vehicleCharges, sessionsMinute) {
                             withLiveTail(vehicleCharges) { from ->
-                                chargeSessions(logs.battery.fromTime(from) { it.timestampMillis }, nowMillis ?: System.currentTimeMillis())
+                                chargeSessions(logs.battery.fromTime(from) { it.timestampMillis }, sessionsMinute * MILLIS_PER_MINUTE)
                             }
                         },
                     )
@@ -1139,6 +1141,7 @@ internal fun formatPercent(value: Float): String {
     return if (rounded.toFloat() == value) "$rounded" else String.format(Locale.getDefault(), "%.1f", value)
 }
 
+<<<<<<< HEAD
 /**
  * One car's logs as one value, so the whole-history figures follow them together; compared by identity, so a
  * throttle never compares the lists themselves.
@@ -1154,3 +1157,6 @@ private class VehicleLogs(
 
 /** How often the whole-history figures follow new readings: about every third reading of an awake car. */
 private const val FIGURES_INTERVAL_MILLIS = 30_000L
+=======
+private const val MILLIS_PER_MINUTE = 60_000L
+>>>>>>> f8c4168a (fix: charging sessions card review fixes)
