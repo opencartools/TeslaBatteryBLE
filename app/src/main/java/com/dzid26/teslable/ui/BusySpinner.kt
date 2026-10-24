@@ -24,5 +24,5 @@ internal fun BusySpinner(size: Dp) {
     )
 }
 
-/** Frames per second the spinner asks for: smooth enough for a small spinner, a quarter of a 120 Hz display. */
-private const val SPINNER_FRAME_RATE = 30f
+/** Frames per second the spinner asks for: smooth enough for a small spinner, and a mode many panels have (24 Hz). */
+private const val SPINNER_FRAME_RATE = 24f
