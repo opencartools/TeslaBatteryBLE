@@ -681,7 +681,7 @@ private fun PairingStatus(
             pairing == PairingPhase.WAITING_FOR_CARD
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (inProgress) {
-            IsolatedSpinner(size = 16.dp)
+            BusySpinner(size = 16.dp)
             Spacer(Modifier.width(8.dp))
         }
         Column {

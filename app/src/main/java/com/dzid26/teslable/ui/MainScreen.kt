@@ -30,7 +30,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,7 +54,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -370,7 +368,7 @@ internal fun ConnectionsScreen(
                             modifier = Modifier.weight(1f),
                         )
                         if (state.scanning || state.discovering) {
-                            IsolatedSpinner(size = 18.dp)
+                            BusySpinner(size = 18.dp)
                         }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -728,16 +726,6 @@ internal fun rememberNowMillis(readAtMillis: Long? = null): Long {
 }
 
 /**
- * A spinner drawn into its own layer. An animated indicator invalidates its draw node every frame, and
- * without a layer of its own that reaches the scrolling column it sits in, which then re-records every
- * card and chart on the screen each frame.
- */
-@Composable
-internal fun IsolatedSpinner(size: Dp) {
-    CircularProgressIndicator(modifier = Modifier.size(size).graphicsLayer(), strokeWidth = 2.dp)
-}
-
-/**
  * A small spinner while an Infotainment read is in flight on a connected car. Once it shows it
  * stays at least [READ_SPINNER_MIN_VISIBLE_MS], since a read takes well under a second.
  * [forceVisible] is a deterministic override for the Paparazzi snapshots: when non-null
@@ -750,7 +738,7 @@ internal fun ReadingSpinner(
 ) {
     if (forceVisible != null) {
         if (forceVisible) {
-            IsolatedSpinner(size = 13.dp)
+            BusySpinner(size = 13.dp)
         }
         return
     }
@@ -768,7 +756,7 @@ internal fun ReadingSpinner(
         }
     }
     if (visible) {
-        IsolatedSpinner(size = 13.dp)
+        BusySpinner(size = 13.dp)
     }
 }
 
