@@ -465,6 +465,8 @@ if tap_text "AA:BB:CC:DD:EE:01" 30; then
       # the required list, so a shade that will not open never fails the run.
       adb shell cmd statusbar expand-notifications || true
       if wait_for_contains "Demo Tesla" 10; then
+        # The simulated car navigates: give the trip a moment to reach the notification.
+        wait_for_contains "Arrive with" 15 || true
         sleep 1
         capture 06-notification.png
       else
