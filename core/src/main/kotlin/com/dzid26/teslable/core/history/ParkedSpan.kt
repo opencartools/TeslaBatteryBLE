@@ -209,7 +209,10 @@ private const val LEVEL_RISE_POINTS = 2
 /** Energy-added figures closer than this are the same reading. */
 private const val ENERGY_EPSILON_KWH = 0.01f
 
-/** A parked car's energy-added figure may fall this far as the battery drains; a bigger fall is a new session. */
+/**
+ * A parked car's energy-added figure may fall this far as the battery drains (0.4 kWh in nine hours seen); about 3%
+ * of the pack, the scale of [LEVEL_RISE_POINTS]. A bigger fall is the figure resetting for a new session.
+ */
 private const val ENERGY_DRIFT_KWH = 2f
 
 private const val HOUR_MILLIS = 60 * 60_000L
