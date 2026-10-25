@@ -435,6 +435,7 @@ internal fun HeroCard(
                     live = charge?.battery_level != null,
                     rangeMiles = charge?.battery_range ?: lastKnown?.ratedRangeMiles,
                     scale = scale,
+                    onCharger = charge?.chargingStateKind.let { it == ChargingStateKind.Charging || it == ChargingStateKind.Complete },
                     stateText = display.stateText,
                     connection = connection,
                     nowMillis = nowMillis,
@@ -543,6 +544,7 @@ private fun SocBlock(
     live: Boolean,
     rangeMiles: Float?,
     scale: FullRangeScale?,
+    onCharger: Boolean,
     stateText: String,
     connection: TeslaConnection?,
     nowMillis: Long,
@@ -555,7 +557,8 @@ private fun SocBlock(
     // The fitted tenth is drawn small beside the "%", like the cents of a price.
     // One text node keeps one baseline and the digit order in right-to-left
     // locales; the age and range share the row's baseline.
-    val tenths = scale?.socPercent(rangeMiles)?.let(::socTenths)
+    // On the charger at level 100 the pack is between 99.5 and 100, which the fit cannot split, so it reads a plain 100.
+    val tenths = scale?.socPercent(rangeMiles)?.let(::socTenths)?.takeUnless { onCharger && reading.value >= FULL_LEVEL }
     val separator = remember { DecimalFormatSymbols.getInstance().decimalSeparator }
     val percentStyle = MaterialTheme.typography.headlineSmall.toSpanStyle()
     val socText =
@@ -901,6 +904,8 @@ private fun HistoryRange.label(): String =
             HistoryRange.ALL -> R.string.history_range_all
         },
     )
+
+private const val FULL_LEVEL = 100
 
 private const val REFRESH_FEEDBACK_MS = 2500L
 
