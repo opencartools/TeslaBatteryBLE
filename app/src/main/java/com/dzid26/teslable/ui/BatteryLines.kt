@@ -125,16 +125,22 @@ internal fun rememberPercentAxis(labels: List<Double>): VerticalAxis<Axis.Positi
     )
 }
 
-/** Room above 100% and below 0% so a dot or line there is not clipped by the plot edge. */
-internal const val Y_HEADROOM = 1.0
+/** Room above 100% and below 0%, as a share of the axis span, so the gap is as tall whatever the range. */
+internal const val Y_HEADROOM_SHARE = 0.03
 
-/** The plotted range for axis bounds [low] to [high]: padded by [Y_HEADROOM] where a bound is 0% or 100%. */
+/** The plotted range for axis bounds [low] to [high]: padded by [Y_HEADROOM_SHARE] of the span where a bound is 0% or 100%. */
 internal fun paddedRange(
     low: Double,
     high: Double,
-): ClosedFloatingPointRange<Double> = (if (low <= 0.0) low - Y_HEADROOM else low)..(if (high >= PERCENT_MAX) high + Y_HEADROOM else high)
+): ClosedFloatingPointRange<Double> {
+    val headroom = (high - low) * Y_HEADROOM_SHARE
+    return (if (low <= 0.0) low - headroom else low)..(if (high >= PERCENT_MAX) high + headroom else high)
+}
 
-/** Gridlines and labels at exactly [values], whatever padding the plotted range carries around them. */
+/**
+ * Gridlines and labels at exactly [values], whatever padding the plotted range carries around them.
+ * Written against Vico 3.3.1's `VerticalAxis.ItemPlacer`; the rest of it follows a `count` placer.
+ */
 internal fun labelsAt(values: List<Double>): VerticalAxis.ItemPlacer {
     val base = VerticalAxis.ItemPlacer.count({ values.size })
     return object : VerticalAxis.ItemPlacer by base {
