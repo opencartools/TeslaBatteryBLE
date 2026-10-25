@@ -310,6 +310,7 @@ class CardSnapshots {
                 // Level 100 while charging: the big number reads a plain 100%, not the fitted tenth.
                 battery_level = 100,
                 battery_range = 269.5f,
+                charge_limit_soc = 100,
                 charging_state = ChargeState.ChargingState(Charging = Void()),
                 charger_voltage = 240,
                 charger_actual_current = 16,
