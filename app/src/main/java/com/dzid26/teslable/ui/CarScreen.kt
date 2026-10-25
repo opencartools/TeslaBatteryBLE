@@ -312,7 +312,7 @@ internal fun CarScreen(
                     val liveRoute = activeRoute(vehicle?.let { routes[it.bleName] }, nowMillis ?: rememberNowMillis())
                     TripSection(
                         route = liveRoute,
-                        currentRatedMiles = vehicleHistory.lastOrNull()?.ratedRangeMiles,
+                        latest = vehicleHistory.lastOrNull(),
                         scale = scale,
                         ratedKwhPerMile = health?.ratedKwhPerMile,
                         pricePerKwh = pricePerKwh,

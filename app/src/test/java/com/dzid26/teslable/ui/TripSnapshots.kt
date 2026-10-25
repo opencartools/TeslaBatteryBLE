@@ -35,10 +35,10 @@ class TripSnapshots {
     fun tripCardNavigating() = snapTrip("trip-card_navigating")
 
     @Test
-    fun tripCardTraffic() = snapTrip("trip-card_traffic", trafficDelayMinutes = 2.4f)
+    fun tripCardTraffic() = snapTrip("trip-card_traffic", tripRoute(trafficDelayMinutes = 2.4f))
 
     @Test
-    fun tripCardHeavyTraffic() = snapTrip("trip-card_heavy-traffic", trafficDelayMinutes = 8f)
+    fun tripCardHeavyTraffic() = snapTrip("trip-card_heavy-traffic", tripRoute(trafficDelayMinutes = 8f))
 
     @Test
     fun tripCardNoPrice() = snapTrip("trip-card_no-price", pricePerKwh = null)
@@ -47,36 +47,46 @@ class TripSnapshots {
     fun tripCardUnpinnedScale() = snapTrip("trip-card_unpinned", scale = null)
 
     @Test
-    fun tripCardNoDestination() = snapTrip("trip-card_no-destination", destination = null)
+    fun tripCardNoDestination() = snapTrip("trip-card_no-destination", tripRoute(destination = null))
 
     @Test
     fun tripCardLongDestination() =
-        snapTrip("trip-card_long-destination", destination = "Hotel Restaurant Zur Alten Post am Marktplatz, Obere Hauptstrasse")
+        snapTrip(
+            "trip-card_long-destination",
+            tripRoute(destination = "Hotel Restaurant Zur Alten Post am Marktplatz, Obere Hauptstrasse"),
+        )
+
+    // From 63% now to 5% on arrival: the bar turns red where the level falls under the reserve.
+    @Test
+    fun tripCardLowArrival() = snapTrip("trip-card_low-arrival", tripRoute(arrivalPercent = 5f))
+
+    private fun tripRoute(
+        destination: String? = "Home",
+        trafficDelayMinutes: Float = 0f,
+        arrivalPercent: Float = 44f,
+    ) = RouteSample(
+        NOW,
+        BLE_NAME,
+        destination,
+        4.7f,
+        12.2f,
+        trafficDelayMinutes,
+        arrivalPercent,
+        tripStartMiles = 11.4f,
+        tripStartedAtMillis = NOW - TRIP_ELAPSED_MILLIS,
+    )
 
     private fun snapTrip(
         name: String,
-        destination: String? = "Home",
+        route: RouteSample = tripRoute(),
         pricePerKwh: Float? = 0.30f,
         scale: FullRangeScale? = demoTripScale,
-        trafficDelayMinutes: Float = 0f,
     ) {
-        val route =
-            RouteSample(
-                NOW,
-                BLE_NAME,
-                destination,
-                4.7f,
-                12.2f,
-                trafficDelayMinutes,
-                44f,
-                tripStartMiles = 11.4f,
-                tripStartedAtMillis =
-                    NOW - TRIP_ELAPSED_MILLIS,
-            )
         paparazzi.snapCard(name) {
             TripCard(
                 route,
                 tripEstimate(route, currentRatedMiles = 125f, fullRange = scale, ratedKwhPerMile = 0.25f, pricePerKwh = pricePerKwh),
+                currentPercent = 63f,
             )
         }
     }

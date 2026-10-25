@@ -7,24 +7,21 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 import com.dzid26.teslable.core.health.TripEstimate
 import com.dzid26.teslable.core.health.tripEstimate
+import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.RouteSample
+import com.dzid26.teslable.core.history.tripLowFrom
 import com.dzid26.teslable.core.history.tripProgress
 import com.dzid26.teslable.core.history.tripTotalMillis
 import com.dzid26.teslable.core.units.DistanceUnit
@@ -42,6 +39,7 @@ import kotlin.math.roundToInt
 internal fun TripCard(
     route: RouteSample,
     estimate: TripEstimate,
+    currentPercent: Float?,
     modifier: Modifier = Modifier,
 ) {
     val unit = LocalDistanceUnit.current
@@ -65,16 +63,7 @@ internal fun TripCard(
             )
             route.tripProgress()?.let { progress ->
                 Spacer(Modifier.height(8.dp))
-                val description = stringResource(R.string.trip_progress_description, (progress * PERCENT_FULL).roundToInt())
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .semantics { contentDescription = description },
-                )
+                TripBar(progress, route.tripLowFrom(currentPercent))
             }
             arrivalText(estimate, unit)?.let {
                 Spacer(Modifier.height(8.dp))
@@ -118,7 +107,6 @@ internal fun formatMoney(
 ): String = currencyFormat(currencyCode).format(amount.toDouble())
 
 private const val MILLIS_PER_MINUTE = 60_000L
-private const val PERCENT_FULL = 100f
 
 /**
  * The trip card for a live [route] (see [activeRoute]), nothing for null. The
@@ -128,7 +116,7 @@ private const val PERCENT_FULL = 100f
 @Composable
 internal fun TripSection(
     route: RouteSample?,
-    currentRatedMiles: Float?,
+    latest: BatterySample?,
     scale: FullRangeScale?,
     ratedKwhPerMile: Float?,
     pricePerKwh: Float?,
@@ -136,5 +124,5 @@ internal fun TripSection(
     if (route == null) return
     // The card is for glancing at while driving: keep the screen on and undimmed while it shows.
     KeepScreenOn()
-    TripCard(route, tripEstimate(route, currentRatedMiles, scale, ratedKwhPerMile, pricePerKwh))
+    TripCard(route, tripEstimate(route, latest?.ratedRangeMiles, scale, ratedKwhPerMile, pricePerKwh), latest?.batteryLevel?.toFloat())
 }

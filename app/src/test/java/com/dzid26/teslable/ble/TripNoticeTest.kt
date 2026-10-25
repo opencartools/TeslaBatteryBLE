@@ -50,4 +50,16 @@ class TripNoticeTest {
         assertNull(tripNotice(route(), inputs.copy(scale = null))!!.arrivalRatedMiles)
         assertNull(tripNotice(route(miles = null, minutes = null, arrival = null), inputs))
     }
+
+    @Test
+    fun `carries the progress and where the level falls under the reserve`() {
+        val withLevel = inputs.copy(currentPercent = 50f)
+        val half = route(arrival = 10f).copy(tripStartMiles = 9.4f)
+        val notice = tripNotice(half, withLevel)!!
+        assertEquals(50, notice.progressPercent)
+        // 50% falling to 10% over the second half: 20% is reached three quarters along it.
+        assertEquals(88, notice.lowFromPercent)
+        assertNull(tripNotice(half.copy(energyAtArrivalPercent = 44f), withLevel)!!.lowFromPercent)
+        assertNull(tripNotice(route(), withLevel)!!.progressPercent)
+    }
 }
