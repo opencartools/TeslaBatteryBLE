@@ -10,7 +10,10 @@ import android.text.Spanned
 import android.text.style.StyleSpan
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.IconCompat
+import com.dzid26.teslable.BuildConfig
 import com.dzid26.teslable.R
+import com.dzid26.teslable.TRIP_COLOR_LOW
+import com.dzid26.teslable.TRIP_COLOR_OK
 import com.dzid26.teslable.UnitStore
 import com.dzid26.teslable.core.health.tripEstimate
 import com.dzid26.teslable.core.history.BatterySample
@@ -18,6 +21,7 @@ import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.RouteSample
 import com.dzid26.teslable.core.history.activeRoute
 import com.dzid26.teslable.core.history.compactDuration
+import com.dzid26.teslable.core.history.soc
 import com.dzid26.teslable.core.history.trafficMinutes
 import com.dzid26.teslable.core.history.tripLowFrom
 import com.dzid26.teslable.core.history.tripProgress
@@ -47,16 +51,19 @@ internal data class TripNotice(
 internal data class TripInputs(
     val currentRatedMiles: Float?,
     val scale: FullRangeScale?,
+    /** The level now, from the fitted scale when there is one (see [soc]). */
     val currentPercent: Float? = null,
 )
 
 /** Fits [TripInputs] from one car's [samples]; the work the service caches while the history is unchanged. */
 internal fun tripInputs(samples: List<BatterySample>): TripInputs =
-    TripInputs(
-        currentRatedMiles = samples.lastOrNull()?.ratedRangeMiles,
-        scale = FullRangeScales.of(samples),
-        currentPercent = samples.lastOrNull()?.batteryLevel?.toFloat(),
-    )
+    FullRangeScales.of(samples).let { scale ->
+        TripInputs(
+            currentRatedMiles = samples.lastOrNull()?.ratedRangeMiles,
+            scale = scale,
+            currentPercent = samples.lastOrNull()?.soc(scale),
+        )
+    }
 
 /** The notice for a live [route], or null when it says nothing the shade could show. */
 internal fun tripNotice(
@@ -105,10 +112,10 @@ internal class TripNoticeSource {
 /**
  * Shows the trip on a car's ongoing notification. On Android 16 and later, with the trip's length known, it is a
  * progress notification (a Live Update when the user allows them): the car on a bar that turns red where the
- * car predicts the battery falls under the reserve, and the minutes left in the status bar chip. Otherwise the
- * collapsed line leads with the level and the car's predicted arrival level (or the distance and time left
- * without one), and the expanded text adds the usual state line, then the distance and time left after a bold
- * label and the arrival with its range. Adds to the state text, never replaces it.
+ * car predicts the battery falls under the reserve, and the minutes left in the status bar chip; the state line
+ * moves to the sub-text. Otherwise the collapsed line leads with the level and the car's predicted arrival level
+ * (or the distance and time left without one), and the expanded text adds the usual state line, then the distance
+ * and time left after a bold label and the arrival with its range. Adds to the state text, never replaces it.
  */
 internal fun NotificationCompat.Builder.showTrip(
     text: TripTextContext,
@@ -124,7 +131,10 @@ internal fun NotificationCompat.Builder.showTrip(
     val progress = notice.progressPercent
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && progress != null) {
         val line = listOfNotNull(percent?.let { "$it%" }, text.arrivalShort(notice), remaining).joinToString(" \u00B7 ")
+        // The progress style shows only the content text, so the state line moves to the sub-text (with a PR build's label).
+        val subText = if (BuildConfig.BUILD_LABEL.isEmpty()) stateText else "${BuildConfig.BUILD_LABEL} \u00B7 $stateText"
         return setContentText(line)
+            .setSubText(subText)
             .setStyle(progressStyle(text.context, notice, progress))
             .setShortCriticalText(text.shortRemaining(notice))
             .setRequestPromotedOngoing(true)
@@ -140,27 +150,40 @@ internal fun NotificationCompat.Builder.showTrip(
     return setContentText(headline).setStyle(NotificationCompat.BigTextStyle().bigText(body))
 }
 
+/** One stretch of the notification bar: [length] of [TRIP_BAR_MAX] units, red when [low]. */
+internal data class BarSegment(
+    val length: Int,
+    val low: Boolean,
+)
+
+/** The bar's stretches for a trip whose predicted level falls under the reserve at [lowFromPercent] (null: never). */
+internal fun barSegments(lowFromPercent: Int?): List<BarSegment> {
+    val lowFrom =
+        lowFromPercent?.coerceIn(0, TRIP_BAR_MAX)?.takeIf { it < TRIP_BAR_MAX } ?: return listOf(BarSegment(TRIP_BAR_MAX, low = false))
+    return listOf(BarSegment(lowFrom, low = false), BarSegment(TRIP_BAR_MAX - lowFrom, low = true)).filter { it.length > 0 }
+}
+
 /** The bar: [TRIP_BAR_MAX] units for the whole trip, green up to the predicted low stretch and red from there. */
 private fun progressStyle(
     context: Context,
     notice: TripNotice,
     progress: Int,
 ): NotificationCompat.ProgressStyle {
-    val lowFrom = notice.lowFromPercent?.coerceIn(0, TRIP_BAR_MAX)
     val style =
         NotificationCompat
             .ProgressStyle()
             .setProgress(progress)
             .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_driving_tracker))
-    if (lowFrom == null || lowFrom >= TRIP_BAR_MAX) {
-        return style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(TRIP_BAR_MAX).setColor(COLOR_OK))
-    }
-    if (lowFrom > 0) {
-        style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(lowFrom).setColor(COLOR_OK))
+    var position = 0
+    for (segment in barSegments(notice.lowFromPercent)) {
+        val color = if (segment.low) TRIP_COLOR_LOW else TRIP_COLOR_OK
+        style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(segment.length).setColor(color))
+        if (segment.low && position > 0) {
+            style.addProgressPoint(NotificationCompat.ProgressStyle.Point(position).setColor(TRIP_COLOR_LOW))
+        }
+        position += segment.length
     }
     return style
-        .addProgressSegment(NotificationCompat.ProgressStyle.Segment(TRIP_BAR_MAX - lowFrom).setColor(COLOR_LOW))
-        .addProgressPoint(NotificationCompat.ProgressStyle.Point(lowFrom).setColor(COLOR_LOW))
 }
 
 private fun SpannableStringBuilder.appendBold(
@@ -219,6 +242,4 @@ internal class TripTextContext(
 private const val TENTHS = 10f
 private const val PERCENT_FULL = 100f
 private const val TRIP_BAR_MAX = 100
-private val COLOR_OK = 0xFF2E9D4F.toInt()
-private val COLOR_LOW = 0xFFD93025.toInt()
 private const val MILLIS_PER_MINUTE = 60_000L

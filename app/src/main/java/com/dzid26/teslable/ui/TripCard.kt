@@ -21,6 +21,7 @@ import com.dzid26.teslable.core.health.tripEstimate
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.RouteSample
+import com.dzid26.teslable.core.history.soc
 import com.dzid26.teslable.core.history.tripLowFrom
 import com.dzid26.teslable.core.history.tripProgress
 import com.dzid26.teslable.core.history.tripTotalMillis
@@ -124,5 +125,5 @@ internal fun TripSection(
     if (route == null) return
     // The card is for glancing at while driving: keep the screen on and undimmed while it shows.
     KeepScreenOn()
-    TripCard(route, tripEstimate(route, latest?.ratedRangeMiles, scale, ratedKwhPerMile, pricePerKwh), latest?.batteryLevel?.toFloat())
+    TripCard(route, tripEstimate(route, latest?.ratedRangeMiles, scale, ratedKwhPerMile, pricePerKwh), latest?.soc(scale))
 }

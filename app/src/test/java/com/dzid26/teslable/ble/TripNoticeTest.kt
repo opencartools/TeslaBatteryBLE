@@ -62,4 +62,12 @@ class TripNoticeTest {
         assertNull(tripNotice(half.copy(energyAtArrivalPercent = 44f), withLevel)!!.lowFromPercent)
         assertNull(tripNotice(route(), withLevel)!!.progressPercent)
     }
+
+    @Test
+    fun `the bar is one green stretch, or green then red from where the level falls`() {
+        assertEquals(listOf(BarSegment(100, low = false)), barSegments(null))
+        assertEquals(listOf(BarSegment(100, low = false)), barSegments(100))
+        assertEquals(listOf(BarSegment(88, low = false), BarSegment(12, low = true)), barSegments(88))
+        assertEquals(listOf(BarSegment(100, low = true)), barSegments(0))
+    }
 }
