@@ -8,22 +8,22 @@ import org.junit.Test
 
 class ShownTenthsTest {
     @Test
-    fun aFullCarOnTheChargerReadsOneHundredPointZero() {
-        assertEquals(1000, shownTenths(999, level = 100, onCharger = true))
+    fun aFullCarWhileChargingReadsOneHundredPointZero() {
+        assertEquals(1000, shownTenths(999, level = 100, charging = true))
     }
 
     @Test
-    fun aFullCarOffTheChargerKeepsTheFittedTenth() {
-        assertEquals(999, shownTenths(999, level = 100, onCharger = false))
+    fun aFullCarWhenNotChargingKeepsTheFittedTenth() {
+        assertEquals(999, shownTenths(999, level = 100, charging = false))
     }
 
     @Test
-    fun belowOneHundredTheFittedTenthStaysOnTheCharger() {
-        assertEquals(987, shownTenths(987, level = 99, onCharger = true))
+    fun belowOneHundredTheFittedTenthStaysWhileCharging() {
+        assertEquals(987, shownTenths(987, level = 99, charging = true))
     }
 
     @Test
     fun withoutAFitThereIsNoTenth() {
-        assertNull(shownTenths(null, level = 100, onCharger = true))
+        assertNull(shownTenths(null, level = 100, charging = true))
     }
 }

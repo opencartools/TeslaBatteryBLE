@@ -435,7 +435,7 @@ internal fun HeroCard(
                     live = charge?.battery_level != null,
                     rangeMiles = charge?.battery_range ?: lastKnown?.ratedRangeMiles,
                     scale = scale,
-                    onCharger = charge?.chargingStateKind.let { it == ChargingStateKind.Charging || it == ChargingStateKind.Complete },
+                    charging = charge?.chargingStateKind == ChargingStateKind.Charging,
                     stateText = display.stateText,
                     connection = connection,
                     nowMillis = nowMillis,
@@ -533,12 +533,12 @@ private fun chargerElectricalText(
     return listOfNotNull(volts?.let { "${it}V" }, amps, speed).takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }
 
-/** The fitted [tenths] to show, or a full 100.0 when the car [onCharger] reads level 100; null without a fit. */
+/** The fitted [tenths] to show, or a full 100.0 while the car is [charging] at level 100; null without a fit. */
 internal fun shownTenths(
     tenths: Int?,
     level: Int,
-    onCharger: Boolean,
-): Int? = tenths?.let { if (onCharger && level >= FULL_LEVEL) FULL_LEVEL * TENTHS_PER_PERCENT else it }
+    charging: Boolean,
+): Int? = tenths?.let { if (charging && level >= FULL_LEVEL) FULL_LEVEL * TENTHS_PER_PERCENT else it }
 
 /**
  * The big battery reading, colored like the cars list: primary while fresh,
@@ -551,7 +551,7 @@ private fun SocBlock(
     live: Boolean,
     rangeMiles: Float?,
     scale: FullRangeScale?,
-    onCharger: Boolean,
+    charging: Boolean,
     stateText: String,
     connection: TeslaConnection?,
     nowMillis: Long,
@@ -564,8 +564,8 @@ private fun SocBlock(
     // The fitted tenth is drawn small beside the "%", like the cents of a price.
     // One text node keeps one baseline and the digit order in right-to-left
     // locales; the age and range share the row's baseline.
-    // On the charger at level 100 the pack is between 99.5 and 100, which the fit cannot split, so it reads 100.0.
-    val tenths = shownTenths(scale?.socPercent(rangeMiles)?.let(::socTenths), reading.value, onCharger && !reading.stale)
+    // While charging at level 100 the pack is between 99.5 and 100, which the fit cannot split, so it reads 100.0.
+    val tenths = shownTenths(scale?.socPercent(rangeMiles)?.let(::socTenths), reading.value, charging && !reading.stale)
     val separator = remember { DecimalFormatSymbols.getInstance().decimalSeparator }
     val percentStyle = MaterialTheme.typography.headlineSmall.toSpanStyle()
     val socText =
