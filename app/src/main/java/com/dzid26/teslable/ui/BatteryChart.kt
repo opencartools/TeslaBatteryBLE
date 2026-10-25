@@ -132,10 +132,15 @@ internal fun BatteryChart(
                         ) { LineCartesianLayer.LineProvider.series(shape.specs.map { lines.getValue(it.kind) }) },
                     rangeProvider =
                         remember(shape) {
-                            CartesianLayerRangeProvider.fixed(minX = 0.0, maxX = spanHours, minY = shape.yMin, maxY = shape.yMax)
+                            CartesianLayerRangeProvider.fixed(
+                                minX = 0.0,
+                                maxX = spanHours,
+                                minY = shape.range.start,
+                                maxY = shape.range.endInclusive,
+                            )
                         },
                 ),
-                startAxis = rememberPercentAxis(),
+                startAxis = rememberPercentAxis(shape.gridlines),
                 bottomAxis = rememberTimeAxis(timeFormatter),
                 decorations =
                     remember(shape.specs, shape.beams, pin, cursor, lineColor) {
@@ -210,7 +215,13 @@ internal class BatteryShape(
     val beams: List<Beam>,
     val yMin: Double,
     val yMax: Double,
-)
+) {
+    /** The plotted range: the axis bounds with headroom at 0% and 100%. */
+    val range = paddedRange(yMin, yMax)
+
+    /** Bottom, middle and top gridlines, at the axis bounds rather than the padded range. */
+    val gridlines = listOf(yMin, (yMin + yMax) / 2, yMax)
+}
 
 /** Where a time falls on the x axis: hours since the window start, kept inside the window. */
 internal class Window(

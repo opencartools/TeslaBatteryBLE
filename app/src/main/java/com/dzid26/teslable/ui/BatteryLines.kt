@@ -112,7 +112,7 @@ internal fun rememberAxisStyle(): AxisStyle {
 }
 
 @Composable
-internal fun rememberPercentAxis(): VerticalAxis<Axis.Position.Vertical.Start> {
+internal fun rememberPercentAxis(labels: List<Double>): VerticalAxis<Axis.Position.Vertical.Start> {
     val style = rememberAxisStyle()
     val formatter = remember { CartesianValueFormatter { _, value, _ -> "${formatPercent(value.toFloat())}%" } }
     return VerticalAxis.rememberStart(
@@ -121,8 +121,55 @@ internal fun rememberPercentAxis(): VerticalAxis<Axis.Position.Vertical.Start> {
         line = style.line,
         tick = style.tick,
         guideline = style.guideline,
-        itemPlacer = remember { VerticalAxis.ItemPlacer.count({ Y_GRIDLINES }) },
+        itemPlacer = remember(labels) { labelsAt(labels) },
     )
+}
+
+/** Room above 100% and below 0%, as a share of the axis span, so the gap is as tall whatever the range. */
+internal const val Y_HEADROOM_SHARE = 0.03
+
+/** The plotted range for axis bounds [low] to [high]: padded by [Y_HEADROOM_SHARE] of the span where a bound is 0% or 100%. */
+internal fun paddedRange(
+    low: Double,
+    high: Double,
+): ClosedFloatingPointRange<Double> {
+    val headroom = (high - low) * Y_HEADROOM_SHARE
+    return (if (low <= 0.0) low - headroom else low)..(if (high >= PERCENT_MAX) high + headroom else high)
+}
+
+/**
+ * Gridlines and labels at exactly [values], whatever padding the plotted range carries around them.
+ * Written against Vico 3.3.1's `VerticalAxis.ItemPlacer`; the rest of it follows a `count` placer.
+ */
+internal fun labelsAt(values: List<Double>): VerticalAxis.ItemPlacer {
+    val base = VerticalAxis.ItemPlacer.count({ values.size })
+    return object : VerticalAxis.ItemPlacer by base {
+        override fun getLabelValues(
+            context: CartesianDrawingContext,
+            axisHeight: Float,
+            maxLabelHeight: Float,
+            position: Axis.Position.Vertical,
+        ) = values
+
+        override fun getWidthMeasurementLabelValues(
+            context: CartesianMeasuringContext,
+            axisHeight: Float,
+            maxLabelHeight: Float,
+            position: Axis.Position.Vertical,
+        ) = values
+
+        override fun getHeightMeasurementLabelValues(
+            context: CartesianMeasuringContext,
+            position: Axis.Position.Vertical,
+        ) = values
+
+        override fun getLineValues(
+            context: CartesianDrawingContext,
+            axisHeight: Float,
+            maxLabelHeight: Float,
+            position: Axis.Position.Vertical,
+        ) = values
+    }
 }
 
 /** Two labels, a quarter in from each end: at the very edges a date label would need a wide margin to fit. */
@@ -139,7 +186,7 @@ internal fun rememberTimeAxis(formatter: CartesianValueFormatter): HorizontalAxi
     )
 }
 
-private const val Y_GRIDLINES = 3
+private const val PERCENT_MAX = 100.0
 
 /** The plot's inset at each side: a small share of the screen width, so the lines use nearly all of it. */
 @Composable
