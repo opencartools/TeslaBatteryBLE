@@ -65,6 +65,12 @@ class ParkedSpanTest {
     }
 
     @Test
+    fun `a parked car's energy added creeping down is no session`() {
+        val samples = listOf(sample(0, 100, energy = 47.64f), sample(10, 100, energy = 47.62f), sample(900, 100, energy = 47.22f))
+        assertEquals(900 * MINUTE, assertNotNull(longestParked(samples, drives(samples))).endMillis)
+    }
+
+    @Test
     fun `a charge that has only just begun still counts the stretch before it`() {
         val samples =
             listOf(sample(0, 70, energy = 20f), sample(900, 70, ChargingStateKind.Charging, energy = 0.03f))

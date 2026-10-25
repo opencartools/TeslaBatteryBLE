@@ -2,8 +2,6 @@
 
 package com.dzid26.teslable.core.history
 
-import kotlin.math.abs
-
 /**
  * One stretch the car sat parked: the odometer unchanged, out of gear and not charging from the first read
  * at [startMillis] to the last at [endMillis], however far apart the reads were. [dropPercent] is what the battery lost.
@@ -99,8 +97,10 @@ internal fun parkedBetween(
 /**
  * True when the car was plugged in between two reads. A charge running at [a] counts. At [b] it counts unless
  * the session has only just begun (the energy added is still near zero: the owner came to the car and plugged
- * in, so the stretch before it was parked). With no charge showing at [b], a changed energy-added figure that
- * is not near zero, or a level that rose by more than rounding, says a session ran unseen in the hole.
+ * in, so the stretch before it was parked). With no charge showing at [b], an energy-added figure that rose or
+ * fell by more than [ENERGY_DRIFT_KWH] without being near zero, or a level that rose by more than rounding,
+ * says a session ran unseen in the hole. A parked car's figure creeps down by a few hundredths of a kWh as the
+ * battery drains (47.62 to 47.22 over nine hours at 100%), which is no session.
  */
 internal fun chargedBetween(
     a: BatterySample,
@@ -114,9 +114,15 @@ internal fun chargedBetween(
         b.isCharging -> !begun
         else ->
             b.batteryLevel - a.batteryLevel >= LEVEL_RISE_POINTS ||
-                (before != null && after != null && abs(after - before) > ENERGY_EPSILON_KWH && !begun)
+                (before != null && after != null && !begun && energyMoved(before, after))
     }
 }
+
+/** A rise in the energy added is a session; a fall is one only past the drift a parked car's figure shows. */
+private fun energyMoved(
+    before: Float,
+    after: Float,
+): Boolean = after - before > ENERGY_EPSILON_KWH || before - after > ENERGY_DRIFT_KWH
 
 /**
  * True when nobody was in the car and nothing kept it busy between two reads: the status log never says someone
@@ -202,5 +208,8 @@ private const val LEVEL_RISE_POINTS = 2
 
 /** Energy-added figures closer than this are the same reading. */
 private const val ENERGY_EPSILON_KWH = 0.01f
+
+/** A parked car's energy-added figure may fall this far as the battery drains; a bigger fall is a new session. */
+private const val ENERGY_DRIFT_KWH = 2f
 
 private const val HOUR_MILLIS = 60 * 60_000L
