@@ -102,8 +102,8 @@ internal fun parkedBetween(
  * the session has only just begun (the energy added is still near zero: the owner came to the car and plugged
  * in, so the stretch before it was parked). With no charge showing at [b], a changed energy-added figure that
  * is not near zero, or a level that rose by more than rounding, says a session ran unseen in the hole. The
- * exception is a car still plugged in and Complete at [a]: its figure creeps down as the battery drains (47.62 to
- * 47.22 kWh over nine hours at 100%), so only a rise or a fall past [ENERGY_DRIFT_KWH] counts there.
+ * exception is a car still plugged in and Complete at [a]: its figure falls as the battery drains (47.62 to 47.22
+ * kWh over nine hours at 100%), so only a rise counts there.
  */
 internal fun chargedBetween(
     a: BatterySample,
@@ -121,17 +121,12 @@ internal fun chargedBetween(
     }
 }
 
-/** Any change in the energy added is a session; for a [complete] car a fall counts only past the drift its figure shows. */
+/** Any change in the energy added is a session; for a [complete] car only a rise is, as the figure falls while it drains. */
 private fun energyMoved(
     before: Float,
     after: Float,
     complete: Boolean,
-): Boolean =
-    if (complete) {
-        after - before > ENERGY_EPSILON_KWH || before - after > ENERGY_DRIFT_KWH
-    } else {
-        abs(after - before) > ENERGY_EPSILON_KWH
-    }
+): Boolean = if (complete) after - before > ENERGY_EPSILON_KWH else abs(after - before) > ENERGY_EPSILON_KWH
 
 /**
  * True when nobody was in the car and nothing kept it busy between two reads: the status log never says someone
@@ -217,11 +212,5 @@ private const val LEVEL_RISE_POINTS = 2
 
 /** Energy-added figures closer than this are the same reading. */
 private const val ENERGY_EPSILON_KWH = 0.01f
-
-/**
- * A Complete car's energy-added figure may fall this far as the battery drains (0.4 kWh in nine hours seen); about 3%
- * of the pack, the scale of [LEVEL_RISE_POINTS]. A bigger fall is the figure resetting for a new session.
- */
-private const val ENERGY_DRIFT_KWH = 2f
 
 private const val HOUR_MILLIS = 60 * 60_000L
