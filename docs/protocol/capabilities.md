@@ -103,7 +103,10 @@ has nothing to report**, so absence ≠ zero. Field numbers in parentheses.
   `ideal_battery_range` (113) in miles (2-decimal floats); rated vs
   estimated vs ideal.
 - `charge_energy_added` (116, kWh 1-decimal), `charge_miles_added_rated`
-  (117), `charge_miles_added_ideal` (118).
+  (117), `charge_miles_added_ideal` (118). While the car sits plugged in and
+  `Complete`, `charge_energy_added` creeps down as the pack drains (47.64 to 47.22 kWh
+  over nine hours at 100%); unplugged it holds. The parked-drain code tolerates a fall
+  of up to 2 kWh in that state and reads any other change as a session that ran unseen.
 
 **Charger electrical (EVSE-side, not pack-side)**
 

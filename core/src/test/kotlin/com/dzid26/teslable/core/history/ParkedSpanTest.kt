@@ -65,14 +65,32 @@ class ParkedSpanTest {
     }
 
     @Test
-    fun `a parked car's energy added creeping down is no session`() {
-        val samples = listOf(sample(0, 100, energy = 47.64f), sample(10, 100, energy = 47.62f), sample(900, 100, energy = 47.22f))
+    fun `a plugged in car's energy added creeping down is no session`() {
+        val done = ChargingStateKind.Complete
+        val samples =
+            listOf(
+                sample(0, 100, done, energy = 47.64f),
+                sample(10, 100, done, energy = 47.62f),
+                sample(900, 100, done, energy = 47.22f),
+            )
         assertEquals(900 * MINUTE, assertNotNull(longestParked(samples, drives(samples))).endMillis)
     }
 
     @Test
+    fun `an unplugged car's changed energy added is a session`() {
+        val samples = listOf(sample(0, 100, energy = 47.62f), sample(10, 100, energy = 47.62f), sample(900, 100, energy = 47.22f))
+        assertEquals(10 * MINUTE, assertNotNull(longestParked(samples, drives(samples))).endMillis)
+    }
+
+    @Test
     fun `a fall of energy added past the drift is a new session`() {
-        val samples = listOf(sample(0, 100, energy = 47f), sample(10, 100, energy = 47f), sample(900, 100, energy = 44.9f))
+        val done = ChargingStateKind.Complete
+        val samples =
+            listOf(
+                sample(0, 100, done, energy = 47f),
+                sample(10, 100, done, energy = 47f),
+                sample(900, 100, done, energy = 44.9f),
+            )
         assertEquals(10 * MINUTE, assertNotNull(longestParked(samples, drives(samples))).endMillis)
     }
 
