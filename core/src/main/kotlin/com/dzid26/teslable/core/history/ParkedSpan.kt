@@ -102,8 +102,8 @@ internal fun parkedBetween(
  * the session has only just begun (the energy added is still near zero: the owner came to the car and plugged
  * in, so the stretch before it was parked). With no charge showing at [b], a changed energy-added figure that
  * is not near zero, or a level that rose by more than rounding, says a session ran unseen in the hole. The
- * exception is a car still plugged in and Complete at [a]: its figure falls as the battery drains (47.62 to 47.22
- * kWh over nine hours at 100%), so only a rise counts there.
+ * exception is a car Complete at [a], plugged in and done: its figure falls as the battery drains (47.62 to 47.22
+ * kWh over nine hours at 100%), so it says nothing there and only the level can show a session.
  */
 internal fun chargedBetween(
     a: BatterySample,
@@ -112,21 +112,15 @@ internal fun chargedBetween(
     val before = a.chargeEnergyAdded
     val after = b.chargeEnergyAdded
     val begun = after != null && after <= NEAR_ZERO_KWH
+    val complete = a.chargingState == ChargingStateKind.Complete
     return when {
         a.isCharging -> true
         b.isCharging -> !begun
         else ->
             b.batteryLevel - a.batteryLevel >= LEVEL_RISE_POINTS ||
-                (before != null && after != null && !begun && energyMoved(before, after, a.chargingState == ChargingStateKind.Complete))
+                (!complete && before != null && after != null && !begun && abs(after - before) > ENERGY_EPSILON_KWH)
     }
 }
-
-/** Any change in the energy added is a session; for a [complete] car only a rise is, as the figure falls while it drains. */
-private fun energyMoved(
-    before: Float,
-    after: Float,
-    complete: Boolean,
-): Boolean = if (complete) after - before > ENERGY_EPSILON_KWH else abs(after - before) > ENERGY_EPSILON_KWH
 
 /**
  * True when nobody was in the car and nothing kept it busy between two reads: the status log never says someone

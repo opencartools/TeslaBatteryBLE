@@ -105,8 +105,8 @@ has nothing to report**, so absence ≠ zero. Field numbers in parentheses.
 - `charge_energy_added` (116, kWh 1-decimal), `charge_miles_added_rated`
   (117), `charge_miles_added_ideal` (118). While the car sits plugged in and
   `Complete`, `charge_energy_added` creeps down as the pack drains (47.64 to 47.22 kWh
-  over nine hours at 100%); unplugged it holds. The parked-drain code accepts a fall in that
-  state and reads a rise, or any change while unplugged, as a session that ran unseen.
+  over nine hours at 100%); unplugged it holds. The parked-drain code ignores the figure in that
+  state (a level rise still shows a session) and reads any change while unplugged as one that ran unseen.
 
 **Charger electrical (EVSE-side, not pack-side)**
 

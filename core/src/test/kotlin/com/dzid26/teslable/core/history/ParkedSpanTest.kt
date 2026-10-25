@@ -83,14 +83,9 @@ class ParkedSpanTest {
     }
 
     @Test
-    fun `a rise of energy added after the charge completed is a session`() {
+    fun `a level rise after the charge completed is still a session`() {
         val done = ChargingStateKind.Complete
-        val samples =
-            listOf(
-                sample(0, 100, done, energy = 47f),
-                sample(10, 100, done, energy = 47f),
-                sample(900, 100, done, energy = 47.5f),
-            )
+        val samples = listOf(sample(0, 70, done, energy = 47f), sample(10, 70, done, energy = 47f), sample(900, 75, done, energy = 3f))
         assertEquals(10 * MINUTE, assertNotNull(longestParked(samples, drives(samples))).endMillis)
     }
 
