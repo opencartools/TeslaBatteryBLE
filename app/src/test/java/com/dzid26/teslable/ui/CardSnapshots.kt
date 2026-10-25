@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
@@ -1211,7 +1212,7 @@ internal fun CardFrame(
     darkTheme: Boolean,
     content: @Composable () -> Unit,
 ) {
-    CompositionLocalProvider(LocalIs24Hour provides true) {
+    CompositionLocalProvider(LocalIs24Hour provides true, LocalInspectionMode provides true) {
         MaterialTheme(colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()) {
             Surface {
                 Column(
@@ -1237,7 +1238,7 @@ private fun ScreenFrame(
     darkTheme: Boolean,
     content: @Composable () -> Unit,
 ) {
-    CompositionLocalProvider(LocalIs24Hour provides true) {
+    CompositionLocalProvider(LocalIs24Hour provides true, LocalInspectionMode provides true) {
         DemoSystemBars(darkTheme = darkTheme, content = content)
     }
 }
