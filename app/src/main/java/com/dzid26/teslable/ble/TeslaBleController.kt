@@ -836,7 +836,7 @@ class TeslaBleController(
         val commands = CommandRecorder(bleName, historyStore, rssi = { latestRssi(address) })
 
         /** Whether an Infotainment read is in flight, for the spinner; every exit clears it. */
-        private val readInFlight = ReadInFlight { active -> updateConnection(address) { it.copy(readInFlight = active) } }
+        private val readInFlight = ReadInFlight { progress -> updateConnection(address) { it.copy(readProgress = progress) } }
 
         /** The reason of the read that is waiting for the Infotainment handshake. */
         private var waitingReadReason = Command.Reason.REASON_UNSPECIFIED
@@ -1313,30 +1313,51 @@ class TeslaBleController(
          */
         fun requestChargeState(reason: Command.Reason = CommandRecords.reasonOf(infotainmentPolicy.lastReadReason)) {
             if (reason == Command.Reason.USER_REFRESH) infotainmentPolicy.onUserRequest(System.currentTimeMillis())
+            val now = System.currentTimeMillis()
             when (infotainmentGate.onReadDue(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT))) {
                 InfotainmentSessionGate.Action.SKIP -> {
                     log("${name()}: car is asleep; wake it first")
                     readInFlight.onSkipped()
                 }
 
-                InfotainmentSessionGate.Action.SEND_READ ->
+                InfotainmentSessionGate.Action.SEND_READ -> {
+                    // The read that waited for this session counts the handshake as done; any other starts here.
+                    if (readInFlight.waitingForSession) {
+                        readInFlight.sessionReady(now)
+                    } else {
+                        readInFlight.begin(now, expectedReplies(now), afterHandshake = false)
+                    }
                     sendAuthenticated(
                         domain = Domain.DOMAIN_INFOTAINMENT,
                         payload = TeslaCommands.buildChargeStateRequest(),
                         kind = CommandKind.CHARGE,
                         reason = reason,
                     )
+                }
 
                 // The retry loop is already running; the read goes out when the session arrives.
-                InfotainmentSessionGate.Action.WAIT_FOR_HANDSHAKE -> waitingReadReason = reason
+                InfotainmentSessionGate.Action.WAIT_FOR_HANDSHAKE -> {
+                    waitingReadReason = reason
+                    readInFlight.begin(now, expectedReplies(now), afterHandshake = true)
+                }
 
                 InfotainmentSessionGate.Action.START_HANDSHAKE -> {
                     waitingReadReason = reason
                     log("${name()}: requesting Infotainment session for SOC")
-                    if (!startSession()) infotainmentGate.onNotStartable()
+                    readInFlight.begin(now, expectedReplies(now), afterHandshake = true)
+                    if (!startSession()) {
+                        infotainmentGate.onNotStartable()
+                        readInFlight.onSkipped()
+                    }
                 }
             }
         }
+
+        /** The replies a read starting at [nowMs] expects: charge, drive, closures, climate, and location and tire pressure when due. */
+        private fun expectedReplies(nowMs: Long): Int =
+            BASE_READ_REPLIES +
+                (if (infotainmentPolicy.wantsLocation(nowMs)) 1 else 0) +
+                (if (infotainmentPolicy.wantsTirePressure(nowMs)) 1 else 0)
 
         /**
          * Asks for the next state category after the previous reply (drive
@@ -1557,7 +1578,10 @@ class TeslaBleController(
             // as stored before; Instant.now() can carry finer digits.
             val deviceTimestamp = Instant.ofEpochMilli(System.currentTimeMillis())
             if (handshake.onMessage(message)) return
-            if (handleEncryptedResponse(message, deviceTimestamp)) return
+            val handled = handleEncryptedResponse(message, deviceTimestamp)
+            // A read reply that sent no follow-up ends the read.
+            readInFlight.settle()
+            if (handled) return
             if (pairing.onMessage(message)) return
 
             val status = runCatching { TeslaVcsec.parseStatusResponse(message) }.getOrNull()
@@ -1681,6 +1705,9 @@ class TeslaBleController(
 
     private companion object {
         const val LOG_MAX_LINES = 200
+
+        /** Charge, drive, closures and climate: the replies every read waits for. */
+        const val BASE_READ_REPLIES = 4
         const val COMMAND_EXPIRES_SECONDS = 5
         const val POLL_MS = 10_000L
 

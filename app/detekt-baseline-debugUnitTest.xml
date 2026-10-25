@@ -29,16 +29,6 @@
     <ID>FunctionNaming:FakeCarProtocolTest.kt:FakeCarProtocolTest$@Test fun `the odometer stays put between drive replies`</ID>
     <ID>FunctionNaming:FakeCarProtocolTest.kt:FakeCarProtocolTest$@Test fun `wake decrypts, replies ok, and clears asleep`</ID>
     <ID>FunctionNaming:FakeCarProtocolTest.kt:FakeCarProtocolTest$@Test fun `whitelist reports the enrolled key`</ID>
-    <ID>FunctionNaming:ReadInFlightTest.kt:ReadInFlightTest$@Test fun `a failure, a refusal or a reply without data ends it when no follow-up goes out`</ID>
-    <ID>FunctionNaming:ReadInFlightTest.kt:ReadInFlightTest$@Test fun `a reply with a follow-up keeps the read in flight, the last reply ends it`</ID>
-    <ID>FunctionNaming:ReadInFlightTest.kt:ReadInFlightTest$@Test fun `a spinner stays up for its minimum, then releases at once`</ID>
-    <ID>FunctionNaming:ReadInFlightTest.kt:ReadInFlightTest$@Test fun `an unanswered read ends after the command timeout and not before`</ID>
-    <ID>FunctionNaming:ReadInFlightTest.kt:ReadInFlightTest$@Test fun `each request restarts the timeout`</ID>
-    <ID>FunctionNaming:ReadInFlightTest.kt:ReadInFlightTest$@Test fun `it is off until a read request goes out`</ID>
-    <ID>FunctionNaming:ReadInFlightTest.kt:ReadInFlightTest$@Test fun `the car asleep, so the gate skips the read, ends it`</ID>
-    <ID>FunctionNaming:ReadInFlightTest.kt:ReadInFlightTest$@Test fun `the change callback fires once per change, never twice with the same value`</ID>
-    <ID>FunctionNaming:ReadInFlightTest.kt:ReadInFlightTest$@Test fun `the link dropping ends it`</ID>
-    <ID>FunctionNaming:ReadInFlightTest.kt:ReadInFlightTest$@Test fun `the timeout matches the command log's`</ID>
     <ID>FunctionNaming:ReadingAgeTest.kt:ReadingAgeTest$@Test fun `a car that is not connected never reads now`</ID>
     <ID>FunctionNaming:ReadingAgeTest.kt:ReadingAgeTest$@Test fun `a clock that ran backwards reads now`</ID>
     <ID>FunctionNaming:ReadingAgeTest.kt:ReadingAgeTest$@Test fun `a connected car whose reading greyed by sleep under a minute ago reads now`</ID>
@@ -70,14 +60,6 @@
     <ID>MagicNumber:FakeCarProtocolTest.kt:FakeCarProtocolTest$77</ID>
     <ID>MagicNumber:FakeCarProtocolTest.kt:FakeCarProtocolTest$78</ID>
     <ID>MagicNumber:FakeCarProtocolTest.kt:FakeCarProtocolTest$85</ID>
-    <ID>MagicNumber:ReadInFlightTest.kt:ReadInFlightTest$10</ID>
-    <ID>MagicNumber:ReadInFlightTest.kt:ReadInFlightTest$100</ID>
-    <ID>MagicNumber:ReadInFlightTest.kt:ReadInFlightTest$10_000</ID>
-    <ID>MagicNumber:ReadInFlightTest.kt:ReadInFlightTest$1_000</ID>
-    <ID>MagicNumber:ReadInFlightTest.kt:ReadInFlightTest$200</ID>
-    <ID>MagicNumber:ReadInFlightTest.kt:ReadInFlightTest$400</ID>
-    <ID>MagicNumber:ReadInFlightTest.kt:ReadInFlightTest$400L</ID>
-    <ID>MagicNumber:ReadInFlightTest.kt:ReadInFlightTest$600</ID>
     <ID>MagicNumber:ReadingAgeTest.kt:ReadingAgeTest$10_000</ID>
     <ID>MagicNumber:ReadingAgeTest.kt:ReadingAgeTest$10_001L</ID>
     <ID>MagicNumber:ReadingAgeTest.kt:ReadingAgeTest$12</ID>
