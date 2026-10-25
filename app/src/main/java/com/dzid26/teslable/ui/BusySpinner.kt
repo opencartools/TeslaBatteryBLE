@@ -37,7 +37,10 @@ import kotlinx.coroutines.delay
  * Paparazzi snapshots.
  */
 @Composable
-internal fun BusySpinner(size: Dp) {
+internal fun BusySpinner(
+    size: Dp,
+    strokeWidth: Dp = 2.dp,
+) {
     val angle = remember { mutableFloatStateOf(0f) }
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -62,7 +65,7 @@ internal fun BusySpinner(size: Dp) {
                 .preferredFrameRate(SPINNER_FPS.toFloat())
                 .graphicsLayer { rotationZ = angle.floatValue }
                 .clearAndSetSemantics { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate },
-        strokeWidth = 2.dp,
+        strokeWidth = strokeWidth,
         trackColor = Color.Transparent,
     )
 }

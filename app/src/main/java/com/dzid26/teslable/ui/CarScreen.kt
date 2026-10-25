@@ -442,6 +442,7 @@ internal fun HeroCard(
                     stateText = display.stateText,
                     connection = connection,
                     nowMillis = nowMillis,
+                    indicator = { ReadingSpinner(connection, forceVisible = spinnerOverride, size = READ_RING) },
                 )
                 Spacer(Modifier.height(8.dp))
                 // The session's kWh and cost stay up top while it runs; once it ends they move to the history card's Last charge line.
@@ -452,15 +453,6 @@ internal fun HeroCard(
                         nowMillis,
                     )
                 ChargeDetails(charge, pricePerKwh, showSession = sessionOpen)
-            }
-            // The card's top-right corner, clear of the title and the pill: a spinner while a
-            // read is in flight.
-            Row(
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                ReadingSpinner(connection, forceVisible = spinnerOverride)
             }
         }
     }
@@ -551,9 +543,15 @@ private fun SocBlock(
     stateText: String,
     connection: TeslaConnection?,
     nowMillis: Long,
+    // The read's spinner or progress ring, beside the number the read updates.
+    indicator: @Composable () -> Unit = {},
 ) {
     if (reading == null) {
-        Text(text = stateText, style = MaterialTheme.typography.headlineSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = stateText, style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.width(8.dp))
+            indicator()
+        }
         return
     }
     val color = if (reading.stale) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
@@ -588,6 +586,7 @@ private fun SocBlock(
                 modifier = Modifier.alignByBaseline().padding(start = 6.dp),
             )
         }
+        Box(Modifier.align(Alignment.CenterVertically).padding(start = 8.dp)) { indicator() }
         // The range hugs the bottom-right, just above the progress bar, and wraps
         // right-aligned instead of crowding the age on narrow screens.
         rangeMiles?.let { miles ->
@@ -915,6 +914,9 @@ private const val REFRESH_FEEDBACK_MS = 2500L
 
 private val EDIT_ICON_LIFT = (-10).dp
 private val EDIT_ICON = 18.dp
+
+/** The read ring beside the big percentage. */
+private val READ_RING = 24.dp
 
 /** Green shared by charging segments, dots, and the projected line. */
 internal val chargingChartColor = Color(0xFF43A047)

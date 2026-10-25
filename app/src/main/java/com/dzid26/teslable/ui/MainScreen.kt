@@ -739,10 +739,11 @@ internal fun rememberNowMillis(readAtMillis: Long? = null): Long {
 internal fun ReadingSpinner(
     connection: TeslaConnection?,
     forceVisible: Boolean? = null,
+    size: Dp = 13.dp,
 ) {
     val progress = connection?.readProgress?.takeIf { connection.phase == ConnectionPhase.READY }
     if (forceVisible != null) {
-        if (forceVisible) ReadIndicator(progress?.fraction)
+        if (forceVisible) ReadIndicator(progress?.fraction, size)
         return
     }
     val inFlight = progress != null
@@ -759,25 +760,34 @@ internal fun ReadingSpinner(
         }
     }
     // Once the read is over the ring holds full until it hides.
-    if (visible) ReadIndicator(if (progress == null) 1f else progress.fraction)
+    if (visible) ReadIndicator(if (progress == null) 1f else progress.fraction, size)
 }
 
 /** The spinner until the first step of the read lands ([fraction] null or 0), then the filling ring. */
 @Composable
-private fun ReadIndicator(fraction: Float?) {
+private fun ReadIndicator(
+    fraction: Float?,
+    size: Dp,
+) {
+    // The stroke grows with the ring, so a bigger one does not look hairline.
+    val stroke = size / RING_SIZE_PER_STROKE
     if (fraction == null || fraction == 0f) {
-        BusySpinner(size = 13.dp)
+        BusySpinner(size = size, strokeWidth = stroke)
     } else {
-        ReadProgressRing(fraction)
+        ReadProgressRing(fraction, size, stroke)
     }
 }
 
 @Composable
-private fun ReadProgressRing(fraction: Float) {
+private fun ReadProgressRing(
+    fraction: Float,
+    size: Dp,
+    stroke: Dp,
+) {
     CircularProgressIndicator(
         progress = { fraction },
-        modifier = Modifier.size(13.dp),
-        strokeWidth = 2.dp,
+        modifier = Modifier.size(size),
+        strokeWidth = stroke,
         // The default track is too faint to see at this size; the steps still to come should show.
         trackColor = MaterialTheme.colorScheme.primary.copy(alpha = RING_TRACK_ALPHA),
         gapSize = 0.dp,
@@ -798,6 +808,9 @@ private fun statusColor(
 
 /** How strongly the read ring's unfilled track shows, as a share of the primary colour. */
 private const val RING_TRACK_ALPHA = 0.3f
+
+/** The read ring's size over its stroke width: 2dp at the list's 13dp. */
+private const val RING_SIZE_PER_STROKE = 6.5f
 
 /** The log card's share of the cars-list height; the list keeps the rest. */
 private const val LOG_HEIGHT_FRACTION = 0.3f
