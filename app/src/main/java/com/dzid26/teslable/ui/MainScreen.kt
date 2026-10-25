@@ -767,6 +767,8 @@ private fun ReadProgressRing(fraction: Float) {
         progress = { fraction },
         modifier = Modifier.size(13.dp),
         strokeWidth = 2.dp,
+        // The default track is too faint to see at this size; the steps still to come should show.
+        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = RING_TRACK_ALPHA),
         gapSize = 0.dp,
     )
 }
@@ -782,6 +784,9 @@ private fun statusColor(
         ConnectionLabel.DISCONNECTED, ConnectionLabel.CONNECTING, ConnectionLabel.CONNECTED, ConnectionLabel.ASLEEP ->
             MaterialTheme.colorScheme.onSurfaceVariant
     }
+
+/** How strongly the read ring's unfilled track shows, as a share of the primary colour. */
+private const val RING_TRACK_ALPHA = 0.3f
 
 /** The log card's share of the cars-list height; the list keeps the rest. */
 private const val LOG_HEIGHT_FRACTION = 0.3f

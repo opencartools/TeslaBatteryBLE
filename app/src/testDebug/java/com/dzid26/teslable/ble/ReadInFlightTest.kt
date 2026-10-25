@@ -48,6 +48,17 @@ class ReadInFlightTest {
     }
 
     @Test
+    fun aRefreshMidReadKeepsTheProgress() {
+        read.begin(START, replies = REPLIES, afterHandshake = false)
+        read.onSent(START)
+        reply(followUpAt = START + STEP)
+        // A pull-to-refresh or a poll asks again while the read runs: it adds a request, not a restart.
+        read.begin(START + 2 * STEP, replies = REPLIES, afterHandshake = false)
+        read.onSent(START + 2 * STEP)
+        assertEquals(ReadProgress(1, REPLIES), changes.last())
+    }
+
+    @Test
     fun aReadThatGrowsOnTheWayGrowsItsTotalInsteadOfOverfilling() {
         read.begin(START, replies = 1, afterHandshake = false)
         read.onSent(START)
@@ -56,17 +67,13 @@ class ReadInFlightTest {
     }
 
     @Test
-    fun aReplyWithoutAFollowUpEndsTheRead() {
+    fun aReplyWithoutAFollowUpASkippedReadOrADroppedLinkEndsIt() {
         // A failure, a refusal, a reply without data or a follow-up that could not be sent.
         read.begin(START, replies = REPLIES, afterHandshake = false)
         read.onSent(START)
         reply()
         assertFalse(read.active)
         assertNull(changes.last())
-    }
-
-    @Test
-    fun aSkippedReadOrADroppedLinkEndsIt() {
         read.begin(START, replies = REPLIES, afterHandshake = false)
         read.onSkipped()
         assertFalse(read.active)

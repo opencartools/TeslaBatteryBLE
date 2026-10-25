@@ -1578,9 +1578,14 @@ class TeslaBleController(
             // as stored before; Instant.now() can carry finer digits.
             val deviceTimestamp = Instant.ofEpochMilli(System.currentTimeMillis())
             if (handshake.onMessage(message)) return
-            val handled = handleEncryptedResponse(message, deviceTimestamp)
-            // A read reply that sent no follow-up ends the read.
-            readInFlight.settle()
+            // A read reply that sent no follow-up ends the read, however its handling ended. Follow-ups go
+            // out on this same call (requestFollowUp -> sendAuthenticated -> onSent), so they are counted first.
+            val handled =
+                try {
+                    handleEncryptedResponse(message, deviceTimestamp)
+                } finally {
+                    readInFlight.settle()
+                }
             if (handled) return
             if (pairing.onMessage(message)) return
 

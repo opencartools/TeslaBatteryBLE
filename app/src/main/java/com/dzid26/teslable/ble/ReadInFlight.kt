@@ -45,14 +45,15 @@ internal class ReadInFlight(
 
     /**
      * A read starts at [nowMs] expecting [replies] replies, after a session handshake first when
-     * [afterHandshake]. A read already waiting for its session keeps its progress.
+     * [afterHandshake]. A read already in flight keeps its progress: a refresh or a poll mid-read only
+     * adds requests, which [onSent] counts by growing the total.
      */
     fun begin(
         nowMs: Long,
         replies: Int,
         afterHandshake: Boolean,
     ) {
-        if (waitingForSession) return
+        if (active) return
         awaitingSession = afterHandshake
         done = 0
         total = replies + if (afterHandshake) 1 else 0
