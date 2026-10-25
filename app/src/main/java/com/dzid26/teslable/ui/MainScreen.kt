@@ -728,8 +728,9 @@ internal fun rememberNowMillis(readAtMillis: Long? = null): Long {
 
 /**
  * A small ring that fills as an Infotainment read on a connected car comes in: one segment per step
- * (the session handshake when one is needed, then each reply). It only redraws when a step lands, so
- * unlike a spinner it costs nothing while the car is answering. Once it shows it stays at least
+ * (the session handshake when one is needed, then each reply). Until the first step lands (the
+ * handshake, or the first reply when the session is already up) nothing has moved yet, so it spins
+ * instead. Once filling it only redraws when a step lands, so it costs nothing while the car is answering. Once it shows it stays at least
  * [READ_SPINNER_MIN_VISIBLE_MS], full, since a read can finish in well under a second.
  * [forceVisible] is a deterministic override for the Paparazzi snapshots: when non-null the timing is
  * skipped and the ring shows, at the connection's progress, exactly when true.
@@ -741,7 +742,7 @@ internal fun ReadingSpinner(
 ) {
     val progress = connection?.readProgress?.takeIf { connection.phase == ConnectionPhase.READY }
     if (forceVisible != null) {
-        if (forceVisible) ReadProgressRing(progress?.fraction ?: 0f)
+        if (forceVisible) ReadIndicator(progress?.fraction)
         return
     }
     val inFlight = progress != null
@@ -758,7 +759,17 @@ internal fun ReadingSpinner(
         }
     }
     // Once the read is over the ring holds full until it hides.
-    if (visible) ReadProgressRing(progress?.fraction ?: 1f)
+    if (visible) ReadIndicator(if (progress == null) 1f else progress.fraction)
+}
+
+/** The spinner until the first step of the read lands ([fraction] null or 0), then the filling ring. */
+@Composable
+private fun ReadIndicator(fraction: Float?) {
+    if (fraction == null || fraction == 0f) {
+        BusySpinner(size = 13.dp)
+    } else {
+        ReadProgressRing(fraction)
+    }
 }
 
 @Composable
