@@ -532,6 +532,18 @@ class CardSnapshots {
     }
 
     @Test
+    fun historyCardFullBattery() {
+        // Readings at 100%: the dots sit on the top edge and must be drawn whole.
+        snapCard("history-card_full-battery") {
+            BatteryHistoryCard(
+                samples = fullSamples,
+                drives = emptyList(),
+                nowMillis = NOW,
+            )
+        }
+    }
+
+    @Test
     fun historyCardChargingStalledLevel() {
         // The whole-number level has not ticked for a while but the rated range
         // climbs: the charge line still draws, from the miles.
@@ -929,6 +941,15 @@ class CardSnapshots {
                     projectionSample(30L, 58, charging = true, ratedMiles = 174f).copy(chargerVoltage = 215),
                     projectionSample(0L, 61, charging = true, ratedMiles = 183f).copy(chargerVoltage = 232),
                 )
+
+        private val fullSamples =
+            listOf(
+                projectionSample(20 * 60L, 98, charging = false, ratedMiles = 294f),
+                projectionSample(12 * 60L, 99, charging = true, ratedMiles = 297f),
+                projectionSample(8 * 60L, 100, charging = false, ratedMiles = 300f),
+                projectionSample(4 * 60L, 100, charging = false, ratedMiles = 300f),
+                projectionSample(0L, 100, charging = false, ratedMiles = 300f),
+            )
 
         private val stalledSamples =
             parkedSamples.dropLast(1) +

@@ -49,7 +49,12 @@ private class AxisSpec(
     val yStep: Double,
     val yMin: Double,
     val yMax: Double,
-)
+) {
+    val range = paddedRange(yMin, yMax)
+    val gridlines = generateSequence(yMin) { it + yStep }.takeWhile { it <= yMax + yStep / 2 }.toList()
+
+    fun rangeProvider() = CartesianLayerRangeProvider.fixed(minX = 0.0, maxX = xMax, minY = range.start, maxY = range.endInclusive)
+}
 
 private fun axisSpec(points: List<Plotted>): AxisSpec {
     val span = points.last().distance
@@ -138,14 +143,12 @@ internal fun RangeChart(
                 rememberLineCartesianLayer(
                     lineProvider = rememberDriveLines(trips.size, regenPoints.isNotEmpty(), axes.yMin),
                     rangeProvider =
-                        remember(axes) {
-                            CartesianLayerRangeProvider.fixed(minX = 0.0, maxX = axes.xMax, minY = axes.yMin, maxY = axes.yMax)
-                        },
+                        remember(axes) { axes.rangeProvider() },
                 ),
                 startAxis =
                     VerticalAxis.rememberStart(
                         valueFormatter = yFormatter,
-                        itemPlacer = remember(axes.yStep) { VerticalAxis.ItemPlacer.step({ axes.yStep }) },
+                        itemPlacer = remember(axes) { labelsAt(axes.gridlines) },
                     ),
                 bottomAxis =
                     HorizontalAxis.rememberBottom(

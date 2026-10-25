@@ -67,6 +67,15 @@ class BatteryChartShapeTest {
     }
 
     @Test
+    fun theRangeHasHeadroomAt100AndGridlinesStayOnTheBounds() {
+        val shape = shape(listOf(sample(0.0, 96), sample(1.0, 100)))
+        assertEquals(100.0, shape.yMax, 0.0)
+        assertEquals(101.0, shape.range.endInclusive, 0.0)
+        assertEquals(shape.yMin, shape.range.start, 0.0)
+        assertEquals(listOf(shape.yMin, (shape.yMin + 100.0) / 2, 100.0), shape.gridlines)
+    }
+
+    @Test
     fun aFlatRangeStillSpansFivePoints() {
         val (low, high) = yBounds(listOf(100f), null, null)
         assertTrue(high > low)
