@@ -8,8 +8,8 @@ import org.junit.Test
 
 class ShownTenthsTest {
     @Test
-    fun aFullCarWhileChargingReadsOneHundredPointZero() {
-        assertEquals(1000, shownTenths(999, level = 100, charging = true))
+    fun aFullCarWhileChargingReadsAPlainOneHundred() {
+        assertNull(shownTenths(999, level = 100, charging = true))
     }
 
     @Test
