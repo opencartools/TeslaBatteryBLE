@@ -442,7 +442,12 @@ internal fun HeroCard(
                     stateText = display.stateText,
                     connection = connection,
                     nowMillis = nowMillis,
-                    indicator = { ReadingSpinner(connection, forceVisible = spinnerOverride, size = READ_RING) },
+                    // The ring's room is kept whether or not a read runs, so the age and range never rewrap when it shows.
+                    indicator = {
+                        Box(
+                            Modifier.size(READ_RING),
+                        ) { ReadingSpinner(connection, forceVisible = spinnerOverride, size = READ_RING) }
+                    },
                 )
                 Spacer(Modifier.height(8.dp))
                 // The session's kWh and cost stay up top while it runs; once it ends they move to the history card's Last charge line.
