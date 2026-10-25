@@ -13,7 +13,6 @@ import androidx.core.graphics.drawable.IconCompat
 import com.dzid26.teslable.BuildConfig
 import com.dzid26.teslable.R
 import com.dzid26.teslable.TRIP_COLOR_LOW
-import com.dzid26.teslable.TRIP_COLOR_OK
 import com.dzid26.teslable.UnitStore
 import com.dzid26.teslable.core.health.tripEstimate
 import com.dzid26.teslable.core.history.BatterySample
@@ -111,7 +110,7 @@ internal class TripNoticeSource {
 
 /**
  * Shows the trip on a car's ongoing notification. On Android 16 and later, with the trip's length known, it is a
- * progress notification (a Live Update when the user allows them): the car on a bar that turns red where the
+ * progress notification (a Live Update when the user allows them): the arrow on a bar that turns red where the
  * car predicts the battery falls under the reserve, and the minutes left in the status bar chip; the state line
  * moves to the sub-text. Otherwise the collapsed line leads with the level and the car's predicted arrival level
  * (or the distance and time left without one), and the expanded text adds the usual state line, then the distance
@@ -163,7 +162,7 @@ internal fun barSegments(lowFromPercent: Int?): List<BarSegment> {
     return listOf(BarSegment(lowFrom, low = false), BarSegment(TRIP_BAR_MAX - lowFrom, low = true)).filter { it.length > 0 }
 }
 
-/** The bar: [TRIP_BAR_MAX] units for the whole trip, green up to the predicted low stretch and red from there. */
+/** The bar: [TRIP_BAR_MAX] units for the whole trip, the default color up to the predicted low stretch and red from there. */
 private fun progressStyle(
     context: Context,
     notice: TripNotice,
@@ -176,8 +175,9 @@ private fun progressStyle(
             .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_driving_tracker))
     var position = 0
     for (segment in barSegments(notice.lowFromPercent)) {
-        val color = if (segment.low) TRIP_COLOR_LOW else TRIP_COLOR_OK
-        style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(segment.length).setColor(color))
+        // The normal stretch keeps the system's default color; only the low one is red.
+        val stretch = NotificationCompat.ProgressStyle.Segment(segment.length)
+        style.addProgressSegment(if (segment.low) stretch.setColor(TRIP_COLOR_LOW) else stretch)
         if (segment.low && position > 0) {
             style.addProgressPoint(NotificationCompat.ProgressStyle.Point(position).setColor(TRIP_COLOR_LOW))
         }

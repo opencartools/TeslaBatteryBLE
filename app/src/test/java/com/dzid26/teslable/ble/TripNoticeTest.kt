@@ -64,7 +64,7 @@ class TripNoticeTest {
     }
 
     @Test
-    fun `the bar is one green stretch, or green then red from where the level falls`() {
+    fun `the bar is one normal stretch, or normal then red from where the level falls`() {
         assertEquals(listOf(BarSegment(100, low = false)), barSegments(null))
         assertEquals(listOf(BarSegment(100, low = false)), barSegments(100))
         assertEquals(listOf(BarSegment(88, low = false), BarSegment(12, low = true)), barSegments(88))

@@ -2,6 +2,5 @@
 
 package com.dzid26.teslable
 
-/** The two colors of the trip bar, shared by the trip card and the trip notification so one trip reads the same in both. */
-internal const val TRIP_COLOR_OK = 0xFF2E9D4F.toInt()
+/** The color of the trip bar's predicted-low stretch, shared by the trip card and the trip notification. */
 internal const val TRIP_COLOR_LOW = 0xFFD93025.toInt()
