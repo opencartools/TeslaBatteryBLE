@@ -22,6 +22,7 @@ import com.dzid26.teslable.ble.BleUiState
 import com.dzid26.teslable.ble.ConnectionPhase
 import com.dzid26.teslable.ble.LogEntry
 import com.dzid26.teslable.ble.PairingKeyStore
+import com.dzid26.teslable.ble.ReadProgress
 import com.dzid26.teslable.ble.TeslaAdvert
 import com.dzid26.teslable.ble.TeslaConnection
 import com.dzid26.teslable.ble.Vehicle
@@ -164,7 +165,7 @@ class CardSnapshots {
     fun vehicleCardSpinner() {
         snapCard("vehicle-card_spinner") {
             VehicleCard(
-                row = listRow(liveConnection(readAt = NOW - FRESH_MINUTES * MINUTE, readInFlight = true)),
+                row = listRow(liveConnection(readAt = NOW - FRESH_MINUTES * MINUTE, readProgress = ReadProgress(done = 2, total = 5))),
                 onOpen = {},
                 onEditVin = {},
                 onWake = {},
@@ -379,7 +380,7 @@ class CardSnapshots {
     fun heroCardSpinner() {
         snapCard("hero-card_spinner") {
             HeroCard(
-                connection = liveConnection(readAt = NOW - FRESH_MINUTES * MINUTE, readInFlight = true),
+                connection = liveConnection(readAt = NOW - FRESH_MINUTES * MINUTE, readProgress = ReadProgress(done = 2, total = 5)),
                 advert = advert,
                 vehicle = vehicle,
                 history = emptyList(),
@@ -781,7 +782,7 @@ class CardSnapshots {
             readAt: Long? = null,
             status: VehicleStatus? = awake,
             charge: ChargeState? = liveCharge,
-            readInFlight: Boolean = false,
+            readProgress: ReadProgress? = null,
         ) = TeslaConnection(
             address = ADDRESS,
             name = BLE_NAME,
@@ -789,7 +790,7 @@ class CardSnapshots {
             status = status,
             charge = charge,
             chargeAtMillis = readAt,
-            readInFlight = readInFlight,
+            readProgress = readProgress,
         )
 
         private fun listRow(

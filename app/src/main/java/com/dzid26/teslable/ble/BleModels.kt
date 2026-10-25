@@ -35,14 +35,17 @@ data class TeslaConnection(
     val chargeAtMillis: Long? = null,
     /** When the link last dropped; null while READY, so a disconnected car can show how long it has been. */
     val disconnectedAtMillis: Long? = null,
-    /** An Infotainment read (charge, drive, closures, climate) is in flight; the VCSEC status poll does not count. */
-    val readInFlight: Boolean = false,
+    /** How far the Infotainment read in flight has come; null when none is. The VCSEC status poll does not count. */
+    val readProgress: ReadProgress? = null,
     /** Pairing flow state for this car; idle unless a Pair is in flight. */
     val pairing: PairingPhase = PairingPhase.IDLE,
     val pairingKeyId: String? = null,
 ) {
     /** True when the app key is enrolled (or just was), so the car can authenticate this link. */
     val isPaired: Boolean get() = keySlot != null || pairing == PairingPhase.OK
+
+    /** An Infotainment read is in flight. */
+    val readInFlight: Boolean get() = readProgress != null
 }
 
 data class GattServiceInfo(

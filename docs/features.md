@@ -8,7 +8,8 @@ What the app does today, in detail. The short version is in the [README](../READ
 - **Read battery SOC** and charge state over an authenticated, encrypted session; a
   reading is blue only while it is current (under 5 minutes old, the link up and the car
   awake); after that, or as soon as the link drops or the car sleeps, it turns gray and
-  the car view, the list and the notification say how long ago the phone last read it ("78% 12m ago")
+  the car view, the list and the notification say how long ago the phone last read it ("78% 12m ago"). While a read
+  runs, a small ring on the car card and its row in the list fills one step per reply (the session handshake when one is needed, then charge, drive, closures, climate, and location and tire pressure when due)
 - **How long each state has held** — the car view shows how long the car has been asleep and locked ("Asleep 1h12m · Locked 3h · User away")
   from the status history, and the notification shows how long the car has been asleep;
   no duration is shown when the history does not reach back to the change

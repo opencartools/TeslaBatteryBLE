@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -726,23 +727,25 @@ internal fun rememberNowMillis(readAtMillis: Long? = null): Long {
 }
 
 /**
- * A small spinner while an Infotainment read is in flight on a connected car. Once it shows it
- * stays at least [READ_SPINNER_MIN_VISIBLE_MS], since a read takes well under a second.
- * [forceVisible] is a deterministic override for the Paparazzi snapshots: when non-null
- * the timing is skipped and the spinner shows exactly when true.
+ * A small ring that fills as an Infotainment read on a connected car comes in: one segment per step
+ * (the session handshake when one is needed, then each reply). Until the first step lands (the
+ * handshake, or the first reply when the session is already up) nothing has moved yet, so it spins
+ * instead. Once filling it only redraws when a step lands, so it costs nothing while the car is answering. Once it shows it stays at least
+ * [READ_SPINNER_MIN_VISIBLE_MS], full, since a read can finish in well under a second.
+ * [forceVisible] is a deterministic override for the Paparazzi snapshots: when non-null the timing is
+ * skipped and the ring shows, at the connection's progress, exactly when true.
  */
 @Composable
 internal fun ReadingSpinner(
     connection: TeslaConnection?,
     forceVisible: Boolean? = null,
 ) {
+    val progress = connection?.readProgress?.takeIf { connection.phase == ConnectionPhase.READY }
     if (forceVisible != null) {
-        if (forceVisible) {
-            BusySpinner(size = 13.dp)
-        }
+        if (forceVisible) ReadIndicator(progress?.fraction)
         return
     }
-    val inFlight = connection?.readInFlight == true && connection.phase == ConnectionPhase.READY
+    val inFlight = progress != null
     var visible by remember { mutableStateOf(false) }
     val shownAt = remember { longArrayOf(0L) }
     LaunchedEffect(inFlight) {
@@ -750,14 +753,35 @@ internal fun ReadingSpinner(
             if (!visible) shownAt[0] = System.currentTimeMillis()
             visible = true
         } else if (visible) {
-            // A read that starts again cancels this wait, and the spinner stays up.
+            // A read that starts again cancels this wait, and the ring stays up.
             delay(spinnerHoldMs(shownAt[0], System.currentTimeMillis()))
             visible = false
         }
     }
-    if (visible) {
+    // Once the read is over the ring holds full until it hides.
+    if (visible) ReadIndicator(if (progress == null) 1f else progress.fraction)
+}
+
+/** The spinner until the first step of the read lands ([fraction] null or 0), then the filling ring. */
+@Composable
+private fun ReadIndicator(fraction: Float?) {
+    if (fraction == null || fraction == 0f) {
         BusySpinner(size = 13.dp)
+    } else {
+        ReadProgressRing(fraction)
     }
+}
+
+@Composable
+private fun ReadProgressRing(fraction: Float) {
+    CircularProgressIndicator(
+        progress = { fraction },
+        modifier = Modifier.size(13.dp),
+        strokeWidth = 2.dp,
+        // The default track is too faint to see at this size; the steps still to come should show.
+        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = RING_TRACK_ALPHA),
+        gapSize = 0.dp,
+    )
 }
 
 @Composable
@@ -771,6 +795,9 @@ private fun statusColor(
         ConnectionLabel.DISCONNECTED, ConnectionLabel.CONNECTING, ConnectionLabel.CONNECTED, ConnectionLabel.ASLEEP ->
             MaterialTheme.colorScheme.onSurfaceVariant
     }
+
+/** How strongly the read ring's unfilled track shows, as a share of the primary colour. */
+private const val RING_TRACK_ALPHA = 0.3f
 
 /** The log card's share of the cars-list height; the list keeps the rest. */
 private const val LOG_HEIGHT_FRACTION = 0.3f
