@@ -1,6 +1,10 @@
 name: Run a script on the CI emulator
-description: Boots the one emulator configuration CI uses (API 34, Pixel 6, no window) and runs a script on it.
+description: Boots the emulator CI uses (Pixel 6, no window; API 34 unless asked otherwise) and runs a script on it.
 inputs:
+  api-level:
+    description: Android API level of the system image
+    required: false
+    default: '34'
   script:
     description: Shell script to run once the emulator has booted
     required: true
@@ -9,7 +13,7 @@ runs:
   steps:
     - uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
       with:
-        api-level: 34
+        api-level: ${{ inputs.api-level }}
         target: google_apis
         arch: x86_64
         profile: pixel_6
