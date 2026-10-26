@@ -699,7 +699,7 @@ internal fun StatusPill(
         Text(
             text = label.pillText,
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = PILL_TEXT_INSET, vertical = 4.dp),
         )
     }
 }
@@ -805,6 +805,9 @@ private fun statusColor(
         ConnectionLabel.DISCONNECTED, ConnectionLabel.CONNECTING, ConnectionLabel.CONNECTED, ConnectionLabel.ASLEEP ->
             MaterialTheme.colorScheme.onSurfaceVariant
     }
+
+/** The status pill's horizontal padding: where its text starts and ends inside it. */
+internal val PILL_TEXT_INSET = 10.dp
 
 /** How strongly the read ring's unfilled track shows, as a share of the primary colour. */
 private const val RING_TRACK_ALPHA = 0.3f
