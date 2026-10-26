@@ -5,7 +5,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DriveChartAxisTest {
-    private fun axes(vararg values: Float) = axisSpec(values.mapIndexed { i, v -> Plotted(i * 10.0, v, regenerating = false, trip = 0) })
+    private fun axes(vararg values: Float) =
+        axisSpec(
+            values.mapIndexed { i, v ->
+                Plotted(i * 10.0, v, regenerating = false, trip = 0, timestampMillis = 0)
+            },
+        )
 
     @Test
     fun aRangeTopsOutAt100WithHeadroomAboveItAndLabelsOnTheBound() {
@@ -30,5 +35,10 @@ class DriveChartAxisTest {
         assertEquals(spec.yMin, spec.range.start, 0.0)
         assertEquals(spec.yMax, spec.range.endInclusive, 0.0)
         assertTrue(spec.gridlines.zipWithNext().all { (a, b) -> Math.abs(b - a - spec.yStep) < 1e-9 })
+    }
+
+    @Test
+    fun cursorTextJoinsPercentDistanceAndTime() {
+        assertEquals("71.4% · 12.3mi · Oct 26 14:05", driveCursorText(71.4f, "12.3mi", "Oct 26 14:05"))
     }
 }

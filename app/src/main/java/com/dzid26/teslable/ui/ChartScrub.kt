@@ -57,6 +57,9 @@ internal class CursorPin(
     /** The data x of the point the cursor last snapped to, which a rotation saves. Written while drawing, so not state. */
     var shownX: Double? = null
 
+    /** The index, in the points the cursor snaps to, of the one it last snapped to; for charts whose points repeat an x. */
+    var shownIndex = 0
+
     /** The screen-wide tap count this pin has already answered; a recreated chart must not clear on the count it finds. */
     var seenTaps = CursorDismiss.count
 
@@ -153,8 +156,10 @@ internal class ScrubCursor(
             pin.shownX = null
             return
         }
-        val (x, y) = points.minBy { abs(it.first - dataX) }
+        val index = points.indices.minBy { abs(points[it].first - dataX) }
+        val (x, y) = points[index]
         pin.shownX = x
+        pin.shownIndex = index
         marker.drawOverLayers(context, listOf(PointTarget(x, context.canvasX(x), context.canvasY(y), y, color)))
     }
 }

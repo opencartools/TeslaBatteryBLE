@@ -2,12 +2,14 @@
 
 package com.dzid26.teslable.ui
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -15,8 +17,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.LinearGradientShader
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.dzid26.teslable.core.units.DistanceUnit
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.Zoom
@@ -73,10 +77,42 @@ private fun rememberDriveLines(
     }
 }
 
+/** Where the drive chart's cursor starts; set by the Paparazzi snapshots, which cannot touch the chart. */
+internal val LocalDriveCursor = staticCompositionLocalOf<CursorPin?> { null }
+
+/** The cursor text: percent, distance driven and the date and time of the reading the cursor stands on. */
+@Composable
+private fun rememberDriveDescriber(
+    points: List<Plotted>,
+    unit: DistanceUnit,
+    pin: CursorPin,
+): PointDescriber {
+    val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
+    return remember(points, unit, is24Hour, pin) {
+        PointDescriber { x, y ->
+            // Readings can share a distance, so the time comes from the point the cursor snapped to, not from x.
+            val millis = points[pin.shownIndex].timestampMillis
+            driveCursorText(
+                percent = y.toFloat(),
+                distance = formatDistance(x, unit, DISTANCE_DECIMALS),
+                time = formatTime(millis, showDate = true, is24Hour = is24Hour),
+            )
+        }
+    }
+}
+
+/** "71.4% · 12.3mi · Oct 26 14:05". */
+internal fun driveCursorText(
+    percent: Float,
+    distance: String,
+    time: String,
+): String = "${formatPercent(percent)}% · $distance · $time"
+
 @Composable
 internal fun RangeChart(
     points: List<Plotted>,
     modifier: Modifier = Modifier,
+    pin: CursorPin = LocalDriveCursor.current ?: rememberCursorPin(),
 ) {
     val axes = remember(points) { axisSpec(points) }
     // A trip of one reading has no line to draw; its point still shows as a
@@ -94,12 +130,7 @@ internal fun RangeChart(
     val unit = LocalDistanceUnit.current
     val distanceFormatter = remember(unit) { CartesianValueFormatter { _, value, _ -> formatDistance(value, unit) } }
     val yFormatter = remember { CartesianValueFormatter { _, value, _ -> formatWholePercent(value.toFloat()) } }
-    val cursorDescriber =
-        remember(unit) {
-            PointDescriber { x, y -> "${formatPercent(y.toFloat())}% · ${formatDistance(x, unit, DISTANCE_DECIMALS)}" }
-        }
-
-    val pin = rememberCursorPin()
+    val cursorDescriber = rememberDriveDescriber(points, unit, pin)
 
     ProvideVicoTheme(rememberM3VicoTheme()) {
         val cursor = rememberChartCursor(cursorDescriber)
