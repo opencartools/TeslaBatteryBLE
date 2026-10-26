@@ -159,7 +159,7 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
-    fun `old records are kept: there is no age retention`() {
+    fun `old records are kept because there is no age retention`() {
         val store = store()
         val ancient = NOW_S - Duration.ofDays(3 * 365).seconds
         store.append("car", RecordKind.CHARGE, charge(ancient))
