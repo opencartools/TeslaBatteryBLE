@@ -6,11 +6,13 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.dzid26.teslable.core.history.AppState
 import com.dzid26.teslable.core.history.BleRecord
 import com.dzid26.teslable.core.history.Command
+import com.dzid26.teslable.core.history.ConnectionEvent
 import com.tesla.generated.carserver.vehicle.ChargeState
 import com.tesla.generated.carserver.vehicle.DriveState
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -170,21 +172,70 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
-    fun `the size cap drops the oldest records of the largest series and spares the others`() {
-        val store = store(maxBytes = 1_000)
-        store.appendAll("car", RecordKind.CHARGE, (1L..8L).map { charge(NOW_S - 100 + it) })
-        store.appendAll("car", RecordKind.COMMAND, (1L..3L).map { command(NOW_S - 100 + it) })
+    fun `the car cap drops the oldest car records and spares the events`() {
+        val store = store(maxBytes = 4_000)
+        store.appendAll("car", RecordKind.CHARGE, (1L..20L).map { charge(NOW_S - 100 + it) })
+        store.append("car", RecordKind.COMMAND, command(NOW_S - 50))
 
         store.trim()
 
         val charges = store.readRecent(RecordKind.CHARGE, 100).getValue("car")
-        assertTrue(charges.size in 1..7)
-        assertEquals((8L - charges.size + 1..8L).map { charge(NOW_S - 100 + it) }, charges)
-        assertEquals(3, store.readRecent(RecordKind.COMMAND, 10).getValue("car").size)
+        assertTrue(charges.size in 1..19)
+        assertEquals((20L - charges.size + 1..20L).map { charge(NOW_S - 100 + it) }, charges)
+        assertEquals(listOf(command(NOW_S - 50)), store.readRecent(RecordKind.COMMAND, 10).getValue("car"))
+    }
+
+    @Test
+    fun `the event cap drops the oldest events and spares the car records`() {
+        val store = store(maxBytes = 4_000)
+        store.appendAll("car", RecordKind.CHARGE, listOf(charge(NOW_S - 100), charge(NOW_S - 99)))
+        store.appendAll("car", RecordKind.COMMAND, (1L..8L).map { command(NOW_S - 100 + it) })
+
+        store.trim()
+
+        val commands = store.readRecent(RecordKind.COMMAND, 100).getValue("car")
+        assertTrue(commands.size in 1..7)
+        assertEquals((8L - commands.size + 1..8L).map { command(NOW_S - 100 + it) }, commands)
+        assertEquals(2, store.readRecent(RecordKind.CHARGE, 100).getValue("car").size)
+    }
+
+    @Test
+    fun `two different events in the same millisecond are both stored and an exact duplicate once`() {
+        val store = store()
+        val wake = command(NOW_S - 5)
+        val handshake = BleRecord(device_timestamp = wake.device_timestamp, command = Command(reason = Command.Reason.SESSION_HANDSHAKE))
+        val connected =
+            BleRecord(device_timestamp = wake.device_timestamp, connection_event = ConnectionEvent(state = ConnectionEvent.State.CONNECTED))
+        val disconnected =
+            BleRecord(
+                device_timestamp = wake.device_timestamp,
+                connection_event = ConnectionEvent(state = ConnectionEvent.State.DISCONNECTED),
+            )
+
+        store.appendAll("car", RecordKind.COMMAND, listOf(wake, handshake, wake))
+        store.appendAll("car", RecordKind.CONNECTION, listOf(connected, disconnected))
+
+        assertEquals(2, store.readRecent(RecordKind.COMMAND, 10).getValue("car").size)
+        assertEquals(setOf(connected, disconnected), store.readRecent(RecordKind.CONNECTION, 10).getValue("car").toSet())
+        assertEquals(4, store.rowCount())
+    }
+
+    @Test
+    fun `app events belong to no car and are exported as app pblog`() {
+        val store = store()
+        val screenOn = BleRecord(device_timestamp = Instant.ofEpochSecond(NOW_S), app_state = AppState(event = AppState.Event.SCREEN_ON))
+        val tracking =
+            BleRecord(device_timestamp = Instant.ofEpochSecond(NOW_S), app_state = AppState(event = AppState.Event.TRACKING_STARTED))
+        store.appendAll("", RecordKind.APP, listOf(tracking, screenOn))
+
+        assertEquals(listOf("" to RecordKind.APP), store.series())
+        assertEquals(setOf(tracking, screenOn), store.readRecent(RecordKind.APP, 10).getValue("").toSet())
     }
 
     @Test
     fun `a database that does not open is kept aside as corrupt, not deleted`() {
+        // Windows keeps the failed connection's file handle open, so the rename cannot happen there.
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
         val context = TestContext(folder.root)
         val damaged = "not a database, but the owner's only copy".toByteArray()
         context.getDatabasePath(HistoryDatabase.FILE_NAME).writeBytes(damaged)

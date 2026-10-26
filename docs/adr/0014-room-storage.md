@@ -96,10 +96,18 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   Imported `.pblog` files stay on disk as `*.imported`. `fallbackToDestructiveMigration` is not used;
   real Room migrations are required from the first normal release (ADR-0004: pre-1.0 formats change
   freely, and the old file is kept for the owner).
-- Records of kinds timed only by the phone clock (command, connection, app) that fall in the same
-  millisecond collapse to one row through the unique key. The replay lost 55 of 116,353 rows that way
-  (31 with distinct content); kinds with a car timestamp lost none and the derived chart, drive and
-  status samples came out identical.
+- The phone-side logs (command, connection and app state) live in a second table, `events`
+  `(id, vehicleId, kind, phoneTime, originId, contentHash, blob)`, in the same `history.db`. They follow
+  no car timestamp and several can share a millisecond, which the car table's key would have collapsed
+  (the first replay lost 55 of 116,408 rows that way, 31 of distinct content: a connected/disconnected
+  pair, tracking-started and screen-on, two command results with different reasons). Their unique key is
+  `(vehicleId, kind, originId, phoneTime, contentHash)`, where `contentHash` is the first 64 bits of the
+  blob's SHA-256, so only an exact duplicate is ignored. `vehicleId` is empty for app events (it is part of
+  the key so that two cars' identical events stay apart). Events get 15% of the size cap and the car
+  records the rest, each trimmed oldest-first within itself, so a chatty command log cannot evict car
+  history. Import routes the command, connection and app `.pblog` files into `events`, and the export
+  writes them back as the same framed files. Replay of the same logs: every file matches its original
+  record for record, except 24 exact duplicate command records that were stored twice in the old file.
 
 ## Consequences
 

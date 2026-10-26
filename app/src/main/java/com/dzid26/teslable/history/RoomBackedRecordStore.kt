@@ -17,6 +17,7 @@ internal class RoomBackedRecordStore(
     private val clock: () -> Long = System::currentTimeMillis,
 ) : RecordStore {
     private val dao = db.records()
+    private val events = EventLog(db.events(), originId)
     private var appendsSinceTrim = 0
 
     override fun appendAll(
@@ -26,9 +27,14 @@ internal class RoomBackedRecordStore(
     ) {
         if (records.isEmpty()) return
         val now = clock()
-        val rows = records.map { rowOf(vehicleId, kind, it, now) }
-        db.runInTransaction { dao.insertAll(rows) }
-        appendsSinceTrim += rows.size
+        db.runInTransaction {
+            if (kind.isEvent) {
+                events.append(vehicleId, kind, records, now)
+            } else {
+                dao.insertAll(records.map { rowOf(vehicleId, kind, it, now) })
+            }
+        }
+        appendsSinceTrim += records.size
         if (appendsSinceTrim >= TRIM_EVERY) trim()
     }
 
@@ -36,20 +42,25 @@ internal class RoomBackedRecordStore(
         kind: RecordKind,
         limitPerVehicle: Int,
     ): Map<String, List<BleRecord>> =
-        dao.vehicleIds(kind.id).associateWith { vehicleId ->
-            dao.newest(vehicleId, kind.id, limitPerVehicle).asReversed().mapNotNull(::decode)
+        if (kind.isEvent) {
+            events.readRecent(kind, limitPerVehicle)
+        } else {
+            dao.vehicleIds(kind.id).associateWith { vehicleId ->
+                dao.newest(vehicleId, kind.id, limitPerVehicle).asReversed().mapNotNull(::decode)
+            }
         }
 
     override fun series(): List<Pair<String, RecordKind>> =
         dao.series().mapNotNull { key ->
-            RecordKind.entries.firstOrNull { it.id == key.kind }?.let { key.vehicleId to it }
-        }
+            RecordKind.entries.firstOrNull { it.id == key.kind && !it.isEvent }?.let { key.vehicleId to it }
+        } + events.series()
 
     override fun streamSeries(
         vehicleId: String,
         kind: RecordKind,
         onBatch: (List<BleRecord>) -> Unit,
     ) {
+        if (kind.isEvent) return events.stream(vehicleId, kind, onBatch)
         var afterId = 0L
         while (true) {
             val rows = dao.page(vehicleId, kind.id, afterId, EXPORT_BATCH)
@@ -60,30 +71,21 @@ internal class RoomBackedRecordStore(
     }
 
     /**
-     * The size cap, as `DELETE`s in one transaction: while the rows add up to more than [maxBytes], the
-     * oldest rows of the largest series go, down to [TRIM_TARGET_PERCENT] of the cap. Nothing yet folds
-     * records into summaries first; that joins this transaction with the derived store (ADR-0012).
+     * The size cap, as `DELETE`s in one transaction. The events table gets [EVENT_SHARE_PERCENT] of
+     * [maxBytes] and the car records the rest, each trimmed oldest-first within itself, so a chatty
+     * command log cannot evict car history. Nothing yet folds records into summaries first; that joins
+     * this transaction with the derived store (ADR-0012).
      */
     fun trim() {
         appendsSinceTrim = 0
+        val eventCap = maxBytes / PERCENT * EVENT_SHARE_PERCENT
         db.runInTransaction {
-            var sizes = dao.seriesSizes()
-            var total = sizes.sumOf { it.bytes() }
-            val target = maxBytes / PERCENT * TRIM_TARGET_PERCENT
-            while (total > maxBytes) {
-                val largest = sizes.maxBy { it.bytes() }
-                val perRow = largest.bytes() / largest.rowCount
-                val count = ((total - target) / perRow + 1).coerceAtMost(largest.rowCount)
-                dao.deleteOldest(largest.vehicleId, largest.kind, count.toInt())
-                sizes = dao.seriesSizes()
-                total = sizes.sumOf { it.bytes() }
-            }
+            trimToCap(maxBytes - eventCap, dao::seriesSizes) { series, count -> dao.deleteOldest(series.vehicleId, series.kind, count) }
+            events.trim(eventCap)
         }
     }
 
-    private fun SeriesSize.bytes(): Long = blobBytes + rowCount * ROW_OVERHEAD_BYTES
-
-    fun rowCount(): Int = dao.count()
+    fun rowCount(): Int = dao.count() + events.rowCount()
 
     private fun rowOf(
         vehicleId: String,
@@ -104,13 +106,13 @@ internal class RoomBackedRecordStore(
     private fun decode(row: RecordRow): BleRecord? = runCatching { BleRecord.ADAPTER.decode(row.blob) }.getOrNull()
 
     companion object {
-        /** The safety cap on the rows (blobs plus [ROW_OVERHEAD_BYTES] each); years of history fit under it. */
+        /** The safety cap on the rows (blobs plus the key and index bytes of each row); years of history fit under it. */
         const val MAX_BYTES = 2_000_000_000L
 
-        /** What a row costs on disk besides its blob: the key columns and the indexes (190 bytes measured on real logs). */
-        const val ROW_OVERHEAD_BYTES = 200L
         private const val PERCENT = 100
-        private const val TRIM_TARGET_PERCENT = 90
+
+        /** The share of the size cap the phone-side events may use. */
+        private const val EVENT_SHARE_PERCENT = 15
         private const val TRIM_EVERY = 1_000
         private const val EXPORT_BATCH = 1_000
 

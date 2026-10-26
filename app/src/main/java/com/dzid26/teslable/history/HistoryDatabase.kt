@@ -52,6 +52,34 @@ internal class RecordKey(
     val originId: String,
 )
 
+/**
+ * One phone-side event (ADR-0014): a command the app sent or the car refused, a connection change, or an
+ * app-state change. These carry no car timestamp and several can share a millisecond, so the unique key
+ * adds [EventKey.contentHash], a 64-bit hash of the blob: only an exact duplicate (a re-import) is
+ * ignored. [EventKey.vehicleId] is empty for app events, which belong to no car.
+ */
+@Entity(
+    tableName = "events",
+    indices = [
+        Index(value = ["vehicleId", "kind", "originId", "phoneTime", "contentHash"], unique = true),
+        Index(value = ["vehicleId", "kind", "phoneTime"]),
+    ],
+)
+internal class EventRow(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @Embedded val key: EventKey,
+    val blob: ByteArray,
+)
+
+/** The columns that identify an event. */
+internal class EventKey(
+    val vehicleId: String,
+    val kind: String,
+    val phoneTime: Long,
+    val originId: String,
+    val contentHash: Long,
+)
+
 /** A (vehicle, kind) series, how many rows it holds and the bytes of their blobs. */
 internal class SeriesSize(
     val vehicleId: String,
@@ -116,9 +144,58 @@ internal interface RecordDao {
     ): Int
 }
 
-@Database(entities = [RecordRow::class], version = 1, exportSchema = true)
+@Dao
+internal interface EventDao {
+    /** Inserts the events not already stored (same vehicle, kind, origin, phone time and content). */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    fun insertAll(rows: List<EventRow>): List<Long>
+
+    /** The newest [limit] events of a series, newest first. */
+    @Query("SELECT * FROM events WHERE vehicleId = :vehicleId AND kind = :kind ORDER BY phoneTime DESC, id DESC LIMIT :limit")
+    fun newest(
+        vehicleId: String,
+        kind: String,
+        limit: Int,
+    ): List<EventRow>
+
+    /** Up to [limit] events of a series after [afterId], in insertion order, for streaming reads. */
+    @Query("SELECT * FROM events WHERE vehicleId = :vehicleId AND kind = :kind AND id > :afterId ORDER BY id LIMIT :limit")
+    fun page(
+        vehicleId: String,
+        kind: String,
+        afterId: Long,
+        limit: Int,
+    ): List<EventRow>
+
+    @Query("SELECT DISTINCT vehicleId FROM events WHERE kind = :kind")
+    fun vehicleIds(kind: String): List<String>
+
+    @Query("SELECT DISTINCT vehicleId, kind FROM events")
+    fun series(): List<SeriesKey>
+
+    @Query("SELECT COUNT(*) FROM events")
+    fun count(): Int
+
+    @Query("SELECT vehicleId, kind, COUNT(*) AS rowCount, SUM(length(blob)) AS blobBytes FROM events GROUP BY vehicleId, kind")
+    fun seriesSizes(): List<SeriesSize>
+
+    /** Size retention: drops the [count] oldest events of a series. */
+    @Query(
+        "DELETE FROM events WHERE id IN (SELECT id FROM events WHERE vehicleId = :vehicleId AND kind = :kind " +
+            "ORDER BY phoneTime, id LIMIT :count)",
+    )
+    fun deleteOldest(
+        vehicleId: String,
+        kind: String,
+        count: Int,
+    ): Int
+}
+
+@Database(entities = [RecordRow::class, EventRow::class], version = 1, exportSchema = true)
 internal abstract class HistoryDatabase : RoomDatabase() {
     abstract fun records(): RecordDao
+
+    abstract fun events(): EventDao
 
     companion object {
         const val FILE_NAME = "history.db"
@@ -151,11 +228,22 @@ internal abstract class HistoryDatabase : RoomDatabase() {
             context: Context,
             driver: SQLiteDriver? = null,
         ): HistoryDatabase =
-            runCatching { build(context, driver).also { db -> db.warmUp() } }
+            runCatching { opened(context, driver) }
                 .recoverCatching {
                     quarantine(context)
-                    build(context, driver).also { db -> db.warmUp() }
-                }.getOrElse { inMemory(context, driver = driver) }
+                    opened(context, driver)
+                }.getOrElse { inMemory(context, onMainThread = driver != null, driver = driver) }
+
+        /** Builds and opens the database; one that fails to open is closed again so its files can move. */
+        private fun opened(
+            context: Context,
+            driver: SQLiteDriver?,
+        ): HistoryDatabase {
+            val db = build(context, driver)
+            return runCatching { db.also { it.warmUp() } }
+                .onFailure { runCatching { db.close() } }
+                .getOrThrow()
+        }
 
         /** Moves the database files aside under a name no later quarantine reuses. */
         private fun quarantine(context: Context) {

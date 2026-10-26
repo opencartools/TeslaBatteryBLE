@@ -8,14 +8,16 @@ package com.dzid26.teslable.history
  */
 internal enum class RecordKind(
     val id: String,
+    /** Phone-side events (the app's commands, connection changes and own state) live in the events table. */
+    val isEvent: Boolean = false,
 ) {
     /** The app's own state; belongs to no car, so its vehicle id is empty. */
-    APP("app"),
+    APP("app", isEvent = true),
     CHARGE("charge"),
     CLIMATE("climate"),
     CLOSURES("closures"),
-    COMMAND("command"),
-    CONNECTION("connection"),
+    COMMAND("command", isEvent = true),
+    CONNECTION("connection", isEvent = true),
     DRIVE("drive"),
     LOCATION("location"),
     TIRE_PRESSURE("tire-pressure"),
