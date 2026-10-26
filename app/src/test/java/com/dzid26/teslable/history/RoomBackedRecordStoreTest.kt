@@ -172,6 +172,23 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
+    fun `phone-side events expire after 90 days and car records do not`() {
+        val store = store()
+        val old = NOW_S - Duration.ofDays(91).seconds
+        val recent = NOW_S - Duration.ofDays(89).seconds
+        store.append("car", RecordKind.COMMAND, command(old))
+        store.append("car", RecordKind.COMMAND, command(recent))
+        store.append("", RecordKind.APP, BleRecord(device_timestamp = Instant.ofEpochSecond(old), app_state = AppState()))
+        store.append("car", RecordKind.CHARGE, charge(old))
+
+        store.trim()
+
+        assertEquals(listOf(command(recent)), store.readRecent(RecordKind.COMMAND, 10).getValue("car"))
+        assertEquals(emptyMap<String, List<BleRecord>>(), store.readRecent(RecordKind.APP, 10))
+        assertEquals(listOf(charge(old)), store.readRecent(RecordKind.CHARGE, 10).getValue("car"))
+    }
+
+    @Test
     fun `the car cap drops the oldest car records and spares the events`() {
         val store = store(maxBytes = 4_000)
         store.appendAll("car", RecordKind.CHARGE, (1L..20L).map { charge(NOW_S - 100 + it) })

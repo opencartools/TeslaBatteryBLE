@@ -52,6 +52,9 @@ internal class EventLog(
 
     fun rowCount(): Int = dao.count()
 
+    /** Age retention for the phone-side logs: drops the events older than [before] (epoch millis). */
+    fun expire(before: Long) = dao.deleteBefore(before)
+
     fun trim(cap: Long) = trimToCap(cap, dao::seriesSizes) { series, count -> dao.deleteOldest(series.vehicleId, series.kind, count) }
 
     private fun rowOf(

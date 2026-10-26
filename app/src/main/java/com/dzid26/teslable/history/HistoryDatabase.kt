@@ -176,6 +176,10 @@ internal interface EventDao {
     @Query("SELECT COUNT(*) FROM events")
     fun count(): Int
 
+    /** Age retention: drops every event acquired before [phoneTime]. */
+    @Query("DELETE FROM events WHERE phoneTime < :phoneTime")
+    fun deleteBefore(phoneTime: Long): Int
+
     @Query("SELECT vehicleId, kind, COUNT(*) AS rowCount, SUM(length(blob)) AS blobBytes FROM events GROUP BY vehicleId, kind")
     fun seriesSizes(): List<SeriesSize>
 

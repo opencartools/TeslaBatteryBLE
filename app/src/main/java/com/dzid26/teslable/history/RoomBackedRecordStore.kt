@@ -3,12 +3,14 @@
 package com.dzid26.teslable.history
 
 import com.dzid26.teslable.core.history.BleRecord
+import java.time.Duration
 
 /**
  * The [RecordStore] over `history.db` (ADR-0014). Each record is one row: the encoded [BleRecord] as a
  * blob next to the key columns, so retention is a `DELETE` and nothing is rewritten. [originId] marks
- * this install's rows. Records are kept for years: there is no age retention, only a safety cap on the
- * database's size ([maxBytes]) that runs every [TRIM_EVERY] appends and whenever [trim] is called.
+ * this install's rows. Car records are kept for years (only a safety cap on the database's size,
+ * [maxBytes]); phone-side events for [EVENT_RETENTION]. Retention runs every [TRIM_EVERY] appends and
+ * whenever [trim] is called.
  */
 internal class RoomBackedRecordStore(
     private val db: HistoryDatabase,
@@ -71,8 +73,9 @@ internal class RoomBackedRecordStore(
     }
 
     /**
-     * The size cap, as `DELETE`s in one transaction. The events table gets [EVENT_SHARE_PERCENT] of
-     * [maxBytes] and the car records the rest, each trimmed oldest-first within itself, so a chatty
+     * Retention as `DELETE`s in one transaction. Car records are kept for years: only a size cap applies.
+     * The phone-side events are dropped after [EVENT_RETENTION], and also get [EVENT_SHARE_PERCENT] of
+     * [maxBytes] (the car records the rest), each trimmed oldest-first within itself, so a chatty
      * command log cannot evict car history. Nothing yet folds records into summaries first; that joins
      * this transaction with the derived store (ADR-0012).
      */
@@ -81,6 +84,7 @@ internal class RoomBackedRecordStore(
         val eventCap = maxBytes / PERCENT * EVENT_SHARE_PERCENT
         db.runInTransaction {
             trimToCap(maxBytes - eventCap, dao::seriesSizes) { series, count -> dao.deleteOldest(series.vehicleId, series.kind, count) }
+            events.expire(clock() - EVENT_RETENTION.toMillis())
             events.trim(eventCap)
         }
     }
@@ -110,6 +114,9 @@ internal class RoomBackedRecordStore(
         const val MAX_BYTES = 2_000_000_000L
 
         private const val PERCENT = 100
+
+        /** How long the phone-side events (commands, connection changes, app state) are kept. */
+        val EVENT_RETENTION: Duration = Duration.ofDays(90)
 
         /** The share of the size cap the phone-side events may use. */
         private const val EVENT_SHARE_PERCENT = 15

@@ -103,9 +103,10 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   pair, tracking-started and screen-on, two command results with different reasons). Their unique key is
   `(vehicleId, kind, originId, phoneTime, contentHash)`, where `contentHash` is the first 64 bits of the
   blob's SHA-256, so only an exact duplicate is ignored. `vehicleId` is empty for app events (it is part of
-  the key so that two cars' identical events stay apart). Events get 15% of the size cap and the car
-  records the rest, each trimmed oldest-first within itself, so a chatty command log cannot evict car
-  history. Import routes the command, connection and app `.pblog` files into `events`, and the export
+  the key so that two cars' identical events stay apart). Events are kept for 90 days (owner decision 2026-10-26; deleted by
+  `phoneTime` with the other retention at start and every 1,000 appends) and also get 15% of the size cap as a
+  backstop; the car records get the rest. Each is trimmed oldest-first within itself, so a chatty command log
+  cannot evict car history. Car records have no age retention. Import routes the command, connection and app `.pblog` files into `events`, and the export
   writes them back as the same framed files. Replay of the same logs: every file matches its original
   record for record, except 24 exact duplicate command records that were stored twice in the old file.
 
