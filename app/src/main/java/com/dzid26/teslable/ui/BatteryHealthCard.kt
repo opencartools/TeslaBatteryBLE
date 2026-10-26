@@ -52,21 +52,15 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                     label = "Full range",
                     value = "~${unit.format(miles, DISTANCE_DECIMALS, separator)}",
                     detail = "fitted from ${summary.fullRangeSteps} level steps",
-                    labelHint = fullRangeHint(summary, unit),
+                    valueHint = fullRangeHint(summary, unit),
                 )
             }
             summary.sohPercent?.let { soh ->
                 EstimateRow(
                     label = "Capacity (SoH)",
                     value = "${formatKwh(soh)}%",
-                    valueHint =
-                        summary.newCapacityKwh?.let {
-                            "of ${kwhLabel(it)} when new (rated constant times the new-car range)"
-                        },
+                    valueHint = sohHint(summary),
                     detail = "full range over rated range when new",
-                    labelHint =
-                        "Full range divided by the new-car rated range. To match the degradation your " +
-                            "CAN tool shows, adjust the rated range in Edit car (the pencil).",
                 )
             }
             summary.capacityKwh?.let { kwh ->
@@ -78,10 +72,7 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                             ?.let { constant -> efficiency.format(constant, unit, separator) }
                             ?.let { "from charge energy added, rated constant $it" }
                             ?: "from charge energy added",
-                    labelHint =
-                        "Full range times the car's rated constant. That lands on the full-pack energy a " +
-                            "CAN tool reports, buffer included, although the range itself stops above the " +
-                            "buffer. Usable energy is about 3kWh less.",
+                    valueHint = CAPACITY_HINT,
                 )
             }
             if (summary.capacityKwh == null && summary.fullRangeMiles == null && summary.sohPercent == null) {
@@ -135,6 +126,18 @@ private fun fullRangeHint(
         "$bufferRange, which this range does not count."
 }
 
+/** What the capacity figure covers and how the new-car range can be adjusted; the new-pack energy leads when known. */
+private fun sohHint(summary: HealthSummary): String =
+    listOfNotNull(
+        summary.newCapacityKwh?.let { "of ${kwhLabel(it)} when new (rated constant times the new-car range)." },
+        "Full range divided by the new-car rated range. To match the degradation your CAN tool shows, " +
+            "adjust the rated range in Edit car (the pencil).",
+    ).joinToString(" ")
+
+private const val CAPACITY_HINT =
+    "Full range times the car's rated constant. That lands on the full-pack energy a CAN tool reports, " +
+        "buffer included, although the range itself stops above the buffer. Usable energy is about 3kWh less."
+
 // The energy the car keeps below 0%, as owners read it from the CAN bus.
 private const val BUFFER_KWH = 3f
 
@@ -147,7 +150,6 @@ private fun EstimateRow(
     value: String,
     detail: String,
     valueHint: String? = null,
-    labelHint: String? = null,
 ) {
     Row(
         verticalAlignment = Alignment.Bottom,
@@ -157,11 +159,7 @@ private fun EstimateRow(
                 .padding(vertical = 2.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            if (labelHint != null) {
-                HintText(text = label, hint = labelHint, color = LocalContentColor.current)
-            } else {
-                Text(label, style = MaterialTheme.typography.bodySmall)
-            }
+            Text(label, style = MaterialTheme.typography.bodySmall)
             Text(
                 text = detail,
                 style = MaterialTheme.typography.labelSmall,
