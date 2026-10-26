@@ -107,8 +107,8 @@ internal class RoomBackedRecordStore(
         /** The safety cap on the rows (blobs plus [ROW_OVERHEAD_BYTES] each); years of history fit under it. */
         const val MAX_BYTES = 2_000_000_000L
 
-        /** What a row costs on disk besides its blob: the key columns and the two indexes. */
-        const val ROW_OVERHEAD_BYTES = 100L
+        /** What a row costs on disk besides its blob: the key columns and the indexes (190 bytes measured on real logs). */
+        const val ROW_OVERHEAD_BYTES = 200L
         private const val PERCENT = 100
         private const val TRIM_TARGET_PERCENT = 90
         private const val TRIM_EVERY = 1_000

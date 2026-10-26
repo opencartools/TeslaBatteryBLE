@@ -42,7 +42,8 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   - Writes are batched in short transactions (WAL, `synchronous=NORMAL`).
 - **Retention is a `DELETE`** by age (ADR-0012's 90 days and 200,000-row
   backstop), run in the same transaction that writes the summaries it folds. A
-  record is never deleted before its summary is committed.
+  record is never deleted before its summary is committed. (Age retention is off until the summaries exist;
+  see the implementation notes.)
 - **Two more databases, as in the charging plan.**
   - `owner.db` (backed up): prices and places. Schema export is binding from the
     first normal release.
@@ -75,14 +76,30 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   `(vehicleId, kind, coalesce(carTimestamp, phoneTime), originId)`; the entity declares the other
   indexes, and one on `phoneTime` serves age retention. The app's own state has an empty vehicle id and
   kind `app`. Two records of one series in the same millisecond from one origin collapse to one.
-- Retention runs at start and every 1,000 appends as `DELETE`s in one transaction: rows acquired over
-  90 days ago, then the oldest rows of any (vehicle, kind) series over 200,000. Summaries do not exist
-  yet, so nothing is folded first.
+- There is no age retention for now (owner decision 2026-10-26: keep years, so the stats that read the
+  whole log, such as sleep and rest, the range-scale fit and the health card, keep seeing it). Age
+  retention returns together with the derived store and its summaries (ADR-0012). Until then a safety
+  cap on size runs every 1,000 appends: past 2 GB of rows (blob plus 200 bytes of key and index each),
+  the oldest rows of the largest series are deleted, down to 90% of the cap, in one transaction.
+  Measured on 116,353 real rows (2026-10-26, 14 MB of `.pblog` files from the phone): 13.9 MB of blobs
+  (about 119 bytes a row) in a 36.0 MB `history.db` (no WAL left after close), so 190 bytes a row of key
+  columns and indexes, about 309 bytes a row. At the current polling that is about 12,800 rows
+  (3.9 MB) a day while the command log is chatty (6,900 rows a day over its last 2.8 days) and about
+  6,900 rows (2.1 MB) a day otherwise, so 2 GB holds roughly 1.4 years at the first rate and 2.6 years
+  at the second.
 - The first start under this version imports `<vehicleId>.<kind>.pblog` and `app.pblog` through the unique
   key and renames them to `*.imported`. `history.db` and its `-wal`/`-shm` are excluded from backup;
   the origin id lives in the no-backup directory.
-- `HistoryStore.exportLogs` writes the zip. A database that fails to open is deleted and recreated, and
-  failing that the history runs in memory.
+- `HistoryStore.exportLogs` writes the zip. A database that fails to open (damaged, or a schema
+  without a migration) is never deleted: `history.db` and its `-wal`/`-shm` are renamed to
+  `history.db.corrupt-<time>`, a new database is created, and failing that the history runs in memory.
+  Imported `.pblog` files stay on disk as `*.imported`. `fallbackToDestructiveMigration` is not used;
+  real Room migrations are required from the first normal release (ADR-0004: pre-1.0 formats change
+  freely, and the old file is kept for the owner).
+- Records of kinds timed only by the phone clock (command, connection, app) that fall in the same
+  millisecond collapse to one row through the unique key. The replay lost 55 of 116,353 rows that way
+  (31 with distinct content); kinds with a car timestamp lost none and the derived chart, drive and
+  status samples came out identical.
 
 ## Consequences
 
