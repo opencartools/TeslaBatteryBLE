@@ -533,13 +533,6 @@ private fun chargerElectricalText(
     return listOfNotNull(volts?.let { "${it}V" }, amps, speed).takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }
 
-/** The fitted [tenths] to show; null (the plain integer level) without a fit or while the car is [charging] at level 100. */
-internal fun shownTenths(
-    tenths: Int?,
-    level: Int,
-    charging: Boolean,
-): Int? = tenths?.takeUnless { charging && level >= FULL_LEVEL }
-
 /**
  * The big battery reading, colored like the cars list: primary while fresh,
  * outline once stale. With no reading at all, the connection state shows
@@ -565,7 +558,8 @@ private fun SocBlock(
     // One text node keeps one baseline and the digit order in right-to-left
     // locales; the age and range share the row's baseline.
     // While charging at level 100 the pack is between 99.5 and 100, which the fit cannot split, so it reads a plain 100.
-    val tenths = shownTenths(scale?.socPercent(rangeMiles)?.let(::socTenths), reading.value, charging && !reading.stale)
+    val full = charging && !reading.stale && reading.value >= FULL_LEVEL
+    val tenths = scale?.socPercent(rangeMiles)?.let(::socTenths)?.takeUnless { full }
     val separator = remember { DecimalFormatSymbols.getInstance().decimalSeparator }
     val percentStyle = MaterialTheme.typography.headlineSmall.toSpanStyle()
     val socText =
