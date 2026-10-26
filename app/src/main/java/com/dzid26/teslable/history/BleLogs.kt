@@ -104,6 +104,10 @@ internal class VehicleLogs(
     }
 }
 
+/** Joins per-car record maps of different kinds, keeping every kind's records for a car; `Map + Map` would drop one. */
+internal fun mergeByVehicle(vararg logs: Map<String, List<BleRecord>>): Map<String, List<BleRecord>> =
+    logs.flatMap { it.entries }.groupBy({ it.key }, { it.value }).mapValues { (_, lists) -> lists.flatten() }
+
 /**
  * The app-state log: `app.pblog` in [dir], one file for the whole app (screen, foreground and
  * tracking service are not per car), with the same cap and trim as the vehicle logs. Its name is
