@@ -46,7 +46,7 @@ internal object DemoScreenFixtures {
     private const val RATED_MILES_PER_PERCENT = 3.0f
     private const val KWH_PER_PERCENT = 0.75f
     private const val ODOMETER = 1_234_567
-    private const val DRIVE_STEP = 1_000
+    private const val DRIVE_STEP = 333
     private const val DEMO_RSSI_LIST = -48
     private const val DEMO_RSSI_CAR = -47
     private const val OTHER_RSSI = -78
@@ -184,7 +184,9 @@ internal object DemoScreenFixtures {
         var ago = fromAgo
         while (ago >= toAgo) {
             val fraction = (fromAgo - ago).toDouble() / span
-            val percent = (fromPercent + (toPercent - fromPercent) * fraction).roundToInt()
+            // A drive wobbles: every fourth reading gains a level back, as regen on a downhill does.
+            val regen = if (driving && points.size % REGEN_EVERY == REGEN_EVERY - 1 && ago > toAgo) 1 else 0
+            val percent = (fromPercent + (toPercent - fromPercent) * fraction).roundToInt() + regen
             points += Point(ago, percent, state, charge, driving)
             ago -= stepMin
         }
@@ -197,13 +199,13 @@ internal object DemoScreenFixtures {
             val parked = ChargingStateKind.Disconnected
             val charge = ChargingStateKind.Charging
             addAll(segment(2880L to 2700L, 64 to 63, 60, parked))
-            addAll(segment(2700L to 2580L, 63 to 55, 15, parked, driving = true))
+            addAll(segment(2700L to 2580L, 63 to 55, 5, parked, driving = true))
             addAll(segment(2580L to 2460L, 55 to 54, 60, parked))
             addAll(segment(2460L to 2400L, 54 to 60, 10, charge))
-            addAll(segment(2400L to 2280L, 60 to 52, 15, parked, driving = true))
+            addAll(segment(2400L to 2280L, 60 to 52, 5, parked, driving = true))
             addAll(segment(2280L to 2160L, 52 to 51, 60, parked))
             addAll(segment(2160L to 2040L, 51 to 63, 10, charge))
-            addAll(segment(2040L to 1920L, 63 to 54, 15, parked, driving = true))
+            addAll(segment(2040L to 1920L, 63 to 54, 5, parked, driving = true))
             addAll(segment(1920L to 1560L, 54 to 52, 60, parked))
             addAll(segment(1560L to 1260L, 52 to 85, 10, charge))
             add(Point(1260, 85, ChargingStateKind.Complete))
@@ -246,4 +248,5 @@ internal object DemoScreenFixtures {
     }
 
     private const val DRIVE_SPEED = 40
+    private const val REGEN_EVERY = 4
 }
