@@ -35,8 +35,8 @@ class RoomBackedRecordStoreTest {
 
     private fun store(
         origin: String = "phone-a",
-        max: Int = RoomBackedRecordStore.MAX_ROWS_PER_SERIES,
-    ) = RoomBackedRecordStore(db, origin, maxRowsPerSeries = max, clock = { now })
+        maxBytes: Long = RoomBackedRecordStore.MAX_BYTES,
+    ) = RoomBackedRecordStore(db, origin, maxBytes = maxBytes, clock = { now })
 
     private fun charge(
         carSeconds: Long,
@@ -159,30 +159,44 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
-    fun `age retention deletes records acquired more than 90 days ago`() {
+    fun `old records are kept: there is no age retention`() {
         val store = store()
-        val old = NOW_S - Duration.ofDays(91).seconds
-        val recent = NOW_S - Duration.ofDays(89).seconds
-        store.append("car", RecordKind.CHARGE, charge(old))
-        store.append("car", RecordKind.CHARGE, charge(recent))
-        store.append("", RecordKind.APP, BleRecord(device_timestamp = Instant.ofEpochSecond(old), app_state = AppState()))
+        val ancient = NOW_S - Duration.ofDays(3 * 365).seconds
+        store.append("car", RecordKind.CHARGE, charge(ancient))
 
         store.trim()
 
-        assertEquals(listOf(charge(recent)), store.readRecent(RecordKind.CHARGE, 10).getValue("car"))
-        assertEquals(1, store.rowCount())
+        assertEquals(listOf(charge(ancient)), store.readRecent(RecordKind.CHARGE, 10).getValue("car"))
     }
 
     @Test
-    fun `the row backstop drops the oldest records of a series and spares the others`() {
-        val store = store(max = 5)
+    fun `the size cap drops the oldest records of the largest series and spares the others`() {
+        val store = store(maxBytes = 1_000)
         store.appendAll("car", RecordKind.CHARGE, (1L..8L).map { charge(NOW_S - 100 + it) })
         store.appendAll("car", RecordKind.COMMAND, (1L..3L).map { command(NOW_S - 100 + it) })
 
         store.trim()
 
-        assertEquals((4L..8L).map { charge(NOW_S - 100 + it) }, store.readRecent(RecordKind.CHARGE, 10).getValue("car"))
+        val charges = store.readRecent(RecordKind.CHARGE, 100).getValue("car")
+        assertTrue(charges.size in 1..7)
+        assertEquals((8L - charges.size + 1..8L).map { charge(NOW_S - 100 + it) }, charges)
         assertEquals(3, store.readRecent(RecordKind.COMMAND, 10).getValue("car").size)
+    }
+
+    @Test
+    fun `a database that does not open is kept aside as corrupt, not deleted`() {
+        val context = TestContext(folder.root)
+        val damaged = "not a database, but the owner's only copy".toByteArray()
+        context.getDatabasePath(HistoryDatabase.FILE_NAME).writeBytes(damaged)
+
+        val db = HistoryDatabase.open(context, BundledSQLiteDriver())
+        val fresh = RoomBackedRecordStore(db, "phone-a")
+        fresh.append("car", RecordKind.COMMAND, command(NOW_S))
+        db.close()
+
+        val kept = folder.root.listFiles { file -> file.name.startsWith("${HistoryDatabase.FILE_NAME}.corrupt-") }!!.single()
+        assertEquals(damaged.toList(), kept.readBytes().toList())
+        assertEquals(1, fresh.rowCount())
     }
 
     @Test

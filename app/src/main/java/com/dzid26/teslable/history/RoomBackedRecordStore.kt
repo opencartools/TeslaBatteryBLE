@@ -3,18 +3,17 @@
 package com.dzid26.teslable.history
 
 import com.dzid26.teslable.core.history.BleRecord
-import java.time.Duration
 
 /**
  * The [RecordStore] over `history.db` (ADR-0014). Each record is one row: the encoded [BleRecord] as a
  * blob next to the key columns, so retention is a `DELETE` and nothing is rewritten. [originId] marks
- * this install's rows. Age retention (90 days) and the per-series row backstop (200,000) run every
- * [TRIM_EVERY] appends and whenever [trim] is called.
+ * this install's rows. Records are kept for years: there is no age retention, only a safety cap on the
+ * database's size ([maxBytes]) that runs every [TRIM_EVERY] appends and whenever [trim] is called.
  */
 internal class RoomBackedRecordStore(
     private val db: HistoryDatabase,
     private val originId: String,
-    private val maxRowsPerSeries: Int = MAX_ROWS_PER_SERIES,
+    private val maxBytes: Long = MAX_BYTES,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : RecordStore {
     private val dao = db.records()
@@ -61,21 +60,28 @@ internal class RoomBackedRecordStore(
     }
 
     /**
-     * Retention as `DELETE`s in one transaction: rows acquired more than [RETENTION] before [now], then
-     * the oldest rows of any series over [maxRowsPerSeries]. Nothing yet folds records into
-     * summaries first; that joins this transaction with the derived store (ADR-0012).
+     * The size cap, as `DELETE`s in one transaction: while the rows add up to more than [maxBytes], the
+     * oldest rows of the largest series go, down to [TRIM_TARGET_PERCENT] of the cap. Nothing yet folds
+     * records into summaries first; that joins this transaction with the derived store (ADR-0012).
      */
-    fun trim(now: Long = clock()) {
+    fun trim() {
         appendsSinceTrim = 0
         db.runInTransaction {
-            dao.deleteAcquiredBefore(now - RETENTION.toMillis())
-            for (over in dao.seriesOver(maxRowsPerSeries)) {
-                dao.carTimestampAt(over.vehicleId, over.kind, maxRowsPerSeries)?.let {
-                    dao.deleteUpTo(over.vehicleId, over.kind, it)
-                }
+            var sizes = dao.seriesSizes()
+            var total = sizes.sumOf { it.bytes() }
+            val target = maxBytes / PERCENT * TRIM_TARGET_PERCENT
+            while (total > maxBytes) {
+                val largest = sizes.maxBy { it.bytes() }
+                val perRow = largest.bytes() / largest.rowCount
+                val count = ((total - target) / perRow + 1).coerceAtMost(largest.rowCount)
+                dao.deleteOldest(largest.vehicleId, largest.kind, count.toInt())
+                sizes = dao.seriesSizes()
+                total = sizes.sumOf { it.bytes() }
             }
         }
     }
+
+    private fun SeriesSize.bytes(): Long = blobBytes + rowCount * ROW_OVERHEAD_BYTES
 
     fun rowCount(): Int = dao.count()
 
@@ -98,8 +104,13 @@ internal class RoomBackedRecordStore(
     private fun decode(row: RecordRow): BleRecord? = runCatching { BleRecord.ADAPTER.decode(row.blob) }.getOrNull()
 
     companion object {
-        val RETENTION: Duration = Duration.ofDays(90)
-        const val MAX_ROWS_PER_SERIES = 200_000
+        /** The safety cap on the rows (blobs plus [ROW_OVERHEAD_BYTES] each); years of history fit under it. */
+        const val MAX_BYTES = 2_000_000_000L
+
+        /** What a row costs on disk besides its blob: the key columns and the two indexes. */
+        const val ROW_OVERHEAD_BYTES = 100L
+        private const val PERCENT = 100
+        private const val TRIM_TARGET_PERCENT = 90
         private const val TRIM_EVERY = 1_000
         private const val EXPORT_BATCH = 1_000
 

@@ -18,6 +18,7 @@ import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.SQLiteDriver
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.execSQL
+import java.io.File
 
 /**
  * One raw record (ADR-0014). [blob] is the encoded `BleRecord`, so unknown and future Tesla fields
@@ -33,7 +34,6 @@ import androidx.sqlite.execSQL
     indices = [
         Index(value = ["vehicleId", "kind", "carTimestamp"]),
         Index(value = ["vehicleId", "odometer"]),
-        Index(value = ["phoneTime"]),
     ],
 )
 internal class RecordRow(
@@ -52,11 +52,12 @@ internal class RecordKey(
     val originId: String,
 )
 
-/** A (vehicle, kind) series and how many rows it holds. */
-internal class SeriesCount(
+/** A (vehicle, kind) series, how many rows it holds and the bytes of their blobs. */
+internal class SeriesSize(
     val vehicleId: String,
     val kind: String,
-    val total: Int,
+    val rowCount: Long,
+    val blobBytes: Long,
 )
 
 /** A (vehicle, kind) series. */
@@ -100,30 +101,18 @@ internal interface RecordDao {
     @Query("SELECT COUNT(*) FROM records")
     fun count(): Int
 
-    /** Age retention: drops every row acquired before [phoneTime]. */
-    @Query("DELETE FROM records WHERE phoneTime < :phoneTime")
-    fun deleteAcquiredBefore(phoneTime: Long): Int
+    @Query("SELECT vehicleId, kind, COUNT(*) AS rowCount, SUM(length(blob)) AS blobBytes FROM records GROUP BY vehicleId, kind")
+    fun seriesSizes(): List<SeriesSize>
 
-    @Query("SELECT vehicleId, kind, COUNT(*) AS total FROM records GROUP BY vehicleId, kind HAVING COUNT(*) > :max")
-    fun seriesOver(max: Int): List<SeriesCount>
-
-    /** The time of the row that is [offset] places from the newest in a series, or null. */
+    /** Size retention: drops the [count] oldest rows of a series. */
     @Query(
-        "SELECT coalesce(carTimestamp, phoneTime) FROM records WHERE vehicleId = :vehicleId AND kind = :kind " +
-            "ORDER BY coalesce(carTimestamp, phoneTime) DESC LIMIT 1 OFFSET :offset",
+        "DELETE FROM records WHERE id IN (SELECT id FROM records WHERE vehicleId = :vehicleId AND kind = :kind " +
+            "ORDER BY coalesce(carTimestamp, phoneTime), id LIMIT :count)",
     )
-    fun carTimestampAt(
+    fun deleteOldest(
         vehicleId: String,
         kind: String,
-        offset: Int,
-    ): Long?
-
-    /** Backstop retention: drops a series' rows timed on or before [time]. */
-    @Query("DELETE FROM records WHERE vehicleId = :vehicleId AND kind = :kind AND coalesce(carTimestamp, phoneTime) <= :time")
-    fun deleteUpTo(
-        vehicleId: String,
-        kind: String,
-        time: Long,
+        count: Int,
     ): Int
 }
 
@@ -152,9 +141,11 @@ internal abstract class HistoryDatabase : RoomDatabase() {
             }
 
         /**
-         * Opens `history.db` (WAL, `synchronous=NORMAL`). A database that does not open is deleted and
-         * recreated, and if that fails too the history runs from an empty in-memory one, so a damaged
-         * file never crashes the app (ADR-0014). Call it off the main thread: it opens the file.
+         * Opens `history.db` (WAL, `synchronous=NORMAL`). A database that does not open (damaged, or a
+         * schema no migration covers) is never deleted: it is renamed to `history.db.corrupt-<time>` (with
+         * its `-wal` and `-shm`) and a new one is created, and if that fails too the history runs from an
+         * empty in-memory one, so a damaged file never crashes the app (ADR-0014). Call it off the main
+         * thread: it opens the file.
          */
         fun open(
             context: Context,
@@ -162,9 +153,18 @@ internal abstract class HistoryDatabase : RoomDatabase() {
         ): HistoryDatabase =
             runCatching { build(context, driver).also { db -> db.warmUp() } }
                 .recoverCatching {
-                    context.deleteDatabase(FILE_NAME)
+                    quarantine(context)
                     build(context, driver).also { db -> db.warmUp() }
                 }.getOrElse { inMemory(context, driver = driver) }
+
+        /** Moves the database files aside under a name no later quarantine reuses. */
+        private fun quarantine(context: Context) {
+            val stamp = System.currentTimeMillis()
+            for (suffix in listOf("", "-wal", "-shm")) {
+                val file = context.getDatabasePath(FILE_NAME + suffix)
+                if (file.exists()) file.renameTo(File(file.parentFile, "$FILE_NAME.corrupt-$stamp$suffix"))
+            }
+        }
 
         /** Opens the file now, so a damaged one fails here and not on the first write. */
         private fun HistoryDatabase.warmUp() {
@@ -195,7 +195,6 @@ internal abstract class HistoryDatabase : RoomDatabase() {
             Room
                 .databaseBuilder(context, HistoryDatabase::class.java, FILE_NAME)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                .fallbackToDestructiveMigration(true)
                 .addCallback(keyIndexCallback)
                 .apply {
                     // A driver is only given by the JVM tests, which have no main Looper to tell threads apart.

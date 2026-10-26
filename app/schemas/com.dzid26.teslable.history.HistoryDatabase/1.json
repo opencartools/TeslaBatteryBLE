@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "cb6cee03b051d71aa882446b072e0343",
+    "identityHash": "8c970e642c00f6fe6510b6ec6ad2af22",
     "entities": [
       {
         "tableName": "records",
@@ -82,22 +82,13 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_records_vehicleId_odometer` ON `${TABLE_NAME}` (`vehicleId`, `odometer`)"
-          },
-          {
-            "name": "index_records_phoneTime",
-            "unique": false,
-            "columnNames": [
-              "phoneTime"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_records_phoneTime` ON `${TABLE_NAME}` (`phoneTime`)"
           }
         ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cb6cee03b051d71aa882446b072e0343')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8c970e642c00f6fe6510b6ec6ad2af22')"
     ]
   }
 }
