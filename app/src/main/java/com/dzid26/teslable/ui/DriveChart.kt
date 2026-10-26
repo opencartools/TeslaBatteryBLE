@@ -87,11 +87,21 @@ private fun rememberDriveDescriber(
     return remember(points, unit, is24Hour) {
         PointDescriber { x, y ->
             val millis = points.minBy { abs(it.distance - x) }.timestampMillis
-            "${formatPercent(y.toFloat())}% · ${formatDistance(x, unit, DISTANCE_DECIMALS)} · " +
-                formatTime(millis, showDate = true, is24Hour = is24Hour)
+            driveCursorText(
+                percent = y.toFloat(),
+                distance = formatDistance(x, unit, DISTANCE_DECIMALS),
+                time = formatTime(millis, showDate = true, is24Hour = is24Hour),
+            )
         }
     }
 }
+
+/** "71.4% · 12.3mi · Oct 26 14:05". */
+internal fun driveCursorText(
+    percent: Float,
+    distance: String,
+    time: String,
+): String = "${formatPercent(percent)}% · $distance · $time"
 
 @Composable
 internal fun RangeChart(

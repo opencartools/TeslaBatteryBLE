@@ -36,4 +36,9 @@ class DriveChartAxisTest {
         assertEquals(spec.yMax, spec.range.endInclusive, 0.0)
         assertTrue(spec.gridlines.zipWithNext().all { (a, b) -> Math.abs(b - a - spec.yStep) < 1e-9 })
     }
+
+    @Test
+    fun cursorTextJoinsPercentDistanceAndTime() {
+        assertEquals("71.4% · 12.3mi · Oct 26 14:05", driveCursorText(71.4f, "12.3mi", "Oct 26 14:05"))
+    }
 }
