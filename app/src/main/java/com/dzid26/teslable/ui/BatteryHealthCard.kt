@@ -17,8 +17,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.dzid26.teslable.R
 import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.health.HealthConfidence
 import com.dzid26.teslable.health.HealthSummary
@@ -64,24 +66,19 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                             "of ${kwhLabel(it)} when new (rated constant times the new-car range)"
                         },
                     detail = "full range over rated range when new",
-                    labelHint =
-                        "Full range divided by the new-car rated range. To match the degradation your " +
-                            "CAN tool shows, adjust the rated range in Edit car (the pencil).",
+                    labelHint = stringResource(R.string.health_soh_hint),
                 )
             }
             summary.capacityKwh?.let { kwh ->
                 EstimateRow(
-                    label = "Full-pack capacity",
+                    label = stringResource(R.string.health_capacity_label),
                     value = kwhLabel(kwh),
                     detail =
                         summary.ratedKwhPerMile
                             ?.let { constant -> efficiency.format(constant, unit, separator) }
                             ?.let { "from charge energy added, rated constant $it" }
                             ?: "from charge energy added",
-                    labelHint =
-                        "Full range times the car's rated constant. That lands on the full-pack energy a " +
-                            "CAN tool reports, buffer included, although the range itself stops above the " +
-                            "buffer. Usable energy is about 3kWh less.",
+                    labelHint = stringResource(R.string.health_capacity_hint),
                 )
             }
             if (summary.capacityKwh == null && summary.fullRangeMiles == null && summary.sohPercent == null) {
@@ -121,14 +118,16 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
     }
 }
 
-/** The buffer in range units, so the figure says how much more the car holds below 0%; null until the constant is known. */
+/** What the full range covers and, once the constant is known, what the buffer below 0% is worth in range. */
+@Composable
 private fun fullRangeHint(
     summary: HealthSummary,
     unit: DistanceUnit,
-): String? =
+): String =
     summary.ratedKwhPerMile
         ?.takeIf { it > 0f }
-        ?.let { constant -> "Below 0% the car holds a buffer of about ${unit.format(BUFFER_KWH / constant)} more range." }
+        ?.let { constant -> stringResource(R.string.health_full_range_hint_buffer, unit.format(BUFFER_KWH / constant)) }
+        ?: stringResource(R.string.health_full_range_hint)
 
 // The energy the car keeps below 0%, as owners read it from the CAN bus.
 private const val BUFFER_KWH = 3f
