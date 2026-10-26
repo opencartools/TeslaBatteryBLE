@@ -10,6 +10,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -34,6 +35,7 @@ import com.dzid26.teslable.core.history.CurrentRest
 import com.dzid26.teslable.core.history.DeepSleep
 import com.dzid26.teslable.core.history.DriveSample
 import com.dzid26.teslable.core.history.DriveWindow
+import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.HistoryRange
 import com.dzid26.teslable.core.history.ParkedSpan
 import com.dzid26.teslable.core.history.ProjectionContext
@@ -562,45 +564,41 @@ class CardSnapshots {
         }
     }
 
+    // A pinned scale, a learned rated constant and a home price: every stat line shows.
     @Test
-    fun driveCard() {
-        // A pinned scale, a learned rated constant and a home price: every stat line shows.
-        snapCard("drive-card_percent") {
-            CompositionLocalProvider(LocalPricePerKwh provides 0.30f, LocalCurrencyCode provides "USD") {
-                DriveHistoryCard(
-                    samples = driveSamples(),
-                    drives = driveReadings(),
-                    initialWindow = DriveWindow.SINCE_CHARGE,
-                    scale = demoTripScale,
-                    ratedKwhPerMile = 0.25f,
-                )
-            }
-        }
-    }
+    fun driveCard() = snapDrive("drive-card_percent", pricePerKwh = HOME_PRICE)
 
+    // The cursor stands on the fourth reading, 25mi in: the percent, the distance and when it was read.
     @Test
-    fun driveCardUnpriced() {
-        // A pinned scale but no home price: the percent per distance stands in for the cost per distance.
-        snapCard("drive-card_unpriced") {
+    fun driveCardCursor() = snapDrive("drive-card_cursor", pricePerKwh = HOME_PRICE, cursorX = 25.0)
+
+    // A pinned scale but no home price: the percent per distance stands in for the cost per distance.
+    @Test
+    fun driveCardUnpriced() = snapDrive("drive-card_unpriced")
+
+    // No scale yet: whole-percent steps, so the used figure carries the hint and only the percent rate shows.
+    @Test
+    fun driveCardUnlearned() = snapDrive("drive-card_unlearned", scale = null, ratedKwhPerMile = null)
+
+    private fun snapDrive(
+        name: String,
+        pricePerKwh: Float? = null,
+        scale: FullRangeScale? = demoTripScale,
+        ratedKwhPerMile: Float? = 0.25f,
+        cursorX: Double? = null,
+    ) = snapCard(name) {
+        val cursor = cursorX?.let { remember { CursorPin(restoredX = it) } }
+        CompositionLocalProvider(
+            LocalPricePerKwh provides pricePerKwh,
+            LocalCurrencyCode provides "USD",
+            LocalDriveCursor provides cursor,
+        ) {
             DriveHistoryCard(
                 samples = driveSamples(),
                 drives = driveReadings(),
                 initialWindow = DriveWindow.SINCE_CHARGE,
-                scale = demoTripScale,
-                ratedKwhPerMile = 0.25f,
-            )
-        }
-    }
-
-    @Test
-    fun driveCardUnlearned() {
-        // No scale yet: whole-percent steps, so the used figure carries the hint and only the percent rate shows.
-        snapCard("drive-card_unlearned") {
-            DriveHistoryCard(
-                samples = driveSamples(),
-                drives = driveReadings(),
-                initialWindow = DriveWindow.SINCE_CHARGE,
-                scale = null,
+                scale = scale,
+                ratedKwhPerMile = ratedKwhPerMile,
             )
         }
     }

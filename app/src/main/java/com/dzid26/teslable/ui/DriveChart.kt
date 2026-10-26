@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -39,7 +40,6 @@ import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
-import kotlin.math.abs
 
 /**
  * One orange line per trip with its gradient, and, when any reading was
@@ -77,16 +77,21 @@ private fun rememberDriveLines(
     }
 }
 
-/** The cursor text: percent, distance driven and the date and time of the nearest reading. */
+/** Where the drive chart's cursor starts; set by the Paparazzi snapshots, which cannot touch the chart. */
+internal val LocalDriveCursor = staticCompositionLocalOf<CursorPin?> { null }
+
+/** The cursor text: percent, distance driven and the date and time of the reading the cursor stands on. */
 @Composable
 private fun rememberDriveDescriber(
     points: List<Plotted>,
     unit: DistanceUnit,
+    pin: CursorPin,
 ): PointDescriber {
     val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
-    return remember(points, unit, is24Hour) {
+    return remember(points, unit, is24Hour, pin) {
         PointDescriber { x, y ->
-            val millis = points.minBy { abs(it.distance - x) }.timestampMillis
+            // Readings can share a distance, so the time comes from the point the cursor snapped to, not from x.
+            val millis = points[pin.shownIndex].timestampMillis
             driveCursorText(
                 percent = y.toFloat(),
                 distance = formatDistance(x, unit, DISTANCE_DECIMALS),
@@ -107,6 +112,7 @@ internal fun driveCursorText(
 internal fun RangeChart(
     points: List<Plotted>,
     modifier: Modifier = Modifier,
+    pin: CursorPin = LocalDriveCursor.current ?: rememberCursorPin(),
 ) {
     val axes = remember(points) { axisSpec(points) }
     // A trip of one reading has no line to draw; its point still shows as a
@@ -124,9 +130,7 @@ internal fun RangeChart(
     val unit = LocalDistanceUnit.current
     val distanceFormatter = remember(unit) { CartesianValueFormatter { _, value, _ -> formatDistance(value, unit) } }
     val yFormatter = remember { CartesianValueFormatter { _, value, _ -> formatWholePercent(value.toFloat()) } }
-    val cursorDescriber = rememberDriveDescriber(points, unit)
-
-    val pin = rememberCursorPin()
+    val cursorDescriber = rememberDriveDescriber(points, unit, pin)
 
     ProvideVicoTheme(rememberM3VicoTheme()) {
         val cursor = rememberChartCursor(cursorDescriber)
