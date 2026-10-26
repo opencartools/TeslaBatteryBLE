@@ -20,7 +20,9 @@ import com.tesla.generated.vcsec.UserPresence_E
 import com.tesla.generated.vcsec.VehicleLockState_E
 import com.tesla.generated.vcsec.VehicleSleepStatus_E
 import com.tesla.generated.vcsec.VehicleStatus
+import kotlin.math.PI
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /**
  * The simulated car as the full-screen snapshots show it, so the release
@@ -46,7 +48,7 @@ internal object DemoScreenFixtures {
     private const val RATED_MILES_PER_PERCENT = 3.0f
     private const val KWH_PER_PERCENT = 0.75f
     private const val ODOMETER = 1_234_567
-    private const val DRIVE_STEP = 333
+    private const val DRIVE_STEP = 11
     private const val DEMO_RSSI_LIST = -48
     private const val DEMO_RSSI_CAR = -47
     private const val OTHER_RSSI = -78
@@ -161,72 +163,81 @@ internal object DemoScreenFixtures {
         }
 
     private data class Point(
-        val minutesAgo: Long,
-        val percent: Int,
+        val secondsAgo: Long,
+        val percent: Float,
         val state: ChargingStateKind,
-        val chargeStartPercent: Int? = null,
+        val chargeStartPercent: Float? = null,
         val driving: Boolean = false,
+        val regenerating: Boolean = false,
     )
 
-    /** Points from `minutes.first` to `.second` minutes ago, the level moving from `levels.first` to `.second`. */
+    /**
+     * Points from `minutes.first` to `.second` minutes ago, the level moving from `levels.first` to `.second`, one
+     * every [stepSeconds]. A drive is read every ten seconds, with the level wobbling around its descent so the car
+     * regenerates now and then; the level is fractional, as the fitted scale makes it.
+     */
     private fun segment(
         minutes: Pair<Long, Long>,
         levels: Pair<Int, Int>,
-        stepMin: Long,
+        stepSeconds: Long,
         state: ChargingStateKind,
         driving: Boolean = false,
     ): List<Point> {
-        val (fromAgo, toAgo) = minutes
+        val fromAgo = minutes.first * SECONDS_PER_MINUTE
+        val toAgo = minutes.second * SECONDS_PER_MINUTE
         val (fromPercent, toPercent) = levels
         val span = (fromAgo - toAgo).coerceAtLeast(1L)
-        val charge = if (state == ChargingStateKind.Charging) fromPercent else null
+        val charge = if (state == ChargingStateKind.Charging) fromPercent.toFloat() else null
         val points = mutableListOf<Point>()
         var ago = fromAgo
+        var previous = fromPercent.toFloat()
         while (ago >= toAgo) {
             val fraction = (fromAgo - ago).toDouble() / span
-            // A drive wobbles: every fourth reading gains a level back, as regen on a downhill does.
-            val regen = if (driving && points.size % REGEN_EVERY == REGEN_EVERY - 1 && ago > toAgo) 1 else 0
-            val percent = (fromPercent + (toPercent - fromPercent) * fraction).roundToInt() + regen
-            points += Point(ago, percent, state, charge, driving)
-            ago -= stepMin
+            val trend = fromPercent + (toPercent - fromPercent) * fraction
+            val wobble = if (driving) sin(fraction * 2 * PI * DRIVE_WAVES) * DRIVE_WOBBLE_PERCENT * sin(fraction * PI) else 0.0
+            val percent = (trend + wobble).toFloat()
+            points += Point(ago, percent, state, charge, driving, regenerating = driving && percent > previous)
+            previous = percent
+            ago -= stepSeconds
         }
-        if (points.last().minutesAgo != toAgo) points += Point(toAgo, toPercent, state, charge, driving)
         return points
     }
+
+    private fun minutes(count: Long) = count * SECONDS_PER_MINUTE
 
     private val timeline: List<Point> =
         buildList {
             val parked = ChargingStateKind.Disconnected
             val charge = ChargingStateKind.Charging
-            addAll(segment(2880L to 2700L, 64 to 63, 60, parked))
-            addAll(segment(2700L to 2580L, 63 to 55, 5, parked, driving = true))
-            addAll(segment(2580L to 2460L, 55 to 54, 60, parked))
-            addAll(segment(2460L to 2400L, 54 to 60, 10, charge))
-            addAll(segment(2400L to 2280L, 60 to 52, 5, parked, driving = true))
-            addAll(segment(2280L to 2160L, 52 to 51, 60, parked))
-            addAll(segment(2160L to 2040L, 51 to 63, 10, charge))
-            addAll(segment(2040L to 1920L, 63 to 54, 5, parked, driving = true))
-            addAll(segment(1920L to 1560L, 54 to 52, 60, parked))
-            addAll(segment(1560L to 1260L, 52 to 85, 10, charge))
-            add(Point(1260, 85, ChargingStateKind.Complete))
-            addAll(segment(1200L to 90L, 84 to 75, 60, parked))
-            addAll(segment(90L to 10L, 75 to 78, 10, charge))
-        }.reversed().distinctBy { it.minutesAgo }.reversed()
+            addAll(segment(2880L to 2700L, 64 to 63, minutes(60), parked))
+            addAll(segment(2700L to 2580L, 63 to 55, DRIVE_READ_SECONDS, parked, driving = true))
+            addAll(segment(2580L to 2460L, 55 to 54, minutes(60), parked))
+            addAll(segment(2460L to 2400L, 54 to 60, minutes(10), charge))
+            addAll(segment(2400L to 2280L, 60 to 52, DRIVE_READ_SECONDS, parked, driving = true))
+            addAll(segment(2280L to 2160L, 52 to 51, minutes(60), parked))
+            addAll(segment(2160L to 2040L, 51 to 63, minutes(10), charge))
+            addAll(segment(2040L to 1920L, 63 to 54, DRIVE_READ_SECONDS, parked, driving = true))
+            addAll(segment(1920L to 1560L, 54 to 52, minutes(60), parked))
+            addAll(segment(1560L to 1260L, 52 to 85, minutes(10), charge))
+            add(Point(minutes(1260), 85f, ChargingStateKind.Complete))
+            addAll(segment(1200L to 90L, 84 to 75, minutes(60), parked))
+            addAll(segment(90L to 10L, 75 to 78, minutes(10), charge))
+        }.reversed().distinctBy { it.secondsAgo }.reversed()
 
-    /** Two days of charge readings ending at [nowMillis]: three sessions plus the live top-up. */
+    /** Two days of charge readings ending at [nowMillis]: three sessions plus the live top-up, and dense readings on the drives. */
     fun history(nowMillis: Long): List<BatterySample> =
         timeline.map { point ->
             val added = point.chargeStartPercent?.let { point.percent - it }
             BatterySample(
-                timestampMillis = nowMillis - point.minutesAgo * MINUTE,
-                batteryLevel = point.percent,
+                timestampMillis = nowMillis - point.secondsAgo * SECOND,
+                batteryLevel = point.percent.roundToInt(),
                 chargingState = point.state,
                 chargeLimit = CHARGE_LIMIT,
                 vehicleId = bleName,
                 ratedRangeMiles = point.percent * RATED_MILES_PER_PERCENT,
                 chargeEnergyAdded = added?.let { it * KWH_PER_PERCENT } ?: 0f,
                 chargeMilesAddedRated = added?.let { it * RATED_MILES_PER_PERCENT } ?: 0f,
-                readAtMillis = nowMillis - point.minutesAgo * MINUTE,
+                readAtMillis = nowMillis - point.secondsAgo * SECOND,
             )
         }
 
@@ -237,16 +248,21 @@ internal object DemoScreenFixtures {
         return timeline.mapIndexed { i, point ->
             if (moved[i]) odometer += DRIVE_STEP
             DriveSample(
-                timestampMillis = nowMillis - point.minutesAgo * MINUTE,
+                timestampMillis = nowMillis - point.secondsAgo * SECOND,
                 vehicleId = bleName,
                 shiftState = if (point.driving) ShiftStateKind.D else ShiftStateKind.P,
                 speed = if (point.driving) DRIVE_SPEED else 0,
-                power = 0,
+                power = if (point.regenerating) REGEN_POWER_KW else 0,
                 odometerInHundredthsOfAMile = odometer,
             )
         }
     }
 
     private const val DRIVE_SPEED = 40
-    private const val REGEN_EVERY = 4
+    private const val DRIVE_READ_SECONDS = 10L
+    private const val SECONDS_PER_MINUTE = 60L
+    private const val SECOND = 1_000L
+    private const val DRIVE_WAVES = 7.0
+    private const val DRIVE_WOBBLE_PERCENT = 0.45
+    private const val REGEN_POWER_KW = -8
 }
