@@ -65,6 +65,43 @@ class ParkedSpanTest {
     }
 
     @Test
+    fun `a plugged in car's energy added creeping down is no session`() {
+        val done = ChargingStateKind.Complete
+        val samples =
+            listOf(
+                sample(0, 100, done, energy = 47.64f),
+                sample(10, 100, done, energy = 47.62f),
+                sample(900, 100, done, energy = 47.22f),
+            )
+        assertEquals(900 * MINUTE, assertNotNull(longestParked(samples, drives(samples))).endMillis)
+    }
+
+    @Test
+    fun `an unplugged car's changed energy added is a session`() {
+        val samples = listOf(sample(0, 100, energy = 47.62f), sample(10, 100, energy = 47.62f), sample(900, 100, energy = 47.22f))
+        assertEquals(10 * MINUTE, assertNotNull(longestParked(samples, drives(samples))).endMillis)
+    }
+
+    @Test
+    fun `energy added after the charge completed is a session even without a level rise`() {
+        val done = ChargingStateKind.Complete
+        val samples =
+            listOf(
+                sample(0, 99, done, energy = 47f),
+                sample(10, 99, done, energy = 47f),
+                sample(900, 100, done, energy = 47.8f),
+            )
+        assertEquals(10 * MINUTE, assertNotNull(longestParked(samples, drives(samples))).endMillis)
+    }
+
+    @Test
+    fun `a level rise after the charge completed is still a session`() {
+        val done = ChargingStateKind.Complete
+        val samples = listOf(sample(0, 70, done, energy = 47f), sample(10, 70, done, energy = 47f), sample(900, 75, done, energy = 3f))
+        assertEquals(10 * MINUTE, assertNotNull(longestParked(samples, drives(samples))).endMillis)
+    }
+
+    @Test
     fun `a charge that has only just begun still counts the stretch before it`() {
         val samples =
             listOf(sample(0, 70, energy = 20f), sample(900, 70, ChargingStateKind.Charging, energy = 0.03f))
