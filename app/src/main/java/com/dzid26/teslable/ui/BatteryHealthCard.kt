@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.health.HealthConfidence
 import com.dzid26.teslable.health.HealthSummary
 import java.text.DecimalFormatSymbols
@@ -51,9 +52,7 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                     label = "Full range",
                     value = "~${unit.format(miles, DISTANCE_DECIMALS, separator)}",
                     detail = "fitted from ${summary.fullRangeSteps} level steps",
-                    labelHint =
-                        "Rated range from 100% down to 0%. The car still holds about 3kWh (the buffer) " +
-                            "at 0%, so the range counts only the energy above it.",
+                    labelHint = fullRangeHint(summary, unit),
                 )
             }
             summary.sohPercent?.let { soh ->
@@ -121,6 +120,23 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
         }
     }
 }
+
+/** What the buffer is worth in range, when the rated constant is known to convert it. */
+private fun fullRangeHint(
+    summary: HealthSummary,
+    unit: DistanceUnit,
+): String {
+    val bufferRange =
+        summary.ratedKwhPerMile
+            ?.takeIf { it > 0f }
+            ?.let { constant -> ", worth about ${unit.format(BUFFER_KWH / constant)} more range" }
+            .orEmpty()
+    return "Rated range from 100% down to 0%. The car still holds about 3kWh (the buffer) at 0%" +
+        "$bufferRange, which this range does not count."
+}
+
+// The energy the car keeps below 0%, as owners read it from the CAN bus.
+private const val BUFFER_KWH = 3f
 
 /** An energy to a tenth of a kWh, no space before the unit. */
 private fun kwhLabel(kwh: Float): String = "~${formatKwh(kwh)}kWh"
