@@ -132,7 +132,12 @@ internal fun NotificationCompat.Builder.showTrip(
     val progress = notice.progressPercent
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && progress != null) {
         val line =
-            listOfNotNull(notice.destination, percent?.let { "$it%" }, text.arrivalShort(notice), remaining).joinToString(" \u00B7 ")
+            listOfNotNull(
+                notice.destination?.ellipsize(),
+                percent?.let { "$it%" },
+                text.arrivalShort(notice),
+                remaining,
+            ).joinToString(" \u00B7 ")
         // The progress style shows only the content text, so the state line moves to the sub-text (with a PR build's label).
         val subText = if (BuildConfig.BUILD_LABEL.isEmpty()) stateText else "${BuildConfig.BUILD_LABEL} \u00B7 $stateText"
         return setContentText(line)
@@ -244,6 +249,10 @@ internal class TripTextContext(
     }
 }
 
+/** A destination for the one-line text: a long name must not push the arrival and the time left off the end. */
+private fun String.ellipsize(): String = if (length > MAX_DESTINATION_CHARS) take(MAX_DESTINATION_CHARS - 1).trimEnd() + "\u2026" else this
+
+private const val MAX_DESTINATION_CHARS = 18
 private const val TENTHS = 10f
 private const val PERCENT_FULL = 100f
 private const val TRIP_BAR_MAX = 100

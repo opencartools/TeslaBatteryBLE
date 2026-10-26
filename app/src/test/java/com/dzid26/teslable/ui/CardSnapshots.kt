@@ -661,11 +661,11 @@ class CardSnapshots {
             )
         snapScreen("screen-car-detail-navigating") {
             CarScreen(
-                state = DemoScreenFixtures.carState(NOW),
+                state = DemoScreenFixtures.drivingState(NOW),
                 vehicle = DemoScreenFixtures.vehicle,
                 advert = DemoScreenFixtures.carAdvert,
                 address = DemoScreenFixtures.DEMO_ADDRESS,
-                history = DemoScreenFixtures.history(NOW),
+                history = DemoScreenFixtures.drivingHistory(NOW),
                 driveHistory = DemoScreenFixtures.drives(NOW),
                 statusHistory = emptyList(),
                 routes = mapOf(DemoScreenFixtures.vehicle.bleName to route),

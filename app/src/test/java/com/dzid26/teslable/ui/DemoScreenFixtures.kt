@@ -41,6 +41,7 @@ internal object DemoScreenFixtures {
 
     private const val MINUTE = 60_000L
     private const val LIVE_PERCENT = 78
+    private const val LIVE_TOP_UP_START_MINUTES = 90L
     private const val CHARGE_LIMIT = 85
     private const val RATED_MILES_PER_PERCENT = 3.0f
     private const val KWH_PER_PERCENT = 0.75f
@@ -75,6 +76,15 @@ internal object DemoScreenFixtures {
             usable_battery_level = LIVE_PERCENT,
         )
 
+    private val driving =
+        ChargeState(
+            charging_state = ChargeState.ChargingState(Disconnected = Void()),
+            charge_limit_soc = CHARGE_LIMIT,
+            battery_range = LIVE_PERCENT * RATED_MILES_PER_PERCENT,
+            battery_level = LIVE_PERCENT,
+            usable_battery_level = LIVE_PERCENT,
+        )
+
     private val awakeLocked =
         VehicleStatus(
             vehicleLockState = VehicleLockState_E.VEHICLELOCKSTATE_LOCKED,
@@ -82,16 +92,25 @@ internal object DemoScreenFixtures {
             userPresence = UserPresence_E.VEHICLE_USER_PRESENCE_NOT_PRESENT,
         )
 
+    private val atTheWheel =
+        VehicleStatus(
+            vehicleLockState = VehicleLockState_E.VEHICLELOCKSTATE_UNLOCKED,
+            vehicleSleepStatus = VehicleSleepStatus_E.VEHICLE_SLEEP_STATUS_AWAKE,
+            userPresence = UserPresence_E.VEHICLE_USER_PRESENCE_PRESENT,
+        )
+
     private fun connection(
         nowMillis: Long,
         pairing: PairingPhase,
+        charge: ChargeState = charging,
+        status: VehicleStatus = awakeLocked,
     ) = TeslaConnection(
         address = DEMO_ADDRESS,
         name = bleName,
         phase = ConnectionPhase.READY,
-        status = awakeLocked,
+        status = status,
         keySlot = KEY_SLOT,
-        charge = charging,
+        charge = charge,
         chargeAtMillis = nowMillis - MINUTE,
         pairing = pairing,
     )
@@ -127,6 +146,19 @@ internal object DemoScreenFixtures {
             connections = mapOf(DEMO_ADDRESS to connection(nowMillis, PairingPhase.OK)),
             selectedBleName = bleName,
         )
+
+    /** The car screen while the car drives: not charging, so the trip card is not next to a "Charging to" line. */
+    fun drivingState(nowMillis: Long) =
+        carState(nowMillis).copy(
+            connections = mapOf(DEMO_ADDRESS to connection(nowMillis, PairingPhase.OK, driving, atTheWheel)),
+        )
+
+    /** [history] without the live top-up, which began 90 minutes ago. */
+    fun drivingHistory(nowMillis: Long): List<BatterySample> =
+        history(nowMillis).filter {
+            it.timestampMillis <
+                nowMillis - LIVE_TOP_UP_START_MINUTES * MINUTE
+        }
 
     private data class Point(
         val minutesAgo: Long,
