@@ -81,8 +81,7 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                         detail =
                             summary.ratedKwhPerMile
                                 ?.let { constant -> efficiency.format(constant, unit, separator) }
-                                // A word joiner after the slash keeps the unit in one piece when the line wraps.
-                                ?.let { "from charge energy added, rated constant ${it.replace("/", "/\u2060")}" }
+                                ?.let { "from charge energy added, rated constant $it" }
                                 ?: "from charge energy added",
                         labelHint = stringResource(R.string.health_capacity_hint),
                     )

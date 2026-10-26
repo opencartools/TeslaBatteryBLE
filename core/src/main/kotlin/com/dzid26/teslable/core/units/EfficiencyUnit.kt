@@ -20,7 +20,8 @@ enum class EfficiencyUnit {
 
     /**
      * [kwhPerMile] in this form for [distance], such as "274 Wh/mi", "17.0 kWh/100 km" or "3.65 mi/kWh";
-     * null when the rate is not a positive finite number. Gaps are no-break spaces.
+     * null when the rate is not a positive finite number. Gaps are no-break spaces and the slash is followed by a
+     * word joiner, so a wrapping line never splits the unit.
      */
     fun format(
         kwhPerMile: Float,
@@ -30,13 +31,16 @@ enum class EfficiencyUnit {
         if (!kwhPerMile.isFinite() || kwhPerMile <= 0f) return null
         val kwhPerUnit = distance.energyPerUnit(kwhPerMile)
         return when (this) {
-            ENERGY_PER_DISTANCE -> "${(kwhPerUnit * WH_PER_KWH).roundToInt()}Wh/${distance.symbol}"
+            ENERGY_PER_DISTANCE -> "${(kwhPerUnit * WH_PER_KWH).roundToInt()}Wh/$JOIN${distance.symbol}"
             ENERGY_PER_100_DISTANCE ->
-                "${fixed(kwhPerUnit * PER_HUNDRED, 1, decimalSeparator)}kWh/100${distance.symbol}"
-            DISTANCE_PER_ENERGY -> "${fixed(1f / kwhPerUnit, 2, decimalSeparator)}${distance.symbol}/kWh"
+                "${fixed(kwhPerUnit * PER_HUNDRED, 1, decimalSeparator)}kWh/${JOIN}100${distance.symbol}"
+            DISTANCE_PER_ENERGY -> "${fixed(1f / kwhPerUnit, 2, decimalSeparator)}${distance.symbol}/${JOIN}kWh"
         }
     }
 }
+
+/** U+2060: forbids a line break at the slash it follows. */
+private const val JOIN = '\u2060'
 
 /** A positive [value] with exactly [decimals] places and the caller's separator. */
 private fun fixed(
