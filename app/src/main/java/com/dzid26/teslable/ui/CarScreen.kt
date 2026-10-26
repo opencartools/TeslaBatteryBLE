@@ -386,11 +386,12 @@ internal fun HeroCard(
         Box {
             Column(Modifier.padding(16.dp)) {
                 // The title with the pill pulled into the card's corner (its rounded end roughly concentric with
-                // the card's), and under it the read's spinner or progress ring, ending where the pill's text ends. The ring hangs
-                // into the corner beside the title and the first status line, so only that line keeps room for it
-                // (kept whether or not a read runs, so it never rewraps); the lines below use the full width.
+                // the card's), and under it the read's spinner or progress ring, ending halfway between the pill's
+                // text and its edge. The ring hangs into the corner beside the title and the first status line, so
+                // only that line keeps room for it (kept whether or not a read runs, so it never rewraps); the lines
+                // below use the full width.
                 val paired = isPaired(connection, vehicle)
-                // The ring is as tall as the pill, and its right side lines up with where the pill's text ends.
+                // The ring is as tall as the pill, and its right side ends halfway between the pill's text and its edge.
                 val density = LocalDensity.current
                 var ringSize by remember { mutableStateOf(READ_RING) }
                 val besideRing = Modifier.padding(end = ringSize - RING_PULL + RING_LINE_GAP)
@@ -938,8 +939,11 @@ private val PILL_CORNER_PULL = 12.dp
 /** Where the read ring starts below the header's top: just under the pulled-up pill. */
 private val RING_TOP = 16.dp
 
-/** How far the ring is pulled towards the corner: as far as the pill, less the pill's text inset, so it ends where the text does. */
-private val RING_PULL = PILL_CORNER_PULL - PILL_TEXT_INSET
+/**
+ * How far the ring is pulled towards the corner: as far as the pill, less half the pill's text inset, so its right edge
+ * falls halfway between where the pill's text ends and the pill's own right edge.
+ */
+private val RING_PULL = PILL_CORNER_PULL - PILL_TEXT_INSET / 2
 
 /** The gap between the first status line and the ring. */
 private val RING_LINE_GAP = 6.dp
