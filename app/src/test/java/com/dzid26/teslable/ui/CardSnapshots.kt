@@ -565,11 +565,11 @@ class CardSnapshots {
 
     // A pinned scale, a learned rated constant and a home price: every stat line shows.
     @Test
-    fun driveCard() = snapDrive("drive-card_percent", pricePerKwh = HOME_PRICE)
+    fun driveCard() = snapDrive("drive-card_percent", pricePerKwh = 0.30f)
 
     // The cursor stands on the fourth reading, 25mi in: the percent, the distance and when it was read.
     @Test
-    fun driveCardCursor() = snapDrive("drive-card_cursor", pricePerKwh = HOME_PRICE, cursorX = 25.0)
+    fun driveCardCursor() = snapDrive("drive-card_cursor", pricePerKwh = 0.30f, cursorX = 25.0)
 
     // A pinned scale but no home price: the percent per distance stands in for the cost per distance.
     @Test
