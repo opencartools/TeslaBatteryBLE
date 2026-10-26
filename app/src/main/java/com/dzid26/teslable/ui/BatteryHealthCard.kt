@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.health.HealthConfidence
 import com.dzid26.teslable.health.HealthSummary
 import java.text.DecimalFormatSymbols
-import kotlin.math.roundToInt
 
 /**
  * Battery health, first cut: measured capacity and full range from the car's
@@ -53,14 +52,14 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                     value = "~${unit.format(miles, DISTANCE_DECIMALS, separator)}",
                     detail = "fitted from ${summary.fullRangeSteps} level steps",
                     labelHint =
-                        "Rated range from 100% down to 0%. The car keeps about 3kWh (the buffer) " +
-                            "below 0%, so this range does not include it.",
+                        "Rated range from 100% down to 0%. The car still holds about 3kWh (the buffer) " +
+                            "at 0%, so the range counts only the energy above it.",
                 )
             }
             summary.sohPercent?.let { soh ->
                 EstimateRow(
                     label = "Capacity (SoH)",
-                    value = "${(soh * TENTHS).roundToInt() / TENTHS}%",
+                    value = "${formatKwh(soh)}%",
                     valueHint =
                         summary.newCapacityKwh?.let {
                             "of ${kwhLabel(it)} when new (rated constant times the new-car range)"
@@ -81,8 +80,9 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                             ?.let { "from charge energy added, rated constant $it" }
                             ?: "from charge energy added",
                     labelHint =
-                        "Energy in the pack at 100%, buffer included. The usable part is about 3kWh " +
-                            "less, because the car keeps that buffer below 0%.",
+                        "Full range times the car's rated constant. That lands on the full-pack energy a " +
+                            "CAN tool reports, buffer included, although the range itself stops above the " +
+                            "buffer. Usable energy is about 3kWh less.",
                 )
             }
             if (summary.capacityKwh == null && summary.fullRangeMiles == null && summary.sohPercent == null) {
@@ -123,9 +123,7 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
 }
 
 /** An energy to a tenth of a kWh, no space before the unit. */
-private fun kwhLabel(kwh: Float): String = "~${(kwh * TENTHS).roundToInt() / TENTHS}kWh"
-
-private const val TENTHS = 10f
+private fun kwhLabel(kwh: Float): String = "~${formatKwh(kwh)}kWh"
 
 @Composable
 private fun EstimateRow(
