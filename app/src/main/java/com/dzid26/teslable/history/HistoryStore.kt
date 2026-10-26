@@ -394,7 +394,7 @@ class HistoryStore(
     /** Reads the closures and climate logs, which hold Sentry and climate state, into one list, oldest first. */
     private fun readActivitySamples(): List<ActivitySample> =
         runCatching {
-            (closuresLogs.readAll() + climateLogs.readAll())
+            mergeByVehicle(closuresLogs.readAll(), climateLogs.readAll())
                 .flatMap { (vehicleId, records) -> records.mapNotNull { it.toActivitySample(vehicleId) } }
                 .sortedBy { it.timestampMillis }
                 .flatMap { activityThinner.accept(it) }

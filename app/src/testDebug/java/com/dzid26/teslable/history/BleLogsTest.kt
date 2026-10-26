@@ -115,4 +115,19 @@ class BleLogsTest {
             VehicleLogs(dir, ".command.pblog").readAll().getValue("car").size,
         )
     }
+
+    @Test
+    fun mergingClosuresAndClimateLogsKeepsBothKindsForOneCar() {
+        val dir = folder.root
+        val closures = VehicleLogs(dir, ".closures.pblog")
+        val climate = VehicleLogs(dir, ".climate.pblog")
+        closures.append("car", command(1))
+        climate.append("car", command(2))
+        climate.append("other", command(3))
+
+        val merged = mergeByVehicle(closures.readAll(), climate.readAll())
+
+        assertEquals(listOf(command(1), command(2)), merged.getValue("car"))
+        assertEquals(listOf(command(3)), merged.getValue("other"))
+    }
 }
