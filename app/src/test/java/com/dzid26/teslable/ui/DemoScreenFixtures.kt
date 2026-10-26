@@ -258,7 +258,7 @@ internal object DemoScreenFixtures {
     }
 
     private const val DRIVE_SPEED = 40
-    private const val DRIVE_READ_SECONDS = 120L
+    private const val DRIVE_READ_SECONDS = 30L
 
     /** The odometer moves this many hundredths of a mile between two drive readings at [DRIVE_SPEED] mph. */
     private const val DRIVE_STEP = (DRIVE_SPEED * 100 * DRIVE_READ_SECONDS / 3600).toInt()
