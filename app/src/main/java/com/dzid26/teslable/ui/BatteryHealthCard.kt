@@ -52,28 +52,37 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                     label = "Full range",
                     value = "~${unit.format(miles, DISTANCE_DECIMALS, separator)}",
                     detail = "fitted from ${summary.fullRangeSteps} level steps",
+                    labelHint =
+                        "Rated range from 100% down to 0%. The car keeps about 3kWh (the buffer) " +
+                            "below 0%, so this range does not include it.",
                 )
             }
             summary.sohPercent?.let { soh ->
                 EstimateRow(
                     label = "Capacity (SoH)",
-                    value = "${soh.roundToInt()}%",
+                    value = "${(soh * TENTHS).roundToInt() / TENTHS}%",
                     valueHint =
                         summary.newCapacityKwh?.let {
                             "of ${kwhLabel(it)} when new (rated constant times the new-car range)"
                         },
                     detail = "full range over rated range when new",
+                    labelHint =
+                        "Full range divided by the new-car rated range. To match the degradation your " +
+                            "CAN tool shows, adjust the rated range in Edit car (the pencil).",
                 )
             }
             summary.capacityKwh?.let { kwh ->
                 EstimateRow(
-                    label = "Usable capacity",
+                    label = "Full-pack capacity",
                     value = kwhLabel(kwh),
                     detail =
                         summary.ratedKwhPerMile
                             ?.let { constant -> efficiency.format(constant, unit, separator) }
                             ?.let { "from charge energy added, rated constant $it" }
                             ?: "from charge energy added",
+                    labelHint =
+                        "Energy in the pack at 100%, buffer included. The usable part is about 3kWh " +
+                            "less, because the car keeps that buffer below 0%.",
                 )
             }
             if (summary.capacityKwh == null && summary.fullRangeMiles == null && summary.sohPercent == null) {
@@ -124,6 +133,7 @@ private fun EstimateRow(
     value: String,
     detail: String,
     valueHint: String? = null,
+    labelHint: String? = null,
 ) {
     Row(
         verticalAlignment = Alignment.Bottom,
@@ -133,7 +143,11 @@ private fun EstimateRow(
                 .padding(vertical = 2.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodySmall)
+            if (labelHint != null) {
+                HintText(text = label, hint = labelHint, color = LocalContentColor.current)
+            } else {
+                Text(label, style = MaterialTheme.typography.bodySmall)
+            }
             Text(
                 text = detail,
                 style = MaterialTheme.typography.labelSmall,
