@@ -192,11 +192,12 @@ class RoomBackedRecordStoreTest {
         val db = HistoryDatabase.open(context, BundledSQLiteDriver())
         val fresh = RoomBackedRecordStore(db, "phone-a")
         fresh.append("car", RecordKind.COMMAND, command(NOW_S))
+        val rows = fresh.rowCount()
         db.close()
 
         val kept = folder.root.listFiles { file -> file.name.startsWith("${HistoryDatabase.FILE_NAME}.corrupt-") }!!.single()
         assertEquals(damaged.toList(), kept.readBytes().toList())
-        assertEquals(1, fresh.rowCount())
+        assertEquals(1, rows)
     }
 
     @Test
