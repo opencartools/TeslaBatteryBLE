@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -71,17 +72,20 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                 )
             }
             summary.capacityKwh?.let { kwh ->
-                EstimateRow(
-                    label = stringResource(R.string.health_capacity_label),
-                    value = kwhLabel(kwh),
-                    detail =
-                        summary.ratedKwhPerMile
-                            ?.let { constant -> efficiency.format(constant, unit, separator) }
-                            ?.let { "from charge energy added, rated constant $it" }
-                            ?: "from charge energy added",
-                    labelHint = stringResource(R.string.health_capacity_hint),
-                    detailModifier = if (summary.ratedKwhPerMile != null) Modifier.cyclesEfficiencyUnit() else Modifier,
-                )
+                // The rated constant in the detail follows the efficiency unit, so a tap on the row cycles it.
+                val tapModifier = if (summary.ratedKwhPerMile != null) Modifier.cyclesEfficiencyUnit() else Modifier
+                Box(tapModifier) {
+                    EstimateRow(
+                        label = stringResource(R.string.health_capacity_label),
+                        value = kwhLabel(kwh),
+                        detail =
+                            summary.ratedKwhPerMile
+                                ?.let { constant -> efficiency.format(constant, unit, separator) }
+                                ?.let { "from charge energy added, rated constant $it" }
+                                ?: "from charge energy added",
+                        labelHint = stringResource(R.string.health_capacity_hint),
+                    )
+                }
             }
             if (summary.capacityKwh == null && summary.fullRangeMiles == null && summary.sohPercent == null) {
                 Text(
@@ -143,7 +147,6 @@ private fun EstimateRow(
     detail: String,
     valueHint: String? = null,
     labelHint: String? = null,
-    detailModifier: Modifier = Modifier,
 ) {
     Row(
         verticalAlignment = Alignment.Bottom,
@@ -162,7 +165,6 @@ private fun EstimateRow(
                 text = detail,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = detailModifier,
             )
         }
         val style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
