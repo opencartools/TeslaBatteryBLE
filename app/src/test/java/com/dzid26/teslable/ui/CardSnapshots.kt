@@ -39,7 +39,6 @@ import com.dzid26.teslable.core.history.ParkedSpan
 import com.dzid26.teslable.core.history.ProjectionContext
 import com.dzid26.teslable.core.history.RestKind
 import com.dzid26.teslable.core.history.RestStats
-import com.dzid26.teslable.core.history.RouteSample
 import com.dzid26.teslable.core.history.SleepDrop
 import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.core.units.EfficiencyUnit
@@ -644,45 +643,6 @@ class CardSnapshots {
     }
 
     @Test
-    fun screenCarDetailNavigating() {
-        // The car is navigating: the trip card sits above the battery history.
-        val route =
-            RouteSample(
-                timestampMillis = NOW,
-                vehicleId = DemoScreenFixtures.vehicle.bleName,
-                destination = "Home",
-                milesToArrival = 4.7f,
-                minutesToArrival = 12.2f,
-                trafficDelayMinutes = 0f,
-                energyAtArrivalPercent = ARRIVAL_PERCENT,
-                readAtMillis = NOW,
-                tripStartMiles = 11.4f,
-                tripStartedAtMillis = NOW - TRIP_ELAPSED_MILLIS,
-            )
-        snapScreen("screen-car-detail-navigating") {
-            CarScreen(
-                state = DemoScreenFixtures.drivingState(NOW),
-                vehicle = DemoScreenFixtures.vehicle,
-                advert = DemoScreenFixtures.carAdvert,
-                address = DemoScreenFixtures.DEMO_ADDRESS,
-                history = DemoScreenFixtures.drivingHistory(NOW),
-                driveHistory = DemoScreenFixtures.drives(NOW),
-                statusHistory = emptyList(),
-                routes = mapOf(DemoScreenFixtures.vehicle.bleName to route),
-                trips = mapOf(DemoScreenFixtures.vehicle.bleName to demoPastTrips(NOW)),
-                onBack = {},
-                onEdit = {},
-                onPair = {},
-                onRefresh = {},
-                onOpenSettings = {},
-                onToggleTracking = {},
-                nowMillis = NOW,
-                homePrice = HOME_PRICE,
-            )
-        }
-    }
-
-    @Test
     fun screenSettings() {
         snapScreen("screen-settings") {
             SettingsScreen(
@@ -756,14 +716,6 @@ class CardSnapshots {
     }
 
     companion object {
-        private const val HOME_PRICE = 0.30f
-
-        /** The live trip began fourteen minutes before the render. */
-        private const val TRIP_ELAPSED_MILLIS = 14 * 60_000L
-
-        /** A little under the demo car's 78%: a short trip leaves a plausible level. */
-        private const val ARRIVAL_PERCENT = 76f
-
         private const val NOW = 1_760_000_000_000L
         private const val MINUTE = 60_000L
         private const val HOUR = 3_600_000L
@@ -1026,15 +978,6 @@ class CardSnapshots {
 
         private val advert = TeslaAdvert(name = BLE_NAME, address = ADDRESS, rssi = -70)
 
-        private val screenPhone =
-            DeviceConfig.NEXUS_5.copy(
-                screenWidth = 1080,
-                screenHeight = 2400,
-                xdpi = 420,
-                ydpi = 420,
-                density = Density.create(DENSITY_DPI),
-            )
-        private const val DENSITY_DPI = 420
         private val screenState =
             BleUiState(
                 trackingEnabled = true,
@@ -1229,13 +1172,24 @@ internal fun CardFrame(
     }
 }
 
+/** The 1080x2400 phone at 420 dpi of the full-screen renders (the old emulator's size, 411x914 dp). */
+internal val screenPhone =
+    DeviceConfig.NEXUS_5.copy(
+        screenWidth = 1080,
+        screenHeight = 2400,
+        xdpi = 420,
+        ydpi = 420,
+        density = Density.create(DENSITY_DPI),
+    )
+private const val DENSITY_DPI = 420
+
 /**
  * The full-screen frame: the seeded blue Material You scheme (see
  * [demoColorScheme]) between fake system bars, so the render reads like the
  * phone screenshots.
  */
 @Composable
-private fun ScreenFrame(
+internal fun ScreenFrame(
     darkTheme: Boolean,
     content: @Composable () -> Unit,
 ) {

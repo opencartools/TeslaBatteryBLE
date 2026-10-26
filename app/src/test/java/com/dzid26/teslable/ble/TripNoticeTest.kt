@@ -53,22 +53,9 @@ class TripNoticeTest {
     }
 
     @Test
-    fun `carries the progress and where the level falls under the reserve`() {
-        val withLevel = inputs.copy(currentPercent = 50f)
+    fun `carries the progress of the trip`() {
         val half = route(arrival = 10f).copy(tripStartMiles = 9.4f)
-        val notice = tripNotice(half, withLevel)!!
-        assertEquals(50, notice.progressPercent)
-        // 50% falling to 10% over the second half: 20% is reached three quarters along it.
-        assertEquals(88, notice.lowFromPercent)
-        assertNull(tripNotice(half.copy(energyAtArrivalPercent = 44f), withLevel)!!.lowFromPercent)
-        assertNull(tripNotice(route(), withLevel)!!.progressPercent)
-    }
-
-    @Test
-    fun `the bar is one normal stretch, or normal then red from where the level falls`() {
-        assertEquals(listOf(BarSegment(100, low = false)), barSegments(null))
-        assertEquals(listOf(BarSegment(100, low = false)), barSegments(100))
-        assertEquals(listOf(BarSegment(88, low = false), BarSegment(12, low = true)), barSegments(88))
-        assertEquals(listOf(BarSegment(100, low = true)), barSegments(0))
+        assertEquals(50, tripNotice(half, inputs)!!.progressPercent)
+        assertNull(tripNotice(route(), inputs)!!.progressPercent)
     }
 }

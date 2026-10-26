@@ -151,7 +151,6 @@
     <string name="trip_energy_label">energy</string>
     <string name="trip_cost_label">%1$skWh energy</string>
     <string name="trip_progress_description">Trip %1$d%% done</string>
-    <string name="trip_progress_low_description">Trip %1$d%% done, battery predicted under %2$d%% from %3$d%% of the trip</string>
     <string name="trip_under_a_minute">&lt;1min</string>
     <string name="trip_arrival">Arrive with %1$d%%</string>
     <string name="drive_energy">about %1$skWh</string>

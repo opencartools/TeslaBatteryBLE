@@ -57,9 +57,6 @@ class TripSnapshots {
         )
 
     // From 63% now to 5% on arrival: the bar turns red where the level falls under the reserve.
-    @Test
-    fun tripCardLowArrival() = snapTrip("trip-card_low-arrival", tripRoute(arrivalPercent = 5f))
-
     private fun tripRoute(
         destination: String? = "Home",
         trafficDelayMinutes: Float = 0f,
@@ -86,7 +83,6 @@ class TripSnapshots {
             TripCard(
                 route,
                 tripEstimate(route, currentRatedMiles = 125f, fullRange = scale, ratedKwhPerMile = 0.25f, pricePerKwh = pricePerKwh),
-                currentPercent = 63f,
             )
         }
     }

@@ -24,11 +24,7 @@ copy() {
   cp "${matches[0]}" "$out/$name.png"
 }
 
-copy screen-cars-list light 02-scanning
-copy screen-car-detail light 03-car
-copy screen-car-detail-navigating light 04-trip
-copy screen-settings light 05-settings
-copy screen-cars-list dark 02-scanning-dark
-copy screen-car-detail dark 03-car-dark
-copy screen-car-detail-navigating dark 04-trip-dark
-copy screen-settings dark 05-settings-dark
+copy screen-car-detail-navigating light 01-trip
+copy screen-car-detail-driving light 02-drive
+copy screen-car-detail-navigating dark 01-trip-dark
+copy screen-car-detail-driving dark 02-drive-dark

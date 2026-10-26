@@ -4,6 +4,7 @@ package com.dzid26.teslable.ui
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -150,6 +151,8 @@ internal fun CarScreen(
     nowMillis: Long? = null,
     // Injectable for the Paparazzi snapshots; null reads the owner's saved home price.
     homePrice: Float? = null,
+    // Injectable for the Paparazzi snapshots, to render the screen scrolled down.
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     BackHandler { onBack() }
     val connection = state.connections[address]
@@ -273,7 +276,7 @@ internal fun CarScreen(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(scrollState)
                         .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {

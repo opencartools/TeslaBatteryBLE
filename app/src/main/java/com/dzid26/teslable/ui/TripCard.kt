@@ -21,8 +21,6 @@ import com.dzid26.teslable.core.health.tripEstimate
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.RouteSample
-import com.dzid26.teslable.core.history.soc
-import com.dzid26.teslable.core.history.tripLowFrom
 import com.dzid26.teslable.core.history.tripProgress
 import com.dzid26.teslable.core.history.tripTotalMillis
 import com.dzid26.teslable.core.units.DistanceUnit
@@ -40,7 +38,6 @@ import kotlin.math.roundToInt
 internal fun TripCard(
     route: RouteSample,
     estimate: TripEstimate,
-    currentPercent: Float?,
     modifier: Modifier = Modifier,
 ) {
     val unit = LocalDistanceUnit.current
@@ -64,7 +61,7 @@ internal fun TripCard(
             )
             route.tripProgress()?.let { progress ->
                 Spacer(Modifier.height(8.dp))
-                TripBar(progress, route.tripLowFrom(currentPercent))
+                TripBar(progress)
             }
             arrivalText(estimate, unit)?.let {
                 Spacer(Modifier.height(8.dp))
@@ -125,5 +122,5 @@ internal fun TripSection(
     if (route == null) return
     // The card is for glancing at while driving: keep the screen on and undimmed while it shows.
     KeepScreenOn()
-    TripCard(route, tripEstimate(route, latest?.ratedRangeMiles, scale, ratedKwhPerMile, pricePerKwh), latest?.soc(scale))
+    TripCard(route, tripEstimate(route, latest?.ratedRangeMiles, scale, ratedKwhPerMile, pricePerKwh))
 }
