@@ -59,8 +59,14 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                 EstimateRow(
                     label = "Capacity (SoH)",
                     value = "${formatKwh(soh)}%",
-                    valueHint = sohHint(summary),
+                    valueHint =
+                        summary.newCapacityKwh?.let {
+                            "of ${kwhLabel(it)} when new (rated constant times the new-car range)"
+                        },
                     detail = "full range over rated range when new",
+                    labelHint =
+                        "Full range divided by the new-car rated range. To match the degradation your " +
+                            "CAN tool shows, adjust the rated range in Edit car (the pencil).",
                 )
             }
             summary.capacityKwh?.let { kwh ->
@@ -72,7 +78,10 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                             ?.let { constant -> efficiency.format(constant, unit, separator) }
                             ?.let { "from charge energy added, rated constant $it" }
                             ?: "from charge energy added",
-                    valueHint = CAPACITY_HINT,
+                    labelHint =
+                        "Full range times the car's rated constant. That lands on the full-pack energy a " +
+                            "CAN tool reports, buffer included, although the range itself stops above the " +
+                            "buffer. Usable energy is about 3kWh less.",
                 )
             }
             if (summary.capacityKwh == null && summary.fullRangeMiles == null && summary.sohPercent == null) {
@@ -112,31 +121,14 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
     }
 }
 
-/** What the buffer is worth in range, when the rated constant is known to convert it. */
+/** The buffer in range units, so the figure says how much more the car holds below 0%; null until the constant is known. */
 private fun fullRangeHint(
     summary: HealthSummary,
     unit: DistanceUnit,
-): String {
-    val bufferRange =
-        summary.ratedKwhPerMile
-            ?.takeIf { it > 0f }
-            ?.let { constant -> ", worth about ${unit.format(BUFFER_KWH / constant)} more range" }
-            .orEmpty()
-    return "Rated range from 100% down to 0%. The car still holds about 3kWh (the buffer) at 0%" +
-        "$bufferRange, which this range does not count."
-}
-
-/** What the capacity figure covers and how the new-car range can be adjusted; the new-pack energy leads when known. */
-private fun sohHint(summary: HealthSummary): String =
-    listOfNotNull(
-        summary.newCapacityKwh?.let { "of ${kwhLabel(it)} when new (rated constant times the new-car range)." },
-        "Full range divided by the new-car rated range. To match the degradation your CAN tool shows, " +
-            "adjust the rated range in Edit car (the pencil).",
-    ).joinToString(" ")
-
-private const val CAPACITY_HINT =
-    "Full range times the car's rated constant. That lands on the full-pack energy a CAN tool reports, " +
-        "buffer included, although the range itself stops above the buffer. Usable energy is about 3kWh less."
+): String? =
+    summary.ratedKwhPerMile
+        ?.takeIf { it > 0f }
+        ?.let { constant -> "Below 0% the car holds a buffer of about ${unit.format(BUFFER_KWH / constant)} more range." }
 
 // The energy the car keeps below 0%, as owners read it from the CAN bus.
 private const val BUFFER_KWH = 3f
@@ -150,6 +142,7 @@ private fun EstimateRow(
     value: String,
     detail: String,
     valueHint: String? = null,
+    labelHint: String? = null,
 ) {
     Row(
         verticalAlignment = Alignment.Bottom,
@@ -159,7 +152,11 @@ private fun EstimateRow(
                 .padding(vertical = 2.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodySmall)
+            if (labelHint != null) {
+                HintText(text = label, hint = labelHint, color = LocalContentColor.current)
+            } else {
+                Text(label, style = MaterialTheme.typography.bodySmall)
+            }
             Text(
                 text = detail,
                 style = MaterialTheme.typography.labelSmall,
