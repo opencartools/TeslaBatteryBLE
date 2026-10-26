@@ -412,7 +412,7 @@ internal fun HeroCard(
                         // what unlocks authenticated reads.
                         if (paired) {
                             Text(
-                                text = keySlot?.let { "App key paired · slot $it" } ?: "App key paired",
+                                text = keySlot?.let { "App key paired · slot\u00A0$it" } ?: "App key paired",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = besideRing,
