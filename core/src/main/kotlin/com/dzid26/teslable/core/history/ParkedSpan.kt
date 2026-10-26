@@ -101,9 +101,9 @@ internal fun parkedBetween(
  * True when the car was plugged in between two reads. A charge running at [a] counts. At [b] it counts unless
  * the session has only just begun (the energy added is still near zero: the owner came to the car and plugged
  * in, so the stretch before it was parked). With no charge showing at [b], a changed energy-added figure that
- * is not near zero, or a level that rose by more than rounding, says a session ran unseen in the hole. The
- * exception is a car Complete at [a], plugged in and done: its figure falls as the battery drains (47.62 to 47.22
- * kWh over nine hours at 100%), so it says nothing there and only the level can show a session.
+ * is not near zero, or a level that rose by more than rounding, says a session ran unseen in the hole. A car
+ * Complete at [a] is plugged in and done: its figure falls as the battery drains (47.62 to 47.22 kWh over nine
+ * hours at 100%) and cannot reset without the cable coming out, so there only a rise counts: energy went in.
  */
 internal fun chargedBetween(
     a: BatterySample,
@@ -112,15 +112,21 @@ internal fun chargedBetween(
     val before = a.chargeEnergyAdded
     val after = b.chargeEnergyAdded
     val begun = after != null && after <= NEAR_ZERO_KWH
-    val complete = a.chargingState == ChargingStateKind.Complete
     return when {
         a.isCharging -> true
         b.isCharging -> !begun
         else ->
             b.batteryLevel - a.batteryLevel >= LEVEL_RISE_POINTS ||
-                (!complete && before != null && after != null && !begun && abs(after - before) > ENERGY_EPSILON_KWH)
+                (before != null && after != null && !begun && energyMoved(before, after, a.chargingState == ChargingStateKind.Complete))
     }
 }
+
+/** Any change in the energy added says a session; once the charge is [complete] only a rise does, as a fall is the drain. */
+private fun energyMoved(
+    before: Float,
+    after: Float,
+    complete: Boolean,
+): Boolean = if (complete) after - before > ENERGY_EPSILON_KWH else abs(after - before) > ENERGY_EPSILON_KWH
 
 /**
  * True when nobody was in the car and nothing kept it busy between two reads: the status log never says someone
