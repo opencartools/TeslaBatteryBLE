@@ -48,7 +48,6 @@ internal object DemoScreenFixtures {
     private const val RATED_MILES_PER_PERCENT = 3.0f
     private const val KWH_PER_PERCENT = 0.75f
     private const val ODOMETER = 1_234_567
-    private const val DRIVE_STEP = 67
     private const val DEMO_RSSI_LIST = -48
     private const val DEMO_RSSI_CAR = -47
     private const val OTHER_RSSI = -78
@@ -259,7 +258,10 @@ internal object DemoScreenFixtures {
     }
 
     private const val DRIVE_SPEED = 40
-    private const val DRIVE_READ_SECONDS = 60L
+    private const val DRIVE_READ_SECONDS = 120L
+
+    /** The odometer moves this many hundredths of a mile between two drive readings at [DRIVE_SPEED] mph. */
+    private const val DRIVE_STEP = (DRIVE_SPEED * 100 * DRIVE_READ_SECONDS / 3600).toInt()
     private const val SECONDS_PER_MINUTE = 60L
     private const val SECOND = 1_000L
     private const val DRIVE_WAVES = 7.0
