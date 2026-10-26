@@ -17,12 +17,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.dzid26.teslable.R
+import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.health.HealthConfidence
 import com.dzid26.teslable.health.HealthSummary
 import java.text.DecimalFormatSymbols
-import kotlin.math.roundToInt
 
 /**
  * Battery health, first cut: measured capacity and full range from the car's
@@ -52,28 +54,32 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                     label = "Full range",
                     value = "~${unit.format(miles, DISTANCE_DECIMALS, separator)}",
                     detail = "fitted from ${summary.fullRangeSteps} level steps",
+                    valueHint = bufferRangeHint(summary, unit),
+                    labelHint = stringResource(R.string.health_full_range_hint),
                 )
             }
             summary.sohPercent?.let { soh ->
                 EstimateRow(
                     label = "Capacity (SoH)",
-                    value = "${soh.roundToInt()}%",
+                    value = "${formatKwh(soh)}%",
                     valueHint =
                         summary.newCapacityKwh?.let {
                             "of ${kwhLabel(it)} when new (rated constant times the new-car range)"
                         },
                     detail = "full range over rated range when new",
+                    labelHint = stringResource(R.string.health_soh_hint),
                 )
             }
             summary.capacityKwh?.let { kwh ->
                 EstimateRow(
-                    label = "Usable capacity",
+                    label = stringResource(R.string.health_capacity_label),
                     value = kwhLabel(kwh),
                     detail =
                         summary.ratedKwhPerMile
                             ?.let { constant -> efficiency.format(constant, unit, separator) }
                             ?.let { "from charge energy added, rated constant $it" }
                             ?: "from charge energy added",
+                    labelHint = stringResource(R.string.health_capacity_hint),
                 )
             }
             if (summary.capacityKwh == null && summary.fullRangeMiles == null && summary.sohPercent == null) {
@@ -113,10 +119,21 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
     }
 }
 
-/** An energy to a tenth of a kWh, no space before the unit. */
-private fun kwhLabel(kwh: Float): String = "~${(kwh * TENTHS).roundToInt() / TENTHS}kWh"
+/** What the buffer below 0% is worth in range; null until the rated constant is known to convert it. */
+@Composable
+private fun bufferRangeHint(
+    summary: HealthSummary,
+    unit: DistanceUnit,
+): String? =
+    summary.ratedKwhPerMile
+        ?.takeIf { it > 0f }
+        ?.let { constant -> stringResource(R.string.health_full_range_buffer_hint, unit.format(BUFFER_KWH / constant)) }
 
-private const val TENTHS = 10f
+// The energy the car keeps below 0%, as owners read it from the CAN bus.
+private const val BUFFER_KWH = 3f
+
+/** An energy to a tenth of a kWh, no space before the unit. */
+private fun kwhLabel(kwh: Float): String = "~${formatKwh(kwh)}kWh"
 
 @Composable
 private fun EstimateRow(
@@ -124,6 +141,7 @@ private fun EstimateRow(
     value: String,
     detail: String,
     valueHint: String? = null,
+    labelHint: String? = null,
 ) {
     Row(
         verticalAlignment = Alignment.Bottom,
@@ -133,7 +151,11 @@ private fun EstimateRow(
                 .padding(vertical = 2.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodySmall)
+            if (labelHint != null) {
+                HintText(text = label, hint = labelHint, color = LocalContentColor.current)
+            } else {
+                Text(label, style = MaterialTheme.typography.bodySmall)
+            }
             Text(
                 text = detail,
                 style = MaterialTheme.typography.labelSmall,

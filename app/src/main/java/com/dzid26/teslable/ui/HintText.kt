@@ -14,7 +14,11 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -24,6 +28,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
@@ -50,6 +55,8 @@ internal fun HintText(
     val scope = rememberCoroutineScope()
     val description = stringResource(R.string.history_hint_description, text, hint)
     val dash = with(LocalDensity.current) { floatArrayOf(2.dp.toPx(), 2.dp.toPx()) }
+    // Underline each wrapped line to its own end, not the box width, so a short last line is not overrun.
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
         tooltip = { PlainTooltip { Text(hint) } },
@@ -60,18 +67,23 @@ internal fun HintText(
             text = text,
             style = style,
             color = color,
+            onTextLayout = { layout = it },
             modifier =
                 Modifier
                     .semantics { contentDescription = description }
                     .drawBehind {
-                        val y = size.height - 1.dp.toPx()
-                        drawLine(
-                            color = color,
-                            start = Offset(0f, y),
-                            end = Offset(size.width, y),
-                            strokeWidth = 1.dp.toPx(),
-                            pathEffect = PathEffect.dashPathEffect(dash),
-                        )
+                        val result = layout
+                        val lines = result?.lineCount ?: 1
+                        for (line in 0 until lines) {
+                            val y = (result?.getLineBottom(line) ?: size.height) - 1.dp.toPx()
+                            drawLine(
+                                color = color,
+                                start = Offset(result?.getLineLeft(line) ?: 0f, y),
+                                end = Offset(result?.getLineRight(line) ?: size.width, y),
+                                strokeWidth = 1.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(dash),
+                            )
+                        }
                     }.clickable { scope.launch { state.show() } },
         )
     }
