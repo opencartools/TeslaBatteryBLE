@@ -77,6 +77,7 @@
     <string name="main_title">Cars</string>
     <string name="log_title">Log</string>
     <string name="log_empty">No activity yet.</string>
+    <string name="efficiency_cycle_action">Change the efficiency unit</string>
     <string name="enable_toggle">Enable</string>
     <string name="car_edit_title">Edit car</string>
     <string name="car_range_hint">Rated range in miles when the car was new; it sets the baseline for state of health.</string>

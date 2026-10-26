@@ -189,16 +189,20 @@ private fun DriveEnergyLine(
     val efficiency = LocalEfficiencyUnit.current
     val separator = remember { DecimalFormatSymbols.getInstance().decimalSeparator }
     val cost = costRate(stats, unit, LocalCurrencyCode.current)?.let { stringResource(R.string.drive_cost_per_distance, it, unit.symbol) }
-    val plain =
-        listOfNotNull(
-            stats.kwhPerMile?.let { efficiency.format(it, unit, separator) },
-            stats.energyKwh?.let { stringResource(R.string.drive_energy, formatKwh(it)) },
-        )
+    val energy = stats.energyKwh?.let { stringResource(R.string.drive_energy, formatKwh(it)) }
+    val rate = stats.kwhPerMile?.let { efficiency.format(it, unit, separator) }
+    // The efficiency figure is the tap target that cycles the unit; the energy beside it is plain text.
+    val plain = listOfNotNull(rate?.let { it to true }, energy?.let { it to false })
     val style = MaterialTheme.typography.bodySmall
     val dot = " \u00B7"
+    val cycle = Modifier.cyclesEfficiencyUnit()
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        plain.forEachIndexed { index, part ->
-            Text(if (index < plain.lastIndex || cost != null) part + dot else part, style = style)
+        plain.forEachIndexed { index, (part, isRate) ->
+            Text(
+                text = if (index < plain.lastIndex || cost != null) part + dot else part,
+                style = style,
+                modifier = if (isRate) cycle else Modifier,
+            )
         }
         cost?.let { TipText(it, stringResource(R.string.drive_cost_tip), style) }
     }

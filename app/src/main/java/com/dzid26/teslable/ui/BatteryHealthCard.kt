@@ -80,6 +80,7 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                             ?.let { "from charge energy added, rated constant $it" }
                             ?: "from charge energy added",
                     labelHint = stringResource(R.string.health_capacity_hint),
+                    detailModifier = if (summary.ratedKwhPerMile != null) Modifier.cyclesEfficiencyUnit() else Modifier,
                 )
             }
             if (summary.capacityKwh == null && summary.fullRangeMiles == null && summary.sohPercent == null) {
@@ -142,6 +143,7 @@ private fun EstimateRow(
     detail: String,
     valueHint: String? = null,
     labelHint: String? = null,
+    detailModifier: Modifier = Modifier,
 ) {
     Row(
         verticalAlignment = Alignment.Bottom,
@@ -160,6 +162,7 @@ private fun EstimateRow(
                 text = detail,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = detailModifier,
             )
         }
         val style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
