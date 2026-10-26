@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
@@ -22,7 +21,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -193,18 +191,13 @@ private fun DriveEnergyLine(
     val cost = costRate(stats, unit, LocalCurrencyCode.current)?.let { stringResource(R.string.drive_cost_per_distance, it, unit.symbol) }
     val energy = stats.energyKwh?.let { stringResource(R.string.drive_energy, formatKwh(it)) }
     val rate = stats.kwhPerMile?.let { efficiency.format(it, unit, separator) }
-    // The efficiency figure is the tap target that cycles the unit; the energy beside it is plain text.
-    val plain = listOfNotNull(rate?.let { it to true }, energy?.let { it to false })
+    val plain = listOfNotNull(rate, energy)
     val style = MaterialTheme.typography.bodySmall
     val dot = " \u00B7"
-    val cycle = Modifier.heightIn(min = TAP_TARGET_HEIGHT).cyclesEfficiencyUnit()
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-        plain.forEachIndexed { index, (part, isRate) ->
-            Text(
-                text = if (index < plain.lastIndex || cost != null) part + dot else part,
-                style = style,
-                modifier = if (isRate) cycle else Modifier,
-            )
+    // A tap on the line cycles the efficiency unit; the cost tip keeps its own tap.
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.cyclesEfficiencyUnit()) {
+        plain.forEachIndexed { index, part ->
+            Text(if (index < plain.lastIndex || cost != null) part + dot else part, style = style)
         }
         cost?.let { TipText(it, stringResource(R.string.drive_cost_tip), style) }
     }
@@ -236,9 +229,6 @@ internal fun formatDistance(
     unit: DistanceUnit,
     decimals: Int = 0,
 ): String = unit.format((distance / unit.fromMiles(1f)).toFloat(), decimals, DecimalFormatSymbols.getInstance().decimalSeparator)
-
-/** The least height of a tap target; only the height grows, so the line keeps its width. */
-private val TAP_TARGET_HEIGHT = 48.dp
 
 /** Cursor labels and the drive footer show distances and ranges to a tenth. */
 internal const val DISTANCE_DECIMALS = 1
