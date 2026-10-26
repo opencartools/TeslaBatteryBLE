@@ -110,8 +110,8 @@ class DrivingScreenSnapshots {
     private companion object {
         const val HOME_PRICE = 0.30f
 
-        /** Scrolls the car view to its end, so the drive card starts just under the top bar and the drain stats show in full. */
-        const val DRIVE_CARD_SCROLL_PX = Int.MAX_VALUE
+        /** Scrolls the car view down to the drive card, its rounded top corners just clear of the top bar. */
+        const val DRIVE_CARD_SCROLL_PX = 1625
 
         /** The live trip began fourteen minutes before the render. */
         const val TRIP_ELAPSED_MILLIS = 14 * 60_000L
