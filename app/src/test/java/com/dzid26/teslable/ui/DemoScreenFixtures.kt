@@ -220,7 +220,7 @@ internal object DemoScreenFixtures {
             addAll(segment(1920L to 1560L, 54 to 52, minutes(60), parked))
             addAll(segment(1560L to 1260L, 52 to 85, minutes(10), charge))
             add(Point(minutes(1260), 85f, ChargingStateKind.Complete))
-            addAll(segment(1200L to 90L, 84 to 75, minutes(60), parked))
+            addAll(segment(1200L to 90L, 84 to 75, minutes(420), parked))
             addAll(segment(90L to 10L, 75 to 78, minutes(10), charge))
         }.reversed().distinctBy { it.secondsAgo }.reversed()
 
