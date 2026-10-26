@@ -30,7 +30,7 @@ import com.materialkolor.dynamicColorScheme
  * The Material You scheme the app renders when dynamic color is on and the
  * wallpaper is the default blue one (the old emulator screenshots), built from
  * a seed like Android does. Paparazzi has no wallpaper, so the seed is fixed;
- * it is the light primary sampled from `website/images/02-scanning.png`.
+ * it is the light primary sampled from `website/images/01-trip.png`.
  */
 internal fun demoColorScheme(darkTheme: Boolean): ColorScheme =
     dynamicColorScheme(seedColor = Color(DEMO_SEED), isDark = darkTheme, isAmoled = false)

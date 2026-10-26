@@ -11,8 +11,8 @@ REPO="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 APK="dist/TeslaBatteryBLE-${TAG}.apk"
 NOTES="release-notes.md"
 SHOTS_DIR="screenshots"
-# README-table-style columns: the scan, the car detail, Settings; light row + dark row.
-SHOTS="02-scanning.png 03-car.png 05-settings.png 02-scanning-dark.png 03-car-dark.png 05-settings-dark.png"
+# README-table-style columns: the scan, the car detail, the trip, Settings; light row + dark row.
+SHOTS="01-trip.png 02-drive.png 01-trip-dark.png 02-drive-dark.png"
 
 # A manual release states the flag outright; a pushed tag derives it from the name.
 if [ -n "${RELEASE_PRERELEASE:-}" ]; then
@@ -29,12 +29,10 @@ for name in $SHOTS; do
   [ -f "$SHOTS_DIR/$name" ] || { echo "missing $SHOTS_DIR/$name (the capture step must succeed)" >&2; exit 1; }
 done
 # Host the shots as user attachments so the release page keeps only the APK.
-SCAN_URL="$(bash .github/scripts/upload-screenshot.sh "$SHOTS_DIR/02-scanning.png" "02-scanning-${TAG}.png")"
-CAR_URL="$(bash .github/scripts/upload-screenshot.sh "$SHOTS_DIR/03-car.png" "03-car-${TAG}.png")"
-SETTINGS_URL="$(bash .github/scripts/upload-screenshot.sh "$SHOTS_DIR/05-settings.png" "05-settings-${TAG}.png")"
-SCAN_DARK_URL="$(bash .github/scripts/upload-screenshot.sh "$SHOTS_DIR/02-scanning-dark.png" "02-scanning-dark-${TAG}.png")"
-CAR_DARK_URL="$(bash .github/scripts/upload-screenshot.sh "$SHOTS_DIR/03-car-dark.png" "03-car-dark-${TAG}.png")"
-SETTINGS_DARK_URL="$(bash .github/scripts/upload-screenshot.sh "$SHOTS_DIR/05-settings-dark.png" "05-settings-dark-${TAG}.png")"
+TRIP_URL="$(bash .github/scripts/upload-screenshot.sh "$SHOTS_DIR/01-trip.png" "01-trip-${TAG}.png")"
+DRIVE_URL="$(bash .github/scripts/upload-screenshot.sh "$SHOTS_DIR/02-drive.png" "02-drive-${TAG}.png")"
+TRIP_DARK_URL="$(bash .github/scripts/upload-screenshot.sh "$SHOTS_DIR/01-trip-dark.png" "01-trip-dark-${TAG}.png")"
+DRIVE_DARK_URL="$(bash .github/scripts/upload-screenshot.sh "$SHOTS_DIR/02-drive-dark.png" "02-drive-dark-${TAG}.png")"
 
 # Notes come from the commits since the previous tag; there is no
 # hand-edited changelog, so pull requests never collide on one.
@@ -64,11 +62,11 @@ PREV_TAG="$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || t
   echo
   echo "**Light**"
   echo
-  echo "<p><img src=\"$SCAN_URL\" alt=\"Scanning for nearby cars (light)\" width=\"32%\"><img src=\"$CAR_URL\" alt=\"Car detail with the battery reading (light)\" width=\"32%\"><img src=\"$SETTINGS_URL\" alt=\"Settings (light)\" width=\"32%\"></p>"
+  echo "<p><img src=\"$TRIP_URL\" alt=\"Trip card with the progress bar (light)\" width=\"40%\"><img src=\"$DRIVE_URL\" alt=\"Drive card with its chart (light)\" width=\"40%\"></p>"
   echo
   echo "**Dark**"
   echo
-  echo "<p><img src=\"$SCAN_DARK_URL\" alt=\"Scanning for nearby cars (dark)\" width=\"32%\"><img src=\"$CAR_DARK_URL\" alt=\"Car detail with the battery reading (dark)\" width=\"32%\"><img src=\"$SETTINGS_DARK_URL\" alt=\"Settings (dark)\" width=\"32%\"></p>"
+  echo "<p><img src=\"$TRIP_DARK_URL\" alt=\"Trip card with the progress bar (dark)\" width=\"40%\"><img src=\"$DRIVE_DARK_URL\" alt=\"Drive card with its chart (dark)\" width=\"40%\"></p>"
 } > "$NOTES"
 
 if [ ! -s "$NOTES" ]; then

@@ -19,11 +19,11 @@ Light and dark themes, side by side.
 
 **Light**
 
-<p><img src="website/images/02-scanning.png" alt="Scanning for nearby cars (light)" width="32%">;<img src="website/images/03-car.png" alt="Car detail with the battery reading (light)" width="32%">;<img src="website/images/05-settings.png" alt="Settings (light)" width="32%"></p>
+<p><img src="website/images/01-trip.png" alt="Trip card with the progress bar (light)" width="40%"><img src="website/images/02-drive.png" alt="Drive card with its chart (light)" width="40%"></p>
 
 **Dark**
 
-<p><img src="website/images/02-scanning-dark.png" alt="Scanning for nearby cars (dark)" width="32%">;<img src="website/images/03-car-dark.png" alt="Car detail with the battery reading (dark)" width="32%">;<img src="website/images/05-settings-dark.png" alt="Settings (dark)" width="32%"></p>
+<p><img src="website/images/01-trip-dark.png" alt="Trip card with the progress bar (dark)" width="40%"><img src="website/images/02-drive-dark.png" alt="Drive card with its chart (dark)" width="40%"></p>
 
 ## Features
 

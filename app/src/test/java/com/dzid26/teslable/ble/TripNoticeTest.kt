@@ -27,6 +27,7 @@ class TripNoticeTest {
         val notice = tripNotice(route(), inputs)!!
         assertEquals(47, notice.milesLeftTenths)
         assertEquals(12, notice.minutesLeft)
+        assertEquals("Home", notice.destination)
         assertNull(notice.trafficMinutes)
         assertEquals(44, notice.arrivalPercent)
         // 44% of 270 mi is 118.8 rated miles.
@@ -49,5 +50,12 @@ class TripNoticeTest {
     fun `hides the rated range without a learned scale and says nothing without a route reading`() {
         assertNull(tripNotice(route(), inputs.copy(scale = null))!!.arrivalRatedMiles)
         assertNull(tripNotice(route(miles = null, minutes = null, arrival = null), inputs))
+    }
+
+    @Test
+    fun `carries the progress of the trip`() {
+        val half = route(arrival = 10f).copy(tripStartMiles = 9.4f)
+        assertEquals(50, tripNotice(half, inputs)!!.progressPercent)
+        assertNull(tripNotice(route(), inputs)!!.progressPercent)
     }
 }

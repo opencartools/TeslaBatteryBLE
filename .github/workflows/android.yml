@@ -418,7 +418,7 @@ jobs:
         run: bash .github/scripts/require-smoke.sh
 
       # Release screenshots are the Paparazzi full-screen snapshots (cars list,
-      # car view, Settings; light and dark), the same render the PR comments
+      # car view, trip, Settings; light and dark), the same render the PR comments
       # use, so a release needs no emulator and no retry.
       - name: Render the screenshots
         run: |
@@ -448,8 +448,7 @@ jobs:
           git fetch origin main
           git checkout -B release-shots origin/main
           changed=false
-          for name in 02-scanning 03-car 05-settings \
-              02-scanning-dark 03-car-dark 05-settings-dark; do
+          for name in 01-trip 02-drive 01-trip-dark 02-drive-dark; do
             if [ -f "screenshots/$name.png" ] && ! cmp -s "screenshots/$name.png" "website/images/$name.png"; then
               cp "screenshots/$name.png" "website/images/$name.png"
               changed=true
