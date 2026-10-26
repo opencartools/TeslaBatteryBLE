@@ -384,41 +384,45 @@ internal fun HeroCard(
         Box {
             Column(Modifier.padding(16.dp)) {
                 // The title with the pill pulled into the card's corner (its rounded end roughly concentric with
-                // the card's), then the status lines with the read's spinner or progress ring right-aligned under
-                // the pill. The lines keep only the ring's width free, so a narrow screen wraps them no sooner than
-                // it has to and nothing overlaps.
-                Row(verticalAlignment = Alignment.Top) {
-                    Text(
-                        text = display.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatusPill(
-                        connection = connection,
-                        bluetoothOn = bluetoothOn,
-                        onAsleepClick = {
-                            Toast
-                                .makeText(context, "Swipe down to wake the car", Toast.LENGTH_SHORT)
-                                .show()
-                        },
-                        modifier = Modifier.offset(x = PILL_CORNER_PULL, y = -PILL_CORNER_PULL),
-                    )
-                }
+                // the card's), and the read's spinner or progress ring right-aligned under the pill. The ring hangs
+                // into the corner beside the title and the first status line, so only that line keeps room for it
+                // (kept whether or not a read runs, so it never rewraps); the lines below use the full width.
+                val paired = isPaired(connection, vehicle)
+                val besideRing = Modifier.padding(end = RING_LINE_ROOM)
                 Box(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(end = READ_RING + 8.dp)) {
+                    Column {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Text(
+                                text = display.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            StatusPill(
+                                connection = connection,
+                                bluetoothOn = bluetoothOn,
+                                onAsleepClick = {
+                                    Toast
+                                        .makeText(context, "Swipe down to wake the car", Toast.LENGTH_SHORT)
+                                        .show()
+                                },
+                                modifier = Modifier.offset(x = PILL_CORNER_PULL, y = -PILL_CORNER_PULL),
+                            )
+                        }
                         // The app key state sits above the connection state: it is
                         // what unlocks authenticated reads.
-                        if (isPaired(connection, vehicle)) {
+                        if (paired) {
                             Text(
-                                text = keySlot?.let { "App key paired · slot\u00A0$it" } ?: "App key paired",
+                                text = keySlot?.let { "App key paired · slot $it" } ?: "App key paired",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = besideRing,
                             )
                         }
                         Text(
                             text = heroStatusText(display, connection?.disconnectedAtMillis, nowMillis),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = if (paired) Modifier else besideRing,
                         )
                         // The vehicle statuses sit right under the connection state,
                         // so the block reads as one unit above the percentage.
@@ -435,8 +439,7 @@ internal fun HeroCard(
                             )
                         }
                     }
-                    // The ring's room is kept whether or not a read runs, so the lines beside it never rewrap.
-                    Box(Modifier.align(Alignment.TopEnd).offset(x = PILL_CORNER_PULL).size(READ_RING)) {
+                    Box(Modifier.align(Alignment.TopEnd).offset(x = PILL_CORNER_PULL, y = RING_TOP).size(READ_RING)) {
                         ReadingSpinner(connection, forceVisible = spinnerOverride, size = READ_RING)
                     }
                 }
@@ -923,6 +926,12 @@ private val READ_RING = 24.dp
  * concentric with the card's 12dp corner.
  */
 private val PILL_CORNER_PULL = 12.dp
+
+/** Where the read ring starts below the header's top: just under the pulled-up pill. */
+private val RING_TOP = 16.dp
+
+/** The room the first status line leaves for the ring: the ring's width less the corner pull, plus a gap. */
+private val RING_LINE_ROOM = READ_RING - PILL_CORNER_PULL + 6.dp
 
 /** Green shared by charging segments, dots, and the projected line. */
 internal val chargingChartColor = Color(0xFF43A047)
