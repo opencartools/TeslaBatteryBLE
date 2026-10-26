@@ -1012,7 +1012,7 @@ class CardSnapshots {
                 capacityKwh = 57.2f,
                 ratedKwhPerMile = 0.2736f,
                 capacitySwingPercent = null,
-                fullRangeMiles = 262f,
+                fullRangeMiles = 262.4f,
                 fullRangeSteps = 42,
                 confidence = HealthConfidence.MEDIUM,
                 qualityNote = null,

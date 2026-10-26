@@ -50,7 +50,7 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
             summary.fullRangeMiles?.let { miles ->
                 EstimateRow(
                     label = "Full range",
-                    value = "~${unit.format(miles)}",
+                    value = "~${unit.format(miles, DISTANCE_DECIMALS, separator)}",
                     detail = "fitted from ${summary.fullRangeSteps} level steps",
                 )
             }
