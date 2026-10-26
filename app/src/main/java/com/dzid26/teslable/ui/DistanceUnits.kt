@@ -28,7 +28,7 @@ internal fun EfficiencyUnit.next(): EfficiencyUnit = EfficiencyUnit.entries[(ord
 @Composable
 internal fun Modifier.cyclesEfficiencyUnit(): Modifier {
     val cycle = LocalCycleEfficiencyUnit.current
-    val label = stringResource(R.string.efficiency_cycle_action)
+    val label = stringResource(R.string.drive_efficiency_cycle)
     return clickable(
         interactionSource = remember { MutableInteractionSource() },
         indication = null,

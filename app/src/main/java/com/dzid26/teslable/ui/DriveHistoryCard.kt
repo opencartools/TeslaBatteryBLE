@@ -15,6 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -195,7 +196,7 @@ private fun DriveEnergyLine(
     val plain = listOfNotNull(rate?.let { it to true }, energy?.let { it to false })
     val style = MaterialTheme.typography.bodySmall
     val dot = " \u00B7"
-    val cycle = Modifier.cyclesEfficiencyUnit()
+    val cycle = Modifier.minimumInteractiveComponentSize().cyclesEfficiencyUnit()
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         plain.forEachIndexed { index, (part, isRate) ->
             Text(
