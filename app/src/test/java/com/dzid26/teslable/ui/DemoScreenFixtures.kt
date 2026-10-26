@@ -10,6 +10,7 @@ import com.dzid26.teslable.ble.TeslaConnection
 import com.dzid26.teslable.ble.Vehicle
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.DriveSample
+import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.protocol.ChargingStateKind
 import com.dzid26.teslable.protocol.PairingPhase
 import com.dzid26.teslable.protocol.ShiftStateKind
@@ -257,6 +258,15 @@ internal object DemoScreenFixtures {
         }
     }
 
+    /** The car asleep through the long parked stretch, read every quarter hour, and awake again when the top-up starts. */
+    fun statuses(nowMillis: Long): List<StatusSample> =
+        (SLEEP_FROM_MINUTES downTo SLEEP_TO_MINUTES step SLEEP_READ_MINUTES).map {
+            StatusSample(nowMillis - it * MINUTE, bleName, asleep = true, userPresent = false, locked = true)
+        } + StatusSample(nowMillis - SLEEP_TO_MINUTES * MINUTE + MINUTE, bleName, asleep = false, userPresent = false, locked = true)
+
+    private const val SLEEP_FROM_MINUTES = 1190L
+    private const val SLEEP_TO_MINUTES = 100L
+    private const val SLEEP_READ_MINUTES = 15L
     private const val DRIVE_SPEED = 40
     private const val DRIVE_READ_SECONDS = 40L
 
