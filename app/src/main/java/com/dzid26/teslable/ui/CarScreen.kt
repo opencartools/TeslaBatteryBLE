@@ -54,12 +54,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.EnergyPriceStore
@@ -455,7 +456,6 @@ internal fun HeroCard(
                 Spacer(Modifier.height(12.dp))
                 SocBlock(
                     reading = reading,
-                    live = charge?.battery_level != null,
                     rangeMiles = charge?.battery_range ?: lastKnown?.ratedRangeMiles,
                     scale = scale,
                     charging = charge?.chargingStateKind == ChargingStateKind.Charging,
@@ -555,7 +555,6 @@ private fun chargerElectricalText(
 @Composable
 private fun SocBlock(
     reading: BatteryPercent?,
-    live: Boolean,
     rangeMiles: Float?,
     scale: FullRangeScale?,
     charging: Boolean,
@@ -583,47 +582,73 @@ private fun SocBlock(
         }
     val spoken = tenths?.let { "${it / TENTHS_PER_PERCENT}$separator${it % TENTHS_PER_PERCENT}" } ?: "${reading.value}"
     val description = stringResource(R.string.soc_description, spoken)
-    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.semantics(mergeDescendants = true) {}) {
-        Text(
-            text = socText,
-            style = MaterialTheme.typography.displayLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = color,
-            modifier = Modifier.alignByBaseline().semantics { contentDescription = description },
-        )
-        reading.ageLabel(nowMillis, connection)?.let { age ->
+    SocRow(
+        socText = socText,
+        description = description,
+        color = color,
+        ageLabel = reading.ageLabel(nowMillis, connection),
+        rangeText = rangeMiles?.let { "Range\u00A0${formatDistance(it)}" },
+    )
+    // Drawn for a stored reading too, in the muted color, so the card keeps its height when the car goes away.
+    Spacer(Modifier.height(8.dp))
+    LinearProgressIndicator(
+        progress = { reading.value / 100f },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+        color = color,
+    )
+}
+
+/** The percentage with its age, and under it, left-aligned, a battery icon with the range. */
+@Composable
+private fun SocRow(
+    socText: AnnotatedString,
+    description: String,
+    color: Color,
+    ageLabel: String?,
+    rangeText: String?,
+) {
+    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+        Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                text = age,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.alignByBaseline().padding(start = 6.dp),
+                text = socText,
+                style = MaterialTheme.typography.displayLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = color,
+                modifier = Modifier.alignByBaseline().semantics { contentDescription = description },
             )
+            ageLabel?.let { age ->
+                Text(
+                    text = age,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.alignByBaseline().padding(start = 6.dp),
+                )
+            }
         }
-        // The range hugs the bottom-right, just above the progress bar, and wraps
-        // right-aligned instead of crowding the age on narrow screens.
-        rangeMiles?.let { miles ->
-            Text(
-                text = "Range ${formatDistance(miles)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.End,
-                modifier = Modifier.weight(1f).alignByBaseline().padding(start = 8.dp),
-            )
+        rangeText?.let { range ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_battery),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(BATTERY_ICON_SIZE),
+                )
+                Text(
+                    text = range,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+            }
         }
-    }
-    if (live) {
-        Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(
-            progress = { reading.value / 100f },
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-            color = color,
-        )
     }
 }
+
+private val BATTERY_ICON_SIZE = 18.dp
 
 /** True when the app key is enrolled (or just was): the car can authenticate. */
 private fun isPaired(
