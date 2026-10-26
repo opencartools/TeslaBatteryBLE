@@ -189,6 +189,14 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
+    fun `merging closures and climate logs keeps both kinds for one car`() {
+        val merged = mergeByVehicle(mapOf("car" to listOf(command(1))), mapOf("car" to listOf(command(2)), "other" to listOf(command(3))))
+
+        assertEquals(listOf(command(1), command(2)), merged.getValue("car"))
+        assertEquals(listOf(command(3)), merged.getValue("other"))
+    }
+
+    @Test
     fun `the car cap drops the oldest car records and spares the events`() {
         val store = store(maxBytes = 4_000)
         store.appendAll("car", RecordKind.CHARGE, (1L..20L).map { charge(NOW_S - 100 + it) })

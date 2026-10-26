@@ -400,8 +400,7 @@ class HistoryStore internal constructor(
             mergeByVehicle(
                 recordStore.readRecent(RecordKind.CLOSURES, MAX_SAMPLES),
                 recordStore.readRecent(RecordKind.CLIMATE, MAX_SAMPLES),
-            )
-                .flatMap { (vehicleId, records) -> records.mapNotNull { it.toActivitySample(vehicleId) } }
+            ).flatMap { (vehicleId, records) -> records.mapNotNull { it.toActivitySample(vehicleId) } }
                 .sortedBy { it.timestampMillis }
                 .flatMap { activityThinner.accept(it) }
                 .takeLast(MAX_ACTIVITY_SAMPLES)
