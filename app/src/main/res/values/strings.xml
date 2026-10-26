@@ -122,8 +122,8 @@
     <string name="history_range_all">All</string>
     <string name="health_capacity_hint">Full range times the car\'s rated constant. That lands on the full-pack energy a CAN tool reports, buffer included, although the range itself stops above the buffer. Usable energy is about 3kWh less.</string>
     <string name="health_capacity_label">Full-pack capacity</string>
-    <string name="health_full_range_hint" formatted="false">Rated range from 100% down to 0%. The car still holds a buffer of about 3kWh below 0%, which this range does not count.</string>
-    <string name="health_full_range_hint_buffer">Rated range from 100%% down to 0%%. The car still holds a buffer below 0%%, worth about %1$s more range, which this range does not count.</string>
+    <string name="health_full_range_buffer_hint">Below 0%% the car holds a buffer of about %1$s more range.</string>
+    <string name="health_full_range_hint" formatted="false">Rated range from 100% down to 0%. The car still holds about 3kWh (the buffer) below 0%, so this range does not include it.</string>
     <string name="health_soh_hint">Full range divided by the new-car rated range. To match the degradation your CAN tool shows, adjust the rated range in Edit car (the pencil).</string>
     <string name="history_parked_range_hint">Worst and best case at that point: the drain could be two standard errors faster or slower than measured, from how much the parked readings scatter around the line.</string>
     <string name="history_parked_rate_hint_asleep">Power-down drain: the rate over the stretches the car sat parked with nobody in it and Sentry and climate off, an hour or more apart, the quietest the battery drains. The dashed line follows it.</string>

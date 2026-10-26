@@ -54,7 +54,8 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
                     label = "Full range",
                     value = "~${unit.format(miles, DISTANCE_DECIMALS, separator)}",
                     detail = "fitted from ${summary.fullRangeSteps} level steps",
-                    valueHint = fullRangeHint(summary, unit),
+                    valueHint = bufferRangeHint(summary, unit),
+                    labelHint = stringResource(R.string.health_full_range_hint),
                 )
             }
             summary.sohPercent?.let { soh ->
@@ -118,16 +119,15 @@ internal fun BatteryHealthCard(summary: HealthSummary) {
     }
 }
 
-/** What the full range covers and, once the constant is known, what the buffer below 0% is worth in range. */
+/** What the buffer below 0% is worth in range; null until the rated constant is known to convert it. */
 @Composable
-private fun fullRangeHint(
+private fun bufferRangeHint(
     summary: HealthSummary,
     unit: DistanceUnit,
-): String =
+): String? =
     summary.ratedKwhPerMile
         ?.takeIf { it > 0f }
-        ?.let { constant -> stringResource(R.string.health_full_range_hint_buffer, unit.format(BUFFER_KWH / constant)) }
-        ?: stringResource(R.string.health_full_range_hint)
+        ?.let { constant -> stringResource(R.string.health_full_range_buffer_hint, unit.format(BUFFER_KWH / constant)) }
 
 // The energy the car keeps below 0%, as owners read it from the CAN bus.
 private const val BUFFER_KWH = 3f
