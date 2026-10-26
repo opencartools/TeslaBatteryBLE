@@ -383,11 +383,10 @@ internal fun HeroCard(
     ) {
         Box {
             Column(Modifier.padding(16.dp)) {
-                // The pill sits on the title's line: its bottom meets the
-                // title's, so it reads as one header, clear of the spinner.
-                // Everything else spans the full width below, so a narrow
-                // screen wraps the status lines instead of squeezing them
-                // beside the pill.
+                // The title with the pill pulled into the card's corner (its rounded end roughly concentric with
+                // the card's), then the status lines with the read's spinner or progress ring right-aligned under
+                // the pill. The lines keep only the ring's width free, so a narrow screen wraps them no sooner than
+                // it has to and nothing overlaps.
                 Row(verticalAlignment = Alignment.Top) {
                     Text(
                         text = display.title,
@@ -402,35 +401,44 @@ internal fun HeroCard(
                                 .makeText(context, "Swipe down to wake the car", Toast.LENGTH_SHORT)
                                 .show()
                         },
+                        modifier = Modifier.offset(x = PILL_CORNER_PULL, y = -PILL_CORNER_PULL),
                     )
                 }
-                // The app key state sits above the connection state: it is
-                // what unlocks authenticated reads.
-                if (isPaired(connection, vehicle)) {
-                    Text(
-                        text = keySlot?.let { "App key paired · slot\u00A0$it" } ?: "App key paired",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    text = heroStatusText(display, connection?.disconnectedAtMillis, nowMillis),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                // The vehicle statuses sit right under the connection state,
-                // so the block reads as one unit above the percentage.
-                connection?.status?.let { status ->
-                    Text(vehicleStatusText(status, durations), style = MaterialTheme.typography.bodySmall)
-                }
-                if (pairing == PairingPhase.OK) {
-                    // Only shown for the pairing that just succeeded; the
-                    // Tesla screen calls the key Phone Key, so this hint does.
-                    Text(
-                        text = "Rename the Phone Key in Controls > Locks on the Tesla screen.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                Box(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(end = READ_RING + 8.dp)) {
+                        // The app key state sits above the connection state: it is
+                        // what unlocks authenticated reads.
+                        if (isPaired(connection, vehicle)) {
+                            Text(
+                                text = keySlot?.let { "App key paired · slot\u00A0$it" } ?: "App key paired",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = heroStatusText(display, connection?.disconnectedAtMillis, nowMillis),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        // The vehicle statuses sit right under the connection state,
+                        // so the block reads as one unit above the percentage.
+                        connection?.status?.let { status ->
+                            Text(vehicleStatusText(status, durations), style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (pairing == PairingPhase.OK) {
+                            // Only shown for the pairing that just succeeded; the
+                            // Tesla screen calls the key Phone Key, so this hint does.
+                            Text(
+                                text = "Rename the Phone Key in Controls > Locks on the Tesla screen.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                    // The ring's room is kept whether or not a read runs, so the lines beside it never rewrap.
+                    Box(Modifier.align(Alignment.TopEnd).offset(x = PILL_CORNER_PULL).size(READ_RING)) {
+                        ReadingSpinner(connection, forceVisible = spinnerOverride, size = READ_RING)
+                    }
                 }
                 Spacer(Modifier.height(12.dp))
                 SocBlock(
@@ -442,12 +450,6 @@ internal fun HeroCard(
                     stateText = display.stateText,
                     connection = connection,
                     nowMillis = nowMillis,
-                    // The ring's room is kept whether or not a read runs, so the age and range never rewrap when it shows.
-                    indicator = {
-                        Box(
-                            Modifier.size(READ_RING),
-                        ) { ReadingSpinner(connection, forceVisible = spinnerOverride, size = READ_RING) }
-                    },
                 )
                 Spacer(Modifier.height(8.dp))
                 // The session's kWh and cost stay up top while it runs; once it ends they move to the history card's Last charge line.
@@ -548,15 +550,9 @@ private fun SocBlock(
     stateText: String,
     connection: TeslaConnection?,
     nowMillis: Long,
-    // The read's spinner or progress ring, beside the number the read updates.
-    indicator: @Composable () -> Unit = {},
 ) {
     if (reading == null) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = stateText, style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.width(8.dp))
-            indicator()
-        }
+        Text(text = stateText, style = MaterialTheme.typography.headlineSmall)
         return
     }
     val color = if (reading.stale) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
@@ -591,7 +587,6 @@ private fun SocBlock(
                 modifier = Modifier.alignByBaseline().padding(start = 6.dp),
             )
         }
-        Box(Modifier.align(Alignment.CenterVertically).padding(start = 8.dp)) { indicator() }
         // The range hugs the bottom-right, just above the progress bar, and wraps
         // right-aligned instead of crowding the age on narrow screens.
         rangeMiles?.let { miles ->
@@ -920,8 +915,14 @@ private const val REFRESH_FEEDBACK_MS = 2500L
 private val EDIT_ICON_LIFT = (-10).dp
 private val EDIT_ICON = 18.dp
 
-/** The read ring beside the big percentage. */
+/** The read ring under the status pill. */
 private val READ_RING = 24.dp
+
+/**
+ * How far the pill is pulled out of the card's 16dp padding towards its corner, so the pill's rounded end sits roughly
+ * concentric with the card's 12dp corner.
+ */
+private val PILL_CORNER_PULL = 12.dp
 
 /** Green shared by charging segments, dots, and the projected line. */
 internal val chargingChartColor = Color(0xFF43A047)

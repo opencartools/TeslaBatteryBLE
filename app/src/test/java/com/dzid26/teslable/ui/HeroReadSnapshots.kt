@@ -19,8 +19,8 @@ import org.junit.Test
 import java.util.Locale
 
 /**
- * Paparazzi snapshots of the read ring beside the hero card's big reading, with the fixtures of [CardSnapshots]: next to
- * a percent with its decimal (the widest reading) and next to the connection state before any reading.
+ * Paparazzi snapshots of the read ring under the hero card's status pill, with the fixtures of [CardSnapshots]: beside a
+ * percent with its decimal (the widest reading) and beside the connection state before any reading.
  */
 class HeroReadSnapshots {
     @get:Rule
