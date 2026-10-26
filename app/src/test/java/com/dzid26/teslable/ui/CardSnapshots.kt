@@ -718,10 +718,10 @@ class CardSnapshots {
     }
 
     companion object {
-        private const val NOW = 1_760_000_000_000L
-        private const val MINUTE = 60_000L
+        internal const val NOW = 1_760_000_000_000L
+        internal const val MINUTE = 60_000L
         private const val HOUR = 3_600_000L
-        private const val FRESH_MINUTES = 1L
+        internal const val FRESH_MINUTES = 1L
         private const val ASLEEP_MINUTES = 3L
         private const val STALE_MINUTES = 12L
         private const val LIVE_PERCENT = 62
@@ -732,7 +732,7 @@ class CardSnapshots {
         private const val ADDRESS = "AA:BB:CC:DD:EE:01"
         private const val BLE_NAME = "S1f094173C"
 
-        private fun liveConnection(
+        internal fun liveConnection(
             readAt: Long? = null,
             status: VehicleStatus? = awake,
             charge: ChargeState? = liveCharge,
@@ -945,7 +945,7 @@ class CardSnapshots {
                 userPresence = UserPresence_E.VEHICLE_USER_PRESENCE_NOT_PRESENT,
             )
         private val asleep = awake.copy(vehicleSleepStatus = VehicleSleepStatus_E.VEHICLE_SLEEP_STATUS_ASLEEP)
-        private val vehicle =
+        internal val vehicle =
             Vehicle(
                 bleName = BLE_NAME,
                 address = ADDRESS,
@@ -978,7 +978,7 @@ class CardSnapshots {
                 deepSleep = DeepSleep(NOW - 34 * HOUR, NOW - 34 * HOUR + 565 * MINUTE, SleepDrop(51.3, 50.9, 700 * MINUTE, ceiling = true)),
             )
 
-        private val advert = TeslaAdvert(name = BLE_NAME, address = ADDRESS, rssi = -70)
+        internal val advert = TeslaAdvert(name = BLE_NAME, address = ADDRESS, rssi = -70)
 
         private val screenState =
             BleUiState(
@@ -991,7 +991,7 @@ class CardSnapshots {
 
         // The live reading agrees with the learnt 270-mile scale: 62.4% is
         // 168.5 rated miles, which the fit shows as 62.4% against the int 62.
-        private val learntCharge =
+        internal val learntCharge =
             ChargeState(
                 battery_level = LIVE_PERCENT,
                 battery_range = 168.5f,
@@ -1035,7 +1035,7 @@ class CardSnapshots {
         // A rated-range climb on a 270-mile scale (0.25% steps, the level
         // rounds the true SOC) with three charges of 10% each: enough steps
         // for the scale to pin and enough sessions to leave Learning.
-        private val learntSamples =
+        internal val learntSamples =
             (0..120)
                 .map { step ->
                     val soc = 40.1f + step * 0.25f
