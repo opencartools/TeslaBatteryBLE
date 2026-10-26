@@ -15,7 +15,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.LinearGradientShader
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -50,12 +49,11 @@ private fun rememberDriveLines(
     yMin: Double,
 ): LineCartesianLayer.LineProvider {
     val lineColor = driveChartColor
-    val linePoint = rememberPoint(lineColor, size = DRIVE_DOT_SIZE)
-    val regenPoint = rememberPoint(chargingChartColor, size = DRIVE_DOT_SIZE)
+    val linePoint = rememberPoint(lineColor)
+    val regenPoint = rememberPoint(chargingChartColor)
     val driveLine =
         LineCartesianLayer.rememberLine(
             fill = remember(lineColor) { LineCartesianLayer.LineFill.single(Fill(lineColor)) },
-            stroke = remember { LineCartesianLayer.LineStroke.Continuous(thickness = DRIVE_LINE_WIDTH, cap = StrokeCap.Round) },
             areaFill =
                 remember(lineColor, yMin) {
                     LineCartesianLayer.AreaFill.single(
@@ -208,10 +206,6 @@ internal fun rememberPoint(
     val component = rememberShapeComponent(fill = Fill(color), shape = CircleShape)
     return remember(component) { LineCartesianLayer.Point(component, size = size) }
 }
-
-// Thin line and small dots: a drive is read every few seconds, so the dots must not merge into a thick band.
-private val DRIVE_LINE_WIDTH = 1.5.dp
-private val DRIVE_DOT_SIZE = 3.dp
 
 private const val DRIVE_ORANGE_ARGB = 0xFFF28C28
 
