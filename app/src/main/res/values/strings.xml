@@ -158,6 +158,7 @@
     <string name="trip_progress_description">Trip %1$d%% done</string>
     <string name="trip_under_a_minute">&lt;1min</string>
     <string name="trip_arrival">Arrive with %1$d%%</string>
+    <string name="drive_efficiency_cycle">Change the efficiency unit</string>
     <string name="drive_energy">about %1$skWh</string>
     <string name="drive_percent_per_distance">%1$s%% per %2$s</string>
     <string name="drive_cost_tip">Your energy price times the energy the drive used, per 100 distance units.</string>

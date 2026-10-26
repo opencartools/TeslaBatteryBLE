@@ -84,7 +84,14 @@ internal fun PastTripsCard(
             }
             rateLine(
                 summary,
-            )?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            )?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.cyclesEfficiencyUnit(),
+                )
+            }
         }
     }
 }
