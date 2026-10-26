@@ -51,7 +51,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -388,7 +390,10 @@ internal fun HeroCard(
                 // into the corner beside the title and the first status line, so only that line keeps room for it
                 // (kept whether or not a read runs, so it never rewraps); the lines below use the full width.
                 val paired = isPaired(connection, vehicle)
-                val besideRing = Modifier.padding(end = RING_LINE_ROOM)
+                // The ring is as tall as the pill, so its right side runs on the pill's rounded end.
+                val density = LocalDensity.current
+                var ringSize by remember { mutableStateOf(READ_RING) }
+                val besideRing = Modifier.padding(end = ringSize - PILL_CORNER_PULL + RING_LINE_GAP)
                 Box(Modifier.fillMaxWidth()) {
                     Column {
                         Row(verticalAlignment = Alignment.Top) {
@@ -405,7 +410,10 @@ internal fun HeroCard(
                                         .makeText(context, "Swipe down to wake the car", Toast.LENGTH_SHORT)
                                         .show()
                                 },
-                                modifier = Modifier.offset(x = PILL_CORNER_PULL, y = -PILL_CORNER_PULL),
+                                modifier =
+                                    Modifier
+                                        .offset(x = PILL_CORNER_PULL, y = -PILL_CORNER_PULL)
+                                        .onSizeChanged { ringSize = with(density) { it.height.toDp() } },
                             )
                         }
                         // The app key state sits above the connection state: it is
@@ -439,8 +447,8 @@ internal fun HeroCard(
                             )
                         }
                     }
-                    Box(Modifier.align(Alignment.TopEnd).offset(x = PILL_CORNER_PULL, y = RING_TOP).size(READ_RING)) {
-                        ReadingSpinner(connection, forceVisible = spinnerOverride, size = READ_RING)
+                    Box(Modifier.align(Alignment.TopEnd).offset(x = PILL_CORNER_PULL, y = RING_TOP).size(ringSize)) {
+                        ReadingSpinner(connection, forceVisible = spinnerOverride, size = ringSize)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -918,7 +926,7 @@ private const val REFRESH_FEEDBACK_MS = 2500L
 private val EDIT_ICON_LIFT = (-10).dp
 private val EDIT_ICON = 18.dp
 
-/** The read ring under the status pill. */
+/** The read ring under the status pill until the pill is measured; then it takes the pill's height. */
 private val READ_RING = 24.dp
 
 /**
@@ -930,8 +938,8 @@ private val PILL_CORNER_PULL = 12.dp
 /** Where the read ring starts below the header's top: just under the pulled-up pill. */
 private val RING_TOP = 16.dp
 
-/** The room the first status line leaves for the ring: the ring's width less the corner pull, plus a gap. */
-private val RING_LINE_ROOM = READ_RING - PILL_CORNER_PULL + 6.dp
+/** The gap between the first status line and the ring. */
+private val RING_LINE_GAP = 6.dp
 
 /** Green shared by charging segments, dots, and the projected line. */
 internal val chargingChartColor = Color(0xFF43A047)
