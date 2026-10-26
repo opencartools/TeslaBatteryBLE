@@ -27,6 +27,7 @@ class TripNoticeTest {
         val notice = tripNotice(route(), inputs)!!
         assertEquals(47, notice.milesLeftTenths)
         assertEquals(12, notice.minutesLeft)
+        assertEquals("Home", notice.destination)
         assertNull(notice.trafficMinutes)
         assertEquals(44, notice.arrivalPercent)
         // 44% of 270 mi is 118.8 rated miles.

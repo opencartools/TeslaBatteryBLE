@@ -192,12 +192,14 @@ class BleTrackingService : Service() {
             val display = connectionDisplay(connection, advert, vehicle = vehicle, durations = durations, bluetoothOn = state.bluetoothOn)
             val lastKnown = history.lastOrNull { it.vehicleId == vehicle.bleName }
             val reading = batteryPercent(connection, lastKnown, now)
+            val trip = tripSource.noticeFor(vehicle.bleName, history, routes, now)
             NotificationModel(
                 bleName = vehicle.bleName,
                 title = display.title,
-                status = display.status,
+                // While navigating the signal strength is of no interest: it stays out of the text and never re-posts it.
+                status = if (trip != null) display.stateText else display.status,
                 stateText = display.stateText,
-                rssi = display.rssi,
+                rssi = if (trip != null) null else display.rssi,
                 percent = reading?.value,
                 percentStale = reading?.stale == true,
                 // Only a stale reading shows its age; a fresh one stays null so the
@@ -206,7 +208,7 @@ class BleTrackingService : Service() {
                 showWake =
                     connection.status?.asleep == true &&
                         connection.sessions.contains("DOMAIN_VEHICLE_SECURITY"),
-                trip = tripSource.noticeFor(vehicle.bleName, history, routes, now),
+                trip = trip,
             )
         }
 

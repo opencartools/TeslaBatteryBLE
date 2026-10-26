@@ -32,9 +32,10 @@ import kotlin.math.roundToInt
 /**
  * What the notification says about the trip the car is navigating (#207): the same numbers as the trip card,
  * rounded to the step the text shows, so two notices are equal exactly when their text is, and the service
- * re-posts only when something visible changes. The destination is left out: the shade shows on a lock screen.
+ * re-posts only when something visible changes.
  */
 internal data class TripNotice(
+    val destination: String?,
     val milesLeftTenths: Int?,
     val minutesLeft: Int?,
     val trafficMinutes: Int?,
@@ -72,6 +73,7 @@ internal fun tripNotice(
     val estimate = tripEstimate(route, inputs.currentRatedMiles, inputs.scale, ratedKwhPerMile = null, pricePerKwh = null)
     val notice =
         TripNotice(
+            destination = route.destination?.takeIf { it.isNotBlank() },
             milesLeftTenths = estimate.milesRemaining?.let { (it * TENTHS).roundToInt() },
             minutesLeft = route.minutesToArrival?.takeIf { it.isFinite() && it >= 0f }?.roundToInt(),
             trafficMinutes = route.trafficMinutes(),
@@ -129,7 +131,8 @@ internal fun NotificationCompat.Builder.showTrip(
             .ifEmpty { stateText.toString() }
     val progress = notice.progressPercent
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && progress != null) {
-        val line = listOfNotNull(percent?.let { "$it%" }, text.arrivalShort(notice), remaining).joinToString(" \u00B7 ")
+        val line =
+            listOfNotNull(notice.destination, percent?.let { "$it%" }, text.arrivalShort(notice), remaining).joinToString(" \u00B7 ")
         // The progress style shows only the content text, so the state line moves to the sub-text (with a PR build's label).
         val subText = if (BuildConfig.BUILD_LABEL.isEmpty()) stateText else "${BuildConfig.BUILD_LABEL} \u00B7 $stateText"
         return setContentText(line)
@@ -142,7 +145,7 @@ internal fun NotificationCompat.Builder.showTrip(
         SpannableStringBuilder(stateText).apply {
             if (remaining != null) {
                 appendLine()
-                appendBold(text.label(), remaining)
+                appendBold(text.label(notice), remaining)
             }
             text.arrival(notice)?.let { appendLine().append(it) }
         }
@@ -203,8 +206,10 @@ internal class TripTextContext(
     val unit: DistanceUnit = UnitStore(context).preference().resolve()
     private val separator = DecimalFormatSymbols.getInstance().decimalSeparator
 
-    /** "Trip: ", bold before the distance and time left in the expanded text. */
-    fun label(): String = context.getString(R.string.notification_trip_label)
+    /** "Trip to Home: " (or "Trip: " without a destination), bold before the distance and time left in the expanded text. */
+    fun label(notice: TripNotice): String =
+        notice.destination?.let { context.getString(R.string.notification_trip_label_to, it) }
+            ?: context.getString(R.string.notification_trip_label)
 
     /** "4.7 mi · 12m left (+3m traffic)", with whichever parts the car sent. */
     fun remaining(notice: TripNotice): String? {

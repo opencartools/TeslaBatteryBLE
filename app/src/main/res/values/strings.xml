@@ -192,5 +192,6 @@
     <string name="trip_arrival_range">Arrive with %1$d%% (about %2$s left)</string>
     <string name="notification_trip_traffic">(+%1$s traffic)</string>
     <string name="notification_trip_label">"Trip: "</string>
+    <string name="notification_trip_label_to">"Trip to %1$s: "</string>
     <string name="notification_trip_left">%1$s left</string>
 </resources>
