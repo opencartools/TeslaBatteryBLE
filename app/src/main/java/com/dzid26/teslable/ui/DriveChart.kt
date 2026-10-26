@@ -2,6 +2,7 @@
 
 package com.dzid26.teslable.ui
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -15,8 +16,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.LinearGradientShader
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.dzid26.teslable.core.units.DistanceUnit
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.Zoom
@@ -36,6 +39,7 @@ import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
+import kotlin.math.abs
 
 /**
  * One orange line per trip with its gradient, and, when any reading was
@@ -73,6 +77,22 @@ private fun rememberDriveLines(
     }
 }
 
+/** The cursor text: percent, distance driven and the date and time of the nearest reading. */
+@Composable
+private fun rememberDriveDescriber(
+    points: List<Plotted>,
+    unit: DistanceUnit,
+): PointDescriber {
+    val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
+    return remember(points, unit, is24Hour) {
+        PointDescriber { x, y ->
+            val millis = points.minBy { abs(it.distance - x) }.timestampMillis
+            "${formatPercent(y.toFloat())}% · ${formatDistance(x, unit, DISTANCE_DECIMALS)} · " +
+                formatTime(millis, showDate = true, is24Hour = is24Hour)
+        }
+    }
+}
+
 @Composable
 internal fun RangeChart(
     points: List<Plotted>,
@@ -94,10 +114,7 @@ internal fun RangeChart(
     val unit = LocalDistanceUnit.current
     val distanceFormatter = remember(unit) { CartesianValueFormatter { _, value, _ -> formatDistance(value, unit) } }
     val yFormatter = remember { CartesianValueFormatter { _, value, _ -> formatWholePercent(value.toFloat()) } }
-    val cursorDescriber =
-        remember(unit) {
-            PointDescriber { x, y -> "${formatPercent(y.toFloat())}% · ${formatDistance(x, unit, DISTANCE_DECIMALS)}" }
-        }
+    val cursorDescriber = rememberDriveDescriber(points, unit)
 
     val pin = rememberCursorPin()
 

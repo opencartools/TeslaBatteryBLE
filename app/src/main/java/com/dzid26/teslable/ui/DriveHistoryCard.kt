@@ -74,6 +74,7 @@ internal fun DriveHistoryCard(
                             it.socPercent,
                             it.regenerating,
                             it.trip,
+                            it.timestampMillis,
                         )
                     },
                 used = points.totalDrop { it.socPercent },

@@ -5,7 +5,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DriveChartAxisTest {
-    private fun axes(vararg values: Float) = axisSpec(values.mapIndexed { i, v -> Plotted(i * 10.0, v, regenerating = false, trip = 0) })
+    private fun axes(vararg values: Float) =
+        axisSpec(
+            values.mapIndexed { i, v ->
+                Plotted(i * 10.0, v, regenerating = false, trip = 0, timestampMillis = 0)
+            },
+        )
 
     @Test
     fun aRangeTopsOutAt100WithHeadroomAboveItAndLabelsOnTheBound() {
