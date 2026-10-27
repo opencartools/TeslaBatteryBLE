@@ -136,6 +136,8 @@
     <string name="trip_title">Trip</string>
     <string name="trip_title_to">Trip to %1$s</string>
     <string name="trip_total">Trip total: %1$s</string>
+    <string name="trip_channel_description">Pops up when a trip or navigation starts, then updates quietly.</string>
+    <string name="trip_channel_name">Trip progress</string>
     <string name="trip_distance_label">to go</string>
     <string name="trip_time_label">to arrive</string>
     <string name="trip_traffic">Traffic delay: +%1$s</string>

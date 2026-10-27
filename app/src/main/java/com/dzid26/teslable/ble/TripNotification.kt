@@ -42,6 +42,48 @@ internal data class TripNotice(
     val progressPercent: Int? = null,
 )
 
+/**
+ * Decides which trip notification pops up. A car's trip is identified by its destination and alerts once. The trip
+ * ends only once its notice has been seen missing for [TRIP_END_GAP_MILLIS], so a dropped link, a lapsed route
+ * sample, a car-count change or a stretch with no calls at all keeps the trip; the next trip, even to the same
+ * place, then alerts again.
+ */
+internal class TripAlerts {
+    private class Seen(
+        val key: String,
+        var goneSinceMillis: Long? = null,
+    )
+
+    private val seen = mutableMapOf<String, Seen>()
+
+    fun shouldAlert(
+        bleName: String,
+        notice: TripNotice?,
+        nowMillis: Long,
+    ): Boolean {
+        val previous = seen[bleName]
+        val goneSince = previous?.goneSinceMillis
+        if (notice == null) {
+            when {
+                previous == null -> Unit
+                goneSince == null -> previous.goneSinceMillis = nowMillis
+                nowMillis - goneSince > TRIP_END_GAP_MILLIS -> seen.remove(bleName)
+            }
+            return false
+        }
+        val key = notice.destination.orEmpty()
+        val sameTrip = previous != null && previous.key == key && (goneSince == null || nowMillis - goneSince <= TRIP_END_GAP_MILLIS)
+        if (sameTrip) {
+            previous.goneSinceMillis = null
+        } else {
+            seen[bleName] = Seen(key)
+        }
+        return !sameTrip
+    }
+}
+
+private const val TRIP_END_GAP_MILLIS = 2 * 60_000L
+
 /** The route-independent inputs of [tripEstimate] for one car, fitted from its history. */
 internal data class TripInputs(
     val currentRatedMiles: Float?,

@@ -64,6 +64,7 @@ class BleTrackingService : Service() {
     private var startLogged = false
 
     private val tripSource by lazy { TripNoticeSource() }
+    private val tripAlerts = TripAlerts()
 
     /** Screen on and off only reach a receiver registered at run time; the app-state log keeps them (ADR-0008). */
     private val screenReceiver =
@@ -217,6 +218,12 @@ class BleTrackingService : Service() {
 
     private fun publish(models: List<NotificationModel>) {
         val summary = summaryModel(models)
+        val now = System.currentTimeMillis()
+        val alerting =
+            models.mapNotNullTo(
+                mutableSetOf(),
+            ) { model -> model.bleName?.takeIf { tripAlerts.shouldAlert(it, model.trip, now) } }
+        val summaryAlert = models.size == 1 && summary.bleName in alerting
         if (!foregroundStarted) {
             // A sticky restart after Bluetooth permission was revoked: Android 14+ refuses the
             // connected-device type without it, and a crash loop would be worse than no service.
@@ -224,7 +231,7 @@ class BleTrackingService : Service() {
                 ServiceCompat.startForeground(
                     this,
                     NOTIFICATION_ID,
-                    buildNotification(summary, groupSummary = models.size > 1),
+                    buildNotification(summary, groupSummary = models.size > 1, alert = summaryAlert),
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
                     } else {
@@ -243,9 +250,9 @@ class BleTrackingService : Service() {
             lastSummary = summary
         } else if (shouldPost(lastSummary, summary)) {
             lastSummary = summary
-            post(NOTIFICATION_ID, buildNotification(summary, groupSummary = models.size > 1))
+            post(NOTIFICATION_ID, buildNotification(summary, groupSummary = models.size > 1, alert = summaryAlert))
         }
-        syncCarNotifications(models)
+        syncCarNotifications(models, alerting)
     }
 
     /**
@@ -283,7 +290,10 @@ class BleTrackingService : Service() {
                 )
         }
 
-    private fun syncCarNotifications(models: List<NotificationModel>) {
+    private fun syncCarNotifications(
+        models: List<NotificationModel>,
+        alerting: Set<String>,
+    ) {
         val wanted: Map<String, NotificationModel> =
             if (models.size > 1) {
                 models.mapNotNull { model -> model.bleName?.let { it to model } }.toMap()
@@ -302,7 +312,7 @@ class BleTrackingService : Service() {
             if (!shouldPost(lastCarModels[bleName], model)) continue
             lastCarModels[bleName] = model
             val id = postedCarIds.getOrPut(bleName) { carNotificationId(bleName) }
-            post(id, buildNotification(model, groupSummary = false))
+            post(id, buildNotification(model, groupSummary = false, alert = bleName in alerting))
         }
     }
 
@@ -338,24 +348,31 @@ class BleTrackingService : Service() {
         return kotlin.math.abs(newRssi - oldRssi) >= RSSI_NOTIFICATION_STEP
     }
 
+    /**
+     * [alert] makes the post a heads-up (a new trip); every other post is silent and alerts only once.
+     * Trips use the high-importance [TRIP_CHANNEL_ID] so the heads-up can show; it makes no sound.
+     */
     private fun buildNotification(
         model: NotificationModel,
         groupSummary: Boolean,
+        alert: Boolean = false,
     ): Notification {
         val builder =
             NotificationCompat
-                .Builder(this, CHANNEL_ID)
+                .Builder(this, if (model.trip != null) TRIP_CHANNEL_ID else CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_tracking)
                 .setContentTitle(withBuildLabel(model.title))
                 .setContentText(notificationText(model))
                 .setContentIntent(openAppIntent(model.bleName))
                 .setOngoing(true)
-                .setSilent(true)
-                .setOnlyAlertOnce(true)
+                .setOnlyAlertOnce(!alert)
                 .setShowWhen(false)
                 .setCategory(NotificationCompat.CATEGORY_STATUS)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setGroup(GROUP_KEY)
+        if (!alert) {
+            builder.setSilent(true)
+        }
         // One UI ignores setColor, so a CI (PR) build says what it is in text and by icon shape.
         if (BuildConfig.BUILD_LABEL.isNotEmpty()) {
             builder.setSubText(BuildConfig.BUILD_LABEL)
@@ -449,6 +466,20 @@ class BleTrackingService : Service() {
 
     private fun createChannel() {
         val manager = getSystemService(NotificationManager::class.java) ?: return
+        if (manager.getNotificationChannel(TRIP_CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    TRIP_CHANNEL_ID,
+                    withBuildLabel(getString(R.string.trip_channel_name)),
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
+                    description = getString(R.string.trip_channel_description)
+                    setShowBadge(false)
+                    setSound(null, null)
+                    enableVibration(false)
+                },
+            )
+        }
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return
         val channel =
             NotificationChannel(
@@ -486,6 +517,7 @@ class BleTrackingService : Service() {
         const val EXTRA_BLE_NAME = "com.dzid26.teslable.extra.BLE_NAME"
         private const val LOG_TAG = "BleTrackingService"
         private const val CHANNEL_ID = "tracking"
+        private const val TRIP_CHANNEL_ID = "trip"
         private const val GROUP_KEY = "com.dzid26.teslable.cars"
         private const val NOTIFICATION_ID = 1
         private const val CAR_NOTIFICATION_BASE = 1000
