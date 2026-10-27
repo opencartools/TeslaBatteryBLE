@@ -14,8 +14,8 @@ import androidx.core.content.ContextCompat
  * Android 12+ scans with BLUETOOTH_SCAN (declared neverForLocation), so only
  * Android 11 and older still need location, and there it must be fine location.
  */
-fun requiredBlePermissions(): List<String> =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+fun requiredBlePermissions(sdk: Int = Build.VERSION.SDK_INT): List<String> =
+    if (sdk >= Build.VERSION_CODES.S) {
         listOf(
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT,
@@ -29,11 +29,11 @@ fun requiredBlePermissions(): List<String> =
  * on Android 13+, notifications. Notifications are optional, so they are not
  * part of [requiredBlePermissions] and never block scanning.
  */
-fun onboardingPermissions(): List<String> =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        requiredBlePermissions() + Manifest.permission.POST_NOTIFICATIONS
+fun onboardingPermissions(sdk: Int = Build.VERSION.SDK_INT): List<String> =
+    if (sdk >= Build.VERSION_CODES.TIRAMISU) {
+        requiredBlePermissions(sdk) + Manifest.permission.POST_NOTIFICATIONS
     } else {
-        requiredBlePermissions()
+        requiredBlePermissions(sdk)
     }
 
 fun missingOnboardingPermissions(context: Context): List<String> =
