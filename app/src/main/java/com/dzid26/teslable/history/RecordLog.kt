@@ -46,16 +46,19 @@ internal class RecordLog(
 
     override fun rowCount(): Int = dao.count()
 
-    override fun seriesIds(): List<Long> = dao.seriesIds()
+    override val bounds =
+        object : TimeBounds {
+            override fun seriesIds(): List<Long> = dao.seriesIds()
 
-    override fun firstTime(seriesId: Long): Long? = dao.firstTime(seriesId)
+            override fun firstTime(seriesId: Long): Long? = dao.firstTime(seriesId)
 
-    override fun lastTime(seriesId: Long): Long? = dao.lastTime(seriesId)
+            override fun lastTime(seriesId: Long): Long? = dao.lastTime(seriesId)
 
-    override fun deleteBefore(
-        seriesId: Long,
-        cutoff: Long,
-    ): Int = dao.deleteBefore(seriesId, cutoff)
+            override fun deleteBefore(
+                seriesId: Long,
+                cutoff: Long,
+            ): Int = dao.deleteBefore(seriesId, cutoff)
+        }
 
     private fun rowOf(
         seriesId: Long,

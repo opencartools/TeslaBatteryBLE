@@ -39,6 +39,12 @@ internal interface TimedLog {
 
     fun rowCount(): Int
 
+    /** The time bounds of its series, for the size cap. */
+    val bounds: TimeBounds
+}
+
+/** What the size cap needs of a table: which series have rows, their time span, and a ranged delete. */
+internal interface TimeBounds {
     /** The ids of the series with rows. */
     fun seriesIds(): List<Long>
 
@@ -64,12 +70,12 @@ internal fun TimedLog.trimToCap(maxBytes: Long) {
         if (db.usedBytes() <= maxBytes) return
         var progressed = false
         db.runInTransaction {
-            val ids = seriesIds()
-            val first = ids.mapNotNull(::firstTime).minOrNull()
-            val last = ids.mapNotNull(::lastTime).maxOrNull()
+            val ids = bounds.seriesIds()
+            val first = ids.mapNotNull(bounds::firstTime).minOrNull()
+            val last = ids.mapNotNull(bounds::lastTime).maxOrNull()
             if (first != null && last != null && last > first) {
                 val cutoff = first + maxOf(1L, (last - first) / TENTH)
-                progressed = ids.sumOf { deleteBefore(it, cutoff) } > 0
+                progressed = ids.sumOf { bounds.deleteBefore(it, cutoff) } > 0
             }
         }
         if (!progressed) return

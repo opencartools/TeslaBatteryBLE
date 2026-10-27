@@ -49,16 +49,19 @@ internal class EventLog(
 
     override fun rowCount(): Int = dao.count()
 
-    override fun seriesIds(): List<Long> = dao.seriesIds()
+    override val bounds =
+        object : TimeBounds {
+            override fun seriesIds(): List<Long> = dao.seriesIds()
 
-    override fun firstTime(seriesId: Long): Long? = dao.firstTime(seriesId)
+            override fun firstTime(seriesId: Long): Long? = dao.firstTime(seriesId)
 
-    override fun lastTime(seriesId: Long): Long? = dao.lastTime(seriesId)
+            override fun lastTime(seriesId: Long): Long? = dao.lastTime(seriesId)
 
-    override fun deleteBefore(
-        seriesId: Long,
-        cutoff: Long,
-    ): Int = dao.deleteBefore(seriesId, cutoff)
+            override fun deleteBefore(
+                seriesId: Long,
+                cutoff: Long,
+            ): Int = dao.deleteBefore(seriesId, cutoff)
+        }
 
     /** Age retention: drops the events older than [before] (epoch millis), every series. */
     fun expire(before: Long) = dao.seriesIds().forEach { dao.deleteBefore(it, before) }
