@@ -9,10 +9,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -22,9 +22,9 @@ import com.dzid26.teslable.R
 import kotlin.math.roundToInt
 
 /**
- * The trip's progress bar: the standard linear progress indicator with the arrow on it, flipped so the part already
- * driven is dimmed on the left and the part still to go is in full color on the right. The end dot marks the
- * destination.
+ * The trip's progress bar: the standard linear progress indicator with the arrow on it, drawn inverted (mirrored, filling
+ * the distance still to go) so the part already driven is the dimmed track on the left and the part still to go is in
+ * full color on the right. The stop dot is left out, as mirrored it would sit at the start.
  */
 @Composable
 internal fun TripBar(
@@ -36,10 +36,14 @@ internal fun TripBar(
     val driven = progress.coerceIn(0f, 1f)
     BoxWithConstraints(modifier.fillMaxWidth().height(ICON_SIZE).semantics { contentDescription = description }) {
         LinearProgressIndicator(
-            progress = { driven },
-            color = MaterialTheme.colorScheme.primary.copy(alpha = DRIVEN_ALPHA),
-            trackColor = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.align(Alignment.Center).fillMaxWidth().height(BAR_HEIGHT),
+            progress = { 1f - driven },
+            drawStopIndicator = {},
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth()
+                    .height(BAR_HEIGHT)
+                    .scale(scaleX = -1f, scaleY = 1f),
         )
         Image(
             painter = tracker,
@@ -52,4 +56,3 @@ internal fun TripBar(
 private val ICON_SIZE = 24.dp
 private val BAR_HEIGHT = 8.dp
 private const val PERCENT_FULL = 100f
-private const val DRIVEN_ALPHA = 0.38f
