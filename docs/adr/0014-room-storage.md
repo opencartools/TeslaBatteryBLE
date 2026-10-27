@@ -39,12 +39,12 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
     id (its UUID is in `origins`).
   - `odometer` is nullable: filled at insert from records that carry it, so log
     pulls and trip lookups by distance need no blob decoding. It is a plain
-    column, not part of the unique key. The owner keeps it, with its index, for frequent pulls by
-    distance, although no reader uses it yet.
-  - `records` has two indexes: the unique key `(seriesId, coalesce(carTimestamp, phoneTime), originId)`,
+    column, not part of the unique key. The column stays, and keeps being filled, but it has no
+    index until a reader needs one (owner decision 2026-10-27): adding it later is a `CREATE INDEX`
+    migration with no change to the data.
+  - `records` has one index, the unique key `(seriesId, coalesce(carTimestamp, phoneTime), originId)`,
     so a re-import is a no-op (it also serves the newest-first reads, which order by the same
-    expression), and `(seriesId, odometer)` over the rows that have an odometer. Room cannot declare
-    an expression or partial index, so a database callback creates both.
+    expression). Room cannot declare an expression index, so a database callback creates it.
   - Writes are batched in short transactions (WAL, `synchronous=NORMAL`).
 - **Retention is a `DELETE`** by age (ADR-0012's 90 days and 200,000-row
   backstop), run in the same transaction that writes the summaries it folds. A

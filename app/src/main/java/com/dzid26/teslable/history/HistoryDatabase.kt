@@ -44,9 +44,10 @@ internal class OriginRow(
  * and is null where the reply has none; such a row is timed by [phoneTime]. [odometer] is the drive
  * reading in hundredths of a mile, filled at insert from the records that carry one.
  *
- * Room cannot declare expression or partial indexes, so [HistoryDatabase.EXTRA_INDEXES_SQL] creates two:
- * the unique key `(seriesId, coalesce(carTimestamp, phoneTime), originId)`, so a re-import is a no-op
- * (it also serves the newest-first reads), and `(seriesId, odometer)` over the rows that have one.
+ * Room cannot declare an expression index, so [HistoryDatabase.EXTRA_INDEXES_SQL] creates the unique key
+ * `(seriesId, coalesce(carTimestamp, phoneTime), originId)`, so a re-import is a no-op (it also serves the
+ * newest-first reads). The odometer has a column but no index until a reader needs one: adding it later
+ * is a `CREATE INDEX`, with no change to the data.
  */
 @Entity(tableName = "records")
 internal class RecordRow(
@@ -238,7 +239,6 @@ internal abstract class HistoryDatabase : RoomDatabase() {
             listOf(
                 "CREATE UNIQUE INDEX IF NOT EXISTS index_records_time_key ON records " +
                     "(seriesId, coalesce(carTimestamp, phoneTime), originId)",
-                "CREATE INDEX IF NOT EXISTS index_records_odometer ON records (seriesId, odometer) WHERE odometer IS NOT NULL",
             )
 
         private val extraIndexesCallback =
