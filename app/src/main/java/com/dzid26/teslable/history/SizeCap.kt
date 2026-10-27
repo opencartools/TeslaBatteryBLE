@@ -11,7 +11,7 @@ package com.dzid26.teslable.history
 internal fun trimToCap(
     cap: Long,
     sizes: () -> List<SeriesSize>,
-    deleteOldest: (series: SeriesSize, count: Int) -> Unit,
+    deleteOldest: (seriesId: Long, count: Int) -> Int,
 ) {
     val target = cap / PERCENT * TARGET_PERCENT
     var current = sizes()
@@ -19,7 +19,7 @@ internal fun trimToCap(
     while (total > cap) {
         val largest = current.maxBy { it.bytes() }
         val perRow = largest.bytes() / largest.rowCount
-        deleteOldest(largest, ((total - target) / perRow + 1).coerceAtMost(largest.rowCount).toInt())
+        deleteOldest(largest.seriesId, ((total - target) / perRow + 1).coerceAtMost(largest.rowCount).toInt())
         current = sizes()
         total = current.sumOf { it.bytes() }
     }

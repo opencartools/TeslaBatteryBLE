@@ -123,7 +123,7 @@ class RoomBackedRecordStoreTest {
             listOf(RecordKind.DRIVE, RecordKind.CHARGE).map {
                 db
                     .records()
-                    .newest("car", it.id, 1)
+                    .newest(checkNotNull(db.meta().seriesId("car", it.id)), 1)
                     .single()
                     .odometer
             }
@@ -134,11 +134,11 @@ class RoomBackedRecordStoreTest {
     fun `the database file reopens with its records and its unique key`() {
         val context = TestContext(folder.root)
         val driver = BundledSQLiteDriver()
-        val first = HistoryDatabase.open(context, driver)
+        val first = HistoryDatabase.open(context, driver, log = {})
         RoomBackedRecordStore(first, "phone-a").append("car", RecordKind.COMMAND, command(NOW_S))
         first.close()
 
-        val second = HistoryDatabase.open(context, driver)
+        val second = HistoryDatabase.open(context, driver, log = {})
         val reopened = RoomBackedRecordStore(second, "phone-a")
         val rows = reopened.rowCount()
         reopened.append("car", RecordKind.COMMAND, command(NOW_S))
@@ -265,7 +265,7 @@ class RoomBackedRecordStoreTest {
         val damaged = "not a database, but the owner's only copy".toByteArray()
         context.getDatabasePath(HistoryDatabase.FILE_NAME).writeBytes(damaged)
 
-        val db = HistoryDatabase.open(context, BundledSQLiteDriver())
+        val db = HistoryDatabase.open(context, BundledSQLiteDriver(), log = {})
         val fresh = RoomBackedRecordStore(db, "phone-a")
         fresh.append("car", RecordKind.COMMAND, command(NOW_S))
         val rows = fresh.rowCount()

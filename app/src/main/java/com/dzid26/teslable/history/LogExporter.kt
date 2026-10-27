@@ -3,7 +3,10 @@
 package com.dzid26.teslable.history
 
 import com.dzid26.teslable.core.history.ProtoLog
+import java.io.File
 import java.io.OutputStream
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -31,4 +34,30 @@ internal object LogExporter {
         }
         return exported
     }
+
+    /**
+     * Exports into `<time>.zip` in [dir] (UTC time) and returns it. Only the newest [KEEP_EXPORTS] zips
+     * are kept, so repeated pulls do not fill the phone.
+     */
+    fun exportToDirectory(
+        store: RecordStore,
+        dir: File,
+        nowMillis: Long,
+    ): File {
+        dir.mkdirs()
+        val name = NAME_FORMAT.format(java.time.Instant.ofEpochMilli(nowMillis)) + ".zip"
+        val tmp = File(dir, "$name.tmp")
+        tmp.outputStream().use { export(store, it) }
+        val zip = File(dir, name)
+        check(tmp.renameTo(zip)) { "could not move the export into place" }
+        dir
+            .listFiles { file -> file.name.endsWith(".zip") }
+            ?.sortedBy { it.name }
+            ?.dropLast(KEEP_EXPORTS)
+            ?.forEach { it.delete() }
+        return zip
+    }
+
+    private const val KEEP_EXPORTS = 3
+    private val NAME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC)
 }

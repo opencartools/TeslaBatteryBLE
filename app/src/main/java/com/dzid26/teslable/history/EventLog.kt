@@ -12,7 +12,7 @@ import java.security.MessageDigest
  */
 internal class EventLog(
     private val dao: EventDao,
-    private val originId: String,
+    private val lookups: Lookups,
 ) {
     fun append(
         vehicleId: String,
@@ -20,20 +20,22 @@ internal class EventLog(
         records: List<BleRecord>,
         now: Long,
     ) {
-        dao.insertAll(records.map { rowOf(vehicleId, kind, it, now) })
+        val seriesId = lookups.seriesId(vehicleId, kind)
+        dao.insertAll(records.map { rowOf(seriesId, it, now) })
     }
 
     fun readRecent(
         kind: RecordKind,
         limitPerVehicle: Int,
     ): Map<String, List<BleRecord>> =
-        dao.vehicleIds(kind.id).associateWith { vehicleId ->
-            dao.newest(vehicleId, kind.id, limitPerVehicle).asReversed().mapNotNull(::decode)
-        }
+        lookups
+            .seriesOf(dao.seriesIds()) { it == kind }
+            .associate { (id, vehicleId, _) -> vehicleId to dao.newest(id, limitPerVehicle).asReversed().mapNotNull(::decode) }
 
     fun series(): List<Pair<String, RecordKind>> =
-        dao.series().mapNotNull { key ->
-            RecordKind.entries.firstOrNull { it.id == key.kind && it.isEvent }?.let { key.vehicleId to it }
+        lookups.seriesOf(dao.seriesIds()) { it.isEvent }.map { (_, vehicleId, kind) ->
+            vehicleId to
+                kind
         }
 
     fun stream(
@@ -41,9 +43,10 @@ internal class EventLog(
         kind: RecordKind,
         onBatch: (List<BleRecord>) -> Unit,
     ) {
+        val seriesId = lookups.seriesId(vehicleId, kind)
         var afterId = 0L
         while (true) {
-            val rows = dao.page(vehicleId, kind.id, afterId, STREAM_BATCH)
+            val rows = dao.page(seriesId, afterId, STREAM_BATCH)
             if (rows.isEmpty()) return
             onBatch(rows.mapNotNull(::decode))
             afterId = rows.last().id
@@ -55,17 +58,22 @@ internal class EventLog(
     /** Age retention for the phone-side logs: drops the events older than [before] (epoch millis). */
     fun expire(before: Long) = dao.deleteBefore(before)
 
-    fun trim(cap: Long) = trimToCap(cap, dao::seriesSizes) { series, count -> dao.deleteOldest(series.vehicleId, series.kind, count) }
+    /** The sizes of the event series, for the size cap. */
+    fun sizes(): List<SeriesSize> = dao.seriesSizes()
+
+    fun deleteOldest(
+        seriesId: Long,
+        count: Int,
+    ): Int = dao.deleteOldest(seriesId, count)
 
     private fun rowOf(
-        vehicleId: String,
-        kind: RecordKind,
+        seriesId: Long,
         record: BleRecord,
         now: Long,
     ): EventRow {
         val blob = record.encode()
         val phone = record.device_timestamp?.toEpochMilli() ?: now
-        return EventRow(key = EventKey(vehicleId, kind.id, phone, originId, contentHash(blob)), blob = blob)
+        return EventRow(seriesId = seriesId, originId = lookups.originId, phoneTime = phone, contentHash = contentHash(blob), blob = blob)
     }
 
     private fun decode(row: EventRow): BleRecord? = runCatching { BleRecord.ADAPTER.decode(row.blob) }.getOrNull()

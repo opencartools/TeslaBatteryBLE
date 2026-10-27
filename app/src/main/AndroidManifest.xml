@@ -58,6 +58,20 @@
             </intent-filter>
         </receiver>
 
+        <!--
+          Writes the history to files/battery-history-export/<time>.zip for `adb shell am broadcast`
+          (docs/reference/log-pull.md). Only the shell holds the DUMP permission, and the receiver does
+          nothing unless the app is debuggable, so a release build never exports.
+        -->
+        <receiver
+            android:name=".history.ExportLogsReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.dzid26.teslable.EXPORT_LOGS" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".ble.BleTrackingService"
             android:exported="false"

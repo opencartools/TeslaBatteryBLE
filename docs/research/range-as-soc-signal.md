@@ -83,9 +83,9 @@ The car never reports its 100% range, and the new-car EPA figure is the SoH deno
 
 ### What is logged
 
-History: one append-only log per vehicle at `files/battery-history/<vehicleId>.charge.pblog` — `BleRecord` envelopes (ADR-0008) holding the phone's `device_timestamp` and the raw `ChargeState`, so every field the car reports is kept (level, usable level, rated/est/ideal range, energy added, miles added, charge rates, charger power/voltage/amps, the car's timestamp). Every SOC read is logged, with no deduplication; each file keeps its newest 20k records, the in-memory cache the newest 20k overall; pre-store CSV history and the earlier raw `<vehicleId>.pblog` files are not migrated (pre-1.0 resets).
+History: one series per vehicle in Room's `history.db` (ADR-0014; before that, one append-only `files/battery-history/<vehicleId>.charge.pblog`) — `BleRecord` envelopes (ADR-0008) holding the phone's `device_timestamp` and the raw `ChargeState`, so every field the car reports is kept (level, usable level, rated/est/ideal range, energy added, miles added, charge rates, charger power/voltage/amps, the car's timestamp). Every SOC read is logged, with no deduplication; each file keeps its newest 20k records, the in-memory cache the newest 20k overall; pre-store CSV history and the earlier raw `<vehicleId>.pblog` files are not migrated (pre-1.0 resets).
 
-Export: `adb exec-out run-as com.dzid26.teslable cat files/battery-history/<vehicleId>.charge.pblog > history.charge.pblog` (debuggable build), or the owner shares the files; `ProtoLog.decode(bytes, BleRecord.ADAPTER)` in `core` reads them back, with the raw `ChargeState` in each record's `charge_state`.
+Export: the debug broadcast in `docs/reference/log-pull.md` writes a zip with a framed `<vehicleId>.charge.pblog` (debuggable build), or the owner shares the files; `ProtoLog.decode(bytes, BleRecord.ADAPTER)` in `core` reads them back, with the raw `ChargeState` in each record's `charge_state`.
 
 ### A. Parked behavior of rated range (the key test)
 

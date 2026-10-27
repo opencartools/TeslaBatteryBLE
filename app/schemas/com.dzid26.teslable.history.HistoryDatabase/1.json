@@ -2,17 +2,111 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "bd2b1ee13b5b316c8c722b34926a5b1a",
+    "identityHash": "7793c3fd4d0287e485593eb7f5d6e291",
     "entities": [
       {
-        "tableName": "records",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `phoneTime` INTEGER NOT NULL, `odometer` INTEGER, `blob` BLOB NOT NULL, `vehicleId` TEXT NOT NULL, `kind` TEXT NOT NULL, `carTimestamp` INTEGER, `originId` TEXT NOT NULL)",
+        "tableName": "series",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `vehicleId` TEXT NOT NULL, `kind` TEXT NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
             "columnName": "id",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_series_vehicleId_kind",
+            "unique": true,
+            "columnNames": [
+              "vehicleId",
+              "kind"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_series_vehicleId_kind` ON `${TABLE_NAME}` (`vehicleId`, `kind`)"
+          }
+        ]
+      },
+      {
+        "tableName": "origins",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `uuid` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_origins_uuid",
+            "unique": true,
+            "columnNames": [
+              "uuid"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_origins_uuid` ON `${TABLE_NAME}` (`uuid`)"
+          }
+        ]
+      },
+      {
+        "tableName": "records",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `seriesId` INTEGER NOT NULL, `originId` INTEGER NOT NULL, `carTimestamp` INTEGER, `phoneTime` INTEGER NOT NULL, `odometer` INTEGER, `blob` BLOB NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seriesId",
+            "columnName": "seriesId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originId",
+            "columnName": "originId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "carTimestamp",
+            "columnName": "carTimestamp",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "phoneTime",
@@ -30,29 +124,6 @@
             "columnName": "blob",
             "affinity": "BLOB",
             "notNull": true
-          },
-          {
-            "fieldPath": "key.vehicleId",
-            "columnName": "vehicleId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "key.kind",
-            "columnName": "kind",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "key.carTimestamp",
-            "columnName": "carTimestamp",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "key.originId",
-            "columnName": "originId",
-            "affinity": "TEXT",
-            "notNull": true
           }
         ],
         "primaryKey": {
@@ -60,34 +131,11 @@
           "columnNames": [
             "id"
           ]
-        },
-        "indices": [
-          {
-            "name": "index_records_vehicleId_kind_carTimestamp",
-            "unique": false,
-            "columnNames": [
-              "vehicleId",
-              "kind",
-              "carTimestamp"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_records_vehicleId_kind_carTimestamp` ON `${TABLE_NAME}` (`vehicleId`, `kind`, `carTimestamp`)"
-          },
-          {
-            "name": "index_records_vehicleId_odometer",
-            "unique": false,
-            "columnNames": [
-              "vehicleId",
-              "odometer"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_records_vehicleId_odometer` ON `${TABLE_NAME}` (`vehicleId`, `odometer`)"
-          }
-        ]
+        }
       },
       {
         "tableName": "events",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `blob` BLOB NOT NULL, `vehicleId` TEXT NOT NULL, `kind` TEXT NOT NULL, `phoneTime` INTEGER NOT NULL, `originId` TEXT NOT NULL, `contentHash` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `seriesId` INTEGER NOT NULL, `originId` INTEGER NOT NULL, `phoneTime` INTEGER NOT NULL, `contentHash` INTEGER NOT NULL, `blob` BLOB NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -96,39 +144,33 @@
             "notNull": true
           },
           {
-            "fieldPath": "blob",
-            "columnName": "blob",
-            "affinity": "BLOB",
+            "fieldPath": "seriesId",
+            "columnName": "seriesId",
+            "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "key.vehicleId",
-            "columnName": "vehicleId",
-            "affinity": "TEXT",
+            "fieldPath": "originId",
+            "columnName": "originId",
+            "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "key.kind",
-            "columnName": "kind",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "key.phoneTime",
+            "fieldPath": "phoneTime",
             "columnName": "phoneTime",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "key.originId",
-            "columnName": "originId",
-            "affinity": "TEXT",
+            "fieldPath": "contentHash",
+            "columnName": "contentHash",
+            "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "key.contentHash",
-            "columnName": "contentHash",
-            "affinity": "INTEGER",
+            "fieldPath": "blob",
+            "columnName": "blob",
+            "affinity": "BLOB",
             "notNull": true
           }
         ],
@@ -140,35 +182,23 @@
         },
         "indices": [
           {
-            "name": "index_events_vehicleId_kind_originId_phoneTime_contentHash",
+            "name": "index_events_seriesId_originId_phoneTime_contentHash",
             "unique": true,
             "columnNames": [
-              "vehicleId",
-              "kind",
+              "seriesId",
               "originId",
               "phoneTime",
               "contentHash"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_events_vehicleId_kind_originId_phoneTime_contentHash` ON `${TABLE_NAME}` (`vehicleId`, `kind`, `originId`, `phoneTime`, `contentHash`)"
-          },
-          {
-            "name": "index_events_vehicleId_kind_phoneTime",
-            "unique": false,
-            "columnNames": [
-              "vehicleId",
-              "kind",
-              "phoneTime"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_events_vehicleId_kind_phoneTime` ON `${TABLE_NAME}` (`vehicleId`, `kind`, `phoneTime`)"
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_events_seriesId_originId_phoneTime_contentHash` ON `${TABLE_NAME}` (`seriesId`, `originId`, `phoneTime`, `contentHash`)"
           }
         ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bd2b1ee13b5b316c8c722b34926a5b1a')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7793c3fd4d0287e485593eb7f5d6e291')"
     ]
   }
 }

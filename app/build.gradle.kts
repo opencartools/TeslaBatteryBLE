@@ -201,11 +201,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    testOptions {
-        // The history tests build a Room database on the JVM with a Context stub (ADR-0014).
-        unitTests.isReturnDefaultValues = true
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
