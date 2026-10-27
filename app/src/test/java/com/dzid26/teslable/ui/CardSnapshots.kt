@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ui
 
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityOptionsCompat
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.ide.common.rendering.api.SessionParams
@@ -46,6 +51,7 @@ import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.core.units.EfficiencyUnit
 import com.dzid26.teslable.health.HealthConfidence
 import com.dzid26.teslable.health.HealthSummary
+import com.dzid26.teslable.history.LogExportStatus
 import com.dzid26.teslable.protocol.ChargingStateKind
 import com.dzid26.teslable.protocol.ShiftStateKind
 import com.tesla.generated.carserver.common.Void
@@ -645,16 +651,45 @@ class CardSnapshots {
     }
 
     @Test
+    fun exportLogsCardIdle() = snapCard("export-logs-card_idle") { ExportLogsCardBody(LogExportStatus.Idle) {} }
+
+    @Test
+    fun exportLogsCardRunning() = snapCard("export-logs-card_running") { ExportLogsCardBody(LogExportStatus.Running) {} }
+
+    @Test
+    fun exportLogsCardDone() = snapCard("export-logs-card_done") { ExportLogsCardBody(LogExportStatus.Done(116_353)) {} }
+
+    @Test
+    fun exportLogsCardFailed() = snapCard("export-logs-card_failed") { ExportLogsCardBody(LogExportStatus.Failed(leftover = true)) {} }
+
+    @Test
     fun screenSettings() {
+        // The export button asks for an activity result launcher, which Paparazzi has no activity for.
+        val registryOwner =
+            object : ActivityResultRegistryOwner {
+                override val activityResultRegistry =
+                    object : ActivityResultRegistry() {
+                        override fun <I, O> onLaunch(
+                            requestCode: Int,
+                            contract: ActivityResultContract<I, O>,
+                            input: I,
+                            options: ActivityOptionsCompat?,
+                        ) = Unit
+                    }
+            }
         snapScreen("screen-settings") {
-            SettingsScreen(
-                keyStore = PairingKeyStore(LocalContext.current),
-                vehicles = listOf(DemoScreenFixtures.vehicle),
-                onClearPairingCache = {},
-                onOpenAbout = {},
-                onBack = {},
-                versionName = DemoScreenFixtures.VERSION_NAME,
-            )
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+                SettingsScreen(
+                    keyStore = PairingKeyStore(LocalContext.current),
+                    vehicles = listOf(DemoScreenFixtures.vehicle),
+                    onClearPairingCache = {},
+                    logExportStatus = LogExportStatus.Idle,
+                    onExportLogs = {},
+                    onOpenAbout = {},
+                    onBack = {},
+                    versionName = DemoScreenFixtures.VERSION_NAME,
+                )
+            }
         }
     }
 

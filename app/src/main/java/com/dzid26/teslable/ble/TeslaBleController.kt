@@ -23,6 +23,7 @@ import com.dzid26.teslable.core.history.Trip
 import com.dzid26.teslable.core.infotainment.InfotainmentPollPolicy
 import com.dzid26.teslable.core.infotainment.InfotainmentSessionGate
 import com.dzid26.teslable.history.HistoryStore
+import com.dzid26.teslable.history.LogExportRunner
 import com.dzid26.teslable.protocol.AntiReplayWindow
 import com.dzid26.teslable.protocol.FaultRecovery
 import com.dzid26.teslable.protocol.PairingFlow
@@ -88,6 +89,9 @@ class TeslaBleController(
     /** The newest route-bearing drive reading per car, for the live trip card. */
     val latestRoutes: StateFlow<Map<String, RouteSample>> get() = historyStore.latestRoutes
     val trips: StateFlow<Map<String, List<Trip>>> get() = historyStore.trips
+
+    /** The Settings "Export logs" run into a picked document: one at a time, result kept across screens. */
+    val logExport: LogExportRunner by lazy { LogExportRunner(appContext.contentResolver, historyStore::exportLogs) }
 
     private val links = mutableMapOf<String, VehicleLink>()
     private val handler = Handler(Looper.getMainLooper())

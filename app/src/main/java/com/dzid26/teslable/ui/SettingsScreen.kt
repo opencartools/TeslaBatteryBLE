@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ui
 
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -54,6 +55,7 @@ import com.dzid26.teslable.ble.DebugSwitches
 import com.dzid26.teslable.ble.PairingKeyStore
 import com.dzid26.teslable.ble.Vehicle
 import com.dzid26.teslable.core.units.EfficiencyUnit
+import com.dzid26.teslable.history.LogExportStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,6 +66,8 @@ fun SettingsScreen(
     keyStore: PairingKeyStore,
     vehicles: List<Vehicle>,
     onClearPairingCache: () -> Unit,
+    logExportStatus: LogExportStatus,
+    onExportLogs: (Uri) -> Unit,
     onOpenAbout: () -> Unit,
     onBack: () -> Unit,
     // Injectable for the Paparazzi snapshots: the version line would otherwise
@@ -149,6 +153,8 @@ fun SettingsScreen(
                 keys = vehicleKeys,
                 onClearCache = { showClearCacheDialog = true },
             )
+            Spacer(Modifier.height(16.dp))
+            ExportLogsCard(status = logExportStatus, onExport = onExportLogs)
             Spacer(Modifier.height(16.dp))
             AboutCard(onOpenAbout = onOpenAbout, versionName = versionName)
             // Debug builds only, and not in the Paparazzi renders, which feed the release screenshots.
