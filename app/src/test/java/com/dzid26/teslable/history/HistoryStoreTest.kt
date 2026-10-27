@@ -2,6 +2,7 @@
 
 package com.dzid26.teslable.history
 
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.BleRecord
 import com.dzid26.teslable.core.history.ProtoLog
@@ -12,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -126,6 +128,44 @@ class HistoryStoreTest {
                 .reads()
                 .batteryBefore(Long.MAX_VALUE)
                 .map { it.time },
+        )
+    }
+
+    @Test
+    fun `the start trims only after derived db is built`() {
+        val now = Instant.now()
+        val raw = dbs.store(maxBytes = 1)
+        (1..50L).forEach {
+            raw.append(
+                "carA",
+                RecordKind.CHARGE,
+                BleRecord(
+                    device_timestamp = now,
+                    charge_state =
+                        reply(
+                            now.epochSecond - it * 60,
+                        ),
+                ),
+            )
+        }
+        val failing =
+            DerivedDatabase
+                .inMemory(
+                    TestContext(folder.root),
+                    onMainThread = true,
+                    driver = BundledSQLiteDriver(),
+                ).apply { close() }
+
+        HistoryStore(historyDir, lazy { raw }, CoroutineScope(InlineDispatcher), lazy { failing })
+        assertEquals(50, raw.rowCount())
+
+        HistoryStore(historyDir, lazy { raw }, CoroutineScope(InlineDispatcher), lazy { dbs.derived })
+        assertTrue(raw.rowCount() < 50)
+        assertTrue(
+            dbs.derived
+                .reads()
+                .batteryBefore(Long.MAX_VALUE)
+                .isNotEmpty(),
         )
     }
 }

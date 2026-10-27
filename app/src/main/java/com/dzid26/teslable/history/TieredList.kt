@@ -17,7 +17,7 @@ internal class TieredList<T>(
     private var older: List<T> = emptyList()
     private var recent: List<T> = emptyList()
 
-    /** The older part followed by the recent one. */
+    /** The older part followed by the recent one, as a view: a new reading does not copy the whole history. */
     var all: List<T> = emptyList()
         private set
 
@@ -27,13 +27,13 @@ internal class TieredList<T>(
     /** Replaces the recent part, keeping its newest [maxRecent]. */
     fun setRecent(samples: List<T>) {
         recent = samples.takeLast(maxRecent)
-        all = older + recent
+        all = Joined(older, recent)
     }
 
     /** Replaces the older part with [samples], which must all be before [olderBefore]. */
     fun setOlder(samples: List<T>) {
         older = samples
-        all = older + recent
+        all = Joined(older, recent)
     }
 
     /** Appends [samples] to the recent part; any overflow moves to the older part, thinned. */
@@ -45,7 +45,17 @@ internal class TieredList<T>(
             older = older + recent.take(overflow).flatMap(thin)
             recent = recent.drop(overflow)
         }
-        all = older + recent
+        all = Joined(older, recent)
+    }
+
+    /** Two lists read as one, without a copy; both are never changed after they are built. */
+    private class Joined<T>(
+        private val first: List<T>,
+        private val second: List<T>,
+    ) : AbstractList<T>() {
+        override val size: Int get() = first.size + second.size
+
+        override fun get(index: Int): T = if (index < first.size) first[index] else second[index - first.size]
     }
 
     private companion object {

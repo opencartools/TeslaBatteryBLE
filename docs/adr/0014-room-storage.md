@@ -167,10 +167,26 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   recreated `history.db`) builds that series again from the start. It runs at start after the recent windows
   are on screen, then every 1,000 appends. The first size-cap trim of a start runs after that build, so the cap
   never drops a record that has not reached `derived.db`.
-- **Not yet.** Sessions and day rollups have no reader yet and come with the sessions work; adding a table to
-  this rebuildable file is cheap. Status samples are not thinned (about 400 a day), so the in-memory history
-  grows by roughly 250,000 samples a year across the kinds; day rollups for old ranges are the fix when that
-  matters.
+- **Checked on real logs.** `ThinningReplayTest` (core) replays a directory of `.pblog` files set in
+  `TESLABLE_REPLAY_LOGS` and asserts the figures above match; it is skipped without it.
+- **Retention.** The first size-cap trim of a start runs only after that start's build succeeded. Nothing in
+  `derived.db` is deleted (rows are replaced on their time key) and it has no size cap: at about 1,000 rows a
+  day per car it stays small for years. A rebuild over a period raw still covers adds the union of the old and
+  new thinning; a changed thinning rule therefore applies to new rows only, until a recompute over the periods
+  raw covers comes with the rollups.
+- **One cutoff for all cars.** The older part ends at the first time of the merged recent window. A car whose
+  own recent window starts later reads that stretch from `derived.db`, thinned and still in order.
+- **Read cost.** The joined list is a view, so a new reading copies only the recent window, as before. The
+  car screen filters each car's logs off the main thread, and the whole-history figures (the fit, the drain
+  stats, the health card, both history charts, past trips) follow new readings at most every 30 s; the hero and
+  the current-rest line read the live logs. Measured on a JVM with a year of R's logs (117,000 battery, 79,000
+  drive and 113,000 status samples): 7 ms for the per-car filter, 27 ms for the fit and 129 ms for the drain
+  stats, against 2, 8 and 44 ms over the 20,000-sample window alone.
+- **Not yet: the range and rollup readers.** Every figure still reads one in-memory list per kind. Day rollups,
+  session rows, a recompute of touched days, and charts and stats that read only their time range (so a year
+  of history is neither held in memory nor rescanned) are the next step. Status samples are not thinned (about
+  400 a day), so the history held in memory grows by roughly 250,000 samples a year across the kinds until
+  then.
 
 ## Consequences
 

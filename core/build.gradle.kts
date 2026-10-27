@@ -52,3 +52,9 @@ detekt {
     config.setFrom(rootProject.file("config/detekt/detekt.yml"), rootProject.file("config/detekt/portable.yml"))
     baseline = file("detekt-baseline.xml")
 }
+
+tasks.test {
+    // ThinningReplayTest reads real logs from this directory and is skipped without it; as an input, setting or
+    // changing it reruns the tests instead of reusing a result from without it.
+    inputs.property("replayLogs", providers.environmentVariable("TESLABLE_REPLAY_LOGS").orElse(""))
+}

@@ -167,20 +167,21 @@ class HistoryStore internal constructor(
                 _activitySamples.value = activity.all
             }
             // The recent windows are on screen; the long-term history follows once derived.db is up to date.
-            // Retention runs only after that build, so a record the cap drops has already reached derived.db.
-            buildDerived()
+            // Retention runs only after that build succeeded, so a record the cap drops has already reached
+            // derived.db; after a failed build this start skips it, and the next start tries again.
+            val built = buildDerived()
             mutex.withLock {
-                (recordStore as? RoomBackedRecordStore)?.let { runCatching { it.trim() } }
+                if (built) (recordStore as? RoomBackedRecordStore)?.let { runCatching { it.trim() } }
                 loadOlder()
             }
         }
     }
 
-    /** Brings `derived.db` up to date with the raw records; a failure leaves the long-term history as it was. */
-    private suspend fun buildDerived() {
-        val builder = derivedBuilder ?: return
-        buildMutex.withLock { runCatching { builder.build() } }
-    }
+    /**
+     * Brings `derived.db` up to date with the raw records; a failure leaves the long-term history as it was. True
+     * when every raw record has reached it, or when there is no `derived.db` to reach (the tests of the raw store).
+     */
+    private suspend fun buildDerived(): Boolean = buildMutex.withLock { runCatching { derivedBuilder?.build() }.isSuccess }
 
     /** Counts appended records and catches `derived.db` up every [BUILD_EVERY], so the next start has little to read. */
     private fun countAppend() {

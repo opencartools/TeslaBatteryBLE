@@ -159,35 +159,44 @@ internal fun CarScreen(
 ) {
     BackHandler { onBack() }
     val connection = state.connections[address]
-    // Filtered once per change of the source log, not per recomposition: the state re-emits on every
-    // RSSI poll and log line, and a fresh list each time would redo every derived figure below and
-    // redraw every card that takes the list.
+    // Filtered once per change of the source log, not per recomposition, and off the main thread: the state
+    // re-emits on every RSSI poll and log line, and each log holds the car's whole history (ADR-0014).
     val bleName = vehicle?.bleName
-    val vehicleHistory = remember(history, bleName) { history.filter { it.vehicleId == bleName } }
-    val vehicleDrives = remember(driveHistory, bleName) { driveHistory.filter { it.vehicleId == bleName } }
-    val vehicleStatuses = remember(statusHistory, bleName) { statusHistory.filter { it.vehicleId == bleName } }
-    val vehicleActivity = remember(activityHistory, bleName) { activityHistory.filter { it.vehicleId == bleName } }
+    val vehicleHistory = rememberForVehicle(history, bleName) { it.vehicleId }
+    val vehicleDrives = rememberForVehicle(driveHistory, bleName) { it.vehicleId }
+    val vehicleStatuses = rememberForVehicle(statusHistory, bleName) { it.vehicleId }
+    val vehicleActivity = rememberForVehicle(activityHistory, bleName) { it.vehicleId }
     val paired = isPaired(connection, vehicle)
+    // The figures that scan the whole history (the fit, the stats, the health, both history charts and past trips)
+    // follow the logs at most every FIGURES_INTERVAL_MILLIS, not on every reading; the hero and the current-rest
+    // line read the live logs.
+    val liveLogs =
+        remember(vehicleHistory, vehicleDrives, vehicleStatuses, vehicleActivity) {
+            VehicleLogs(vehicleHistory, vehicleDrives, vehicleStatuses, vehicleActivity)
+        }
+    val logs = rememberThrottled(liveLogs, FIGURES_INTERVAL_MILLIS)
     // Fitted once for every card below: the hero, the trip, both history charts. Off the main thread: the fit reads
-    // the car's whole history, which derived.db makes months long; until the first fit the cards show whole percents.
-    val scale = rememberInBackground(null, vehicleHistory) { FullRangeScales.of(vehicleHistory) }
-    // The stats card looks at the whole log, whatever range the battery chart shows.
+    // the car's whole history; until the first fit the cards show whole percents.
+    val scale = rememberInBackground(null, logs) { FullRangeScales.of(logs.battery) }
     // The status and activity logs the sleep rules read, built once per change of either.
-    val sleepLogs = remember(vehicleStatuses, vehicleActivity) { ProjectionContext(statuses = vehicleStatuses, activity = vehicleActivity) }
+    val sleepLogs = remember(logs) { ProjectionContext(statuses = logs.statuses, activity = logs.activity) }
+    val liveSleepLogs =
+        remember(vehicleStatuses, vehicleActivity) { ProjectionContext(statuses = vehicleStatuses, activity = vehicleActivity) }
+    // The stats card looks at the whole log, whatever range the battery chart shows.
     // The whole-log figures run off the main thread; each card shows once its first result is in.
     val rest =
-        rememberInBackground(null, vehicleHistory, vehicleDrives, sleepLogs, scale) {
-            restStats(vehicleHistory, vehicleDrives, sleepLogs.copy(scale = scale))
+        rememberInBackground(null, logs, sleepLogs, scale) {
+            restStats(logs.battery, logs.drives, sleepLogs.copy(scale = scale))
         }
     val statsNow = nowMillis ?: rememberNowMillis()
     val current =
-        rememberInBackground(null, vehicleHistory, vehicleDrives, sleepLogs, statsNow) {
-            currentRest(vehicleHistory, vehicleDrives, statsNow, sleepLogs)
+        rememberInBackground(null, vehicleHistory, vehicleDrives, liveSleepLogs, statsNow) {
+            currentRest(vehicleHistory, vehicleDrives, statsNow, liveSleepLogs)
         }
     val factoryRangeMiles = vehicle?.factoryRangeMiles
     val health =
-        rememberInBackground(null, vehicleHistory, factoryRangeMiles) {
-            healthSummary(vehicleHistory, epaRatedRangeMiles = factoryRangeMiles)
+        rememberInBackground(null, logs, factoryRangeMiles) {
+            healthSummary(logs.battery, epaRatedRangeMiles = factoryRangeMiles)
         }
     // What a pull on this screen will do, and the feedback while it runs.
     val pullLabel =
@@ -333,18 +342,18 @@ internal fun CarScreen(
                         pricePerKwh = pricePerKwh,
                     )
                     BatteryHistoryCard(
-                        vehicleHistory,
-                        vehicleDrives,
+                        logs.battery,
+                        logs.drives,
                         // The ticking clock, not a fresh wall-clock read: that changed on every recomposition (each
                         // RSSI poll), so the card redid its projections and redrew its chart every time.
                         nowMillis = nowMillis ?: rememberNowMillis(),
                         sleepLogs = sleepLogs,
                     )
-                    DriveHistoryCard(vehicleHistory, vehicleDrives, scale = scale, ratedKwhPerMile = health?.ratedKwhPerMile)
+                    DriveHistoryCard(logs.battery, logs.drives, scale = scale, ratedKwhPerMile = health?.ratedKwhPerMile)
                     val vehicleTrips = vehicle?.let { trips[it.bleName] }.orEmpty()
                     PastTripsCard(
                         trips = remember(vehicleTrips, liveRoute) { vehicleTrips.markingLive(liveRoute) },
-                        samples = vehicleHistory,
+                        samples = logs.battery,
                         scale = scale,
                         ratedKwhPerMile = health?.ratedKwhPerMile,
                         pricePerKwh = pricePerKwh,
@@ -1034,3 +1043,17 @@ internal fun formatPercent(value: Float): String {
     val rounded = value.roundToInt()
     return if (rounded.toFloat() == value) "$rounded" else String.format(Locale.getDefault(), "%.1f", value)
 }
+
+/**
+ * One car's logs as one value, so the whole-history figures follow them together; compared by identity, so a
+ * throttle never compares the lists themselves.
+ */
+private class VehicleLogs(
+    val battery: List<BatterySample>,
+    val drives: List<DriveSample>,
+    val statuses: List<StatusSample>,
+    val activity: List<ActivitySample>,
+)
+
+/** How often the whole-history figures follow new readings: about every third reading of an awake car. */
+private const val FIGURES_INTERVAL_MILLIS = 30_000L

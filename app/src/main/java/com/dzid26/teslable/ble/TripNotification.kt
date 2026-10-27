@@ -125,6 +125,8 @@ internal fun tripNotice(
 internal class TripNoticeSource {
     private val cache = mutableMapOf<String, Pair<List<BatterySample>, TripInputs>>()
 
+    /** Synchronized: the service builds its models off the main thread, from the state flow and its minute tick. */
+    @Synchronized
     fun noticeFor(
         bleName: String,
         history: List<BatterySample>,
