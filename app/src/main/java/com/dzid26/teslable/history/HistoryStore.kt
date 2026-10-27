@@ -4,6 +4,7 @@ package com.dzid26.teslable.history
 
 import android.content.Context
 import com.dzid26.teslable.BuildConfig
+import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.history.ActivitySample
 import com.dzid26.teslable.core.history.ActivityThinner
 import com.dzid26.teslable.core.history.AppState
@@ -13,6 +14,7 @@ import com.dzid26.teslable.core.history.Command
 import com.dzid26.teslable.core.history.CommandResult
 import com.dzid26.teslable.core.history.ConnectionEvent
 import com.dzid26.teslable.core.history.DriveSample
+import com.dzid26.teslable.core.history.DriveSession
 import com.dzid26.teslable.core.history.RouteSample
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.Trip
@@ -105,6 +107,7 @@ class HistoryStore internal constructor(
 
     /** Builds `derived.db` from the raw records; null where there is none (the tests of the raw store). */
     private val derivedBuilder: DerivedBuilder? by lazy { derivedProvider.value?.let { DerivedBuilder(recordStore, it) } }
+    private val sessionBuilder: SessionBuilder? by lazy { derivedProvider.value?.let { SessionBuilder(it) } }
 
     /** One build at a time: the startup build and the periodic catch-ups never overlap. */
     private val buildMutex = Mutex()
@@ -144,6 +147,19 @@ class HistoryStore internal constructor(
      */
     val trips: StateFlow<Map<String, List<Trip>>> = _trips.asStateFlow()
 
+    private val _chargeSessions = MutableStateFlow<List<ChargeSession>>(emptyList())
+
+    /**
+     * Every car's charge sessions as `derived.db` stores them, oldest first, as of its last build (at start and every
+     * [BUILD_EVERY] appends). The newest one may still be growing: join it with the readings since through
+     * `withLiveTail`.
+     */
+    val chargeSessions: StateFlow<List<ChargeSession>> = _chargeSessions.asStateFlow()
+    private val _driveSessions = MutableStateFlow<List<DriveSession>>(emptyList())
+
+    /** Every car's drives as `derived.db` stores them, oldest first; see [chargeSessions]. */
+    val driveSessions: StateFlow<List<DriveSession>> = _driveSessions.asStateFlow()
+
     /** Thins the Sentry and climate readings as they load and arrive. */
     private val activityThinner = ActivityThinner()
 
@@ -181,7 +197,24 @@ class HistoryStore internal constructor(
      * Brings `derived.db` up to date with the raw records; a failure leaves the long-term history as it was. True
      * when every raw record has reached it, or when there is no `derived.db` to reach (the tests of the raw store).
      */
-    private suspend fun buildDerived(): Boolean = buildMutex.withLock { runCatching { derivedBuilder?.build() }.isSuccess }
+    private suspend fun buildDerived(): Boolean =
+        buildMutex.withLock {
+            runCatching {
+                derivedBuilder?.build()
+                // The sessions follow the samples; a failure there leaves the samples built and the marks in place.
+                runCatching { sessionBuilder?.build() }
+                loadSessions()
+            }.isSuccess
+        }
+
+    /** Publishes the stored sessions. */
+    private fun loadSessions() {
+        val dao = derivedProvider.value?.sessions() ?: return
+        runCatching {
+            _chargeSessions.value = dao.charges().map { it.toSession() }
+            _driveSessions.value = dao.drives().map { it.toSession() }
+        }
+    }
 
     /** Counts appended records and catches `derived.db` up every [BUILD_EVERY], so the next start has little to read. */
     private fun countAppend() {
@@ -560,4 +593,6 @@ data class HistorySamples(
     val routes: Map<String, RouteSample> = emptyMap(),
     /** The finished navigations per car, by vehicle id, oldest first. */
     val trips: Map<String, List<Trip>> = emptyMap(),
+    /** Every car's charge sessions as `derived.db` stores them, oldest first; see [HistoryStore.chargeSessions]. */
+    val chargeSessions: List<ChargeSession> = emptyList(),
 )

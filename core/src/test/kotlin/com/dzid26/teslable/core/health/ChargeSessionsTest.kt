@@ -260,7 +260,7 @@ class ChargeSessionsTest {
 
     @Test
     fun `the rated constant needs miles`() {
-        val session = ChargeSession(startPercent = 20f, endPercent = 60f, energyAddedKwh = 26.25f, milesAddedRated = 120f)
+        val session = ChargeSession(0L, 3_600_000L, startPercent = 20f, endPercent = 60f, energyAddedKwh = 26.25f, milesAddedRated = 120f)
         assertEquals(0.21875f, session.kwhPerMile!!, 0.0001f)
 
         val noMiles = session.copy(milesAddedRated = null)
@@ -339,5 +339,46 @@ class ChargeSessionsTest {
     fun `there is nothing to show while the first charge is still running`() {
         val samples = listOf(sample(0, 50, ChargingStateKind.Disconnected), sample(10, 52, ChargingStateKind.Charging))
         assertNull(lastFinishedChargeStats(samples, 11 * 60_000L))
+    }
+
+    @Test
+    fun `a session knows when it began and ended and its average power`() {
+        val samples =
+            listOf(
+                sample(0, 20, ChargingStateKind.Disconnected),
+                sample(10, 20, energyAddedKwh = 0f),
+                sample(70, 50, energyAddedKwh = 11f),
+                sample(130, 78, energyAddedKwh = 22f),
+            )
+        val session = chargeSessions(samples).single()
+        assertEquals(10 * 60_000L, session.startMillis)
+        assertEquals(130 * 60_000L, session.endMillis)
+        assertEquals(2 * 3_600_000L, session.durationMillis)
+        assertEquals(11f, session.averageKw!!, 0.001f)
+    }
+
+    @Test
+    fun `no average power without energy or with under five minutes of data`() {
+        assertNull(chargeSessions(listOf(sample(0, 20), sample(30, 40))).single().averageKw)
+        val brief = chargeSessions(listOf(sample(0, 20, energyAddedKwh = 0f), sample(4, 21, energyAddedKwh = 1f))).single()
+        assertNull(brief.averageKw)
+        val longer = chargeSessions(listOf(sample(0, 20, energyAddedKwh = 0f), sample(6, 21, energyAddedKwh = 1f))).single()
+        assertEquals(10f, longer.averageKw!!, 0.001f)
+    }
+
+    @Test
+    fun `only the newest session is in progress, and only while the car is still charging`() {
+        val samples =
+            listOf(
+                sample(0, 20),
+                sample(30, 60),
+                sample(40, 60, ChargingStateKind.Complete),
+                sample(600, 30),
+                sample(610, 35),
+            )
+        val live = chargeSessions(samples, nowMillis = 611 * 60_000L)
+        assertEquals(listOf(false, true), live.map { it.inProgress })
+        val idle = chargeSessions(samples + sample(620, 40, ChargingStateKind.Disconnected), nowMillis = 700 * 60_000L)
+        assertEquals(listOf(false, false), idle.map { it.inProgress })
     }
 }

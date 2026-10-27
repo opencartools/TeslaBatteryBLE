@@ -53,8 +53,8 @@ internal class DerivedBuilder(
 
     private fun sinkFor(series: SeriesRef): Sink =
         when (series.kind) {
-            RecordKind.CHARGE -> BatterySink(dao, series.vehicleId)
-            RecordKind.DRIVE -> DriveSink(dao, series.vehicleId)
+            RecordKind.CHARGE -> BatterySink(dao, db.sessionMarks(), series.vehicleId)
+            RecordKind.DRIVE -> DriveSink(dao, db.sessionMarks(), series.vehicleId)
             RecordKind.VCSEC -> StatusSink(dao, series.vehicleId)
             else -> ActivitySink(dao, series.vehicleId)
         }
@@ -76,6 +76,7 @@ private interface Sink {
 
 private class BatterySink(
     private val dao: DerivedDao,
+    private val marks: SessionDirtyDao,
     private val vehicleId: String,
 ) : Sink {
     private val thinner = batteryThinner()
@@ -85,12 +86,16 @@ private class BatterySink(
         thinner.resume(kept, latest.toBatterySample(vehicleId) ?: kept)
     }
 
-    override fun accept(records: List<BleRecord>) =
-        dao.insertBattery(records.mapNotNull { it.toBatterySample(vehicleId) }.flatMap(thinner::accept).map { it.toRow() })
+    override fun accept(records: List<BleRecord>) {
+        val kept = records.mapNotNull { it.toBatterySample(vehicleId) }.flatMap(thinner::accept)
+        dao.insertBattery(kept.map { it.toRow() })
+        marks.markDirty(vehicleId, kept.minOfOrNull { it.timestampMillis })
+    }
 }
 
 private class DriveSink(
     private val dao: DerivedDao,
+    private val marks: SessionDirtyDao,
     private val vehicleId: String,
 ) : Sink {
     private val thinner = driveThinner()
@@ -100,8 +105,11 @@ private class DriveSink(
         thinner.resume(kept, latest.toDriveSample(vehicleId) ?: kept)
     }
 
-    override fun accept(records: List<BleRecord>) =
-        dao.insertDrive(records.mapNotNull { it.toDriveSample(vehicleId) }.flatMap(thinner::accept).map { it.toRow() })
+    override fun accept(records: List<BleRecord>) {
+        val kept = records.mapNotNull { it.toDriveSample(vehicleId) }.flatMap(thinner::accept)
+        dao.insertDrive(kept.map { it.toRow() })
+        marks.markDirty(vehicleId, kept.minOfOrNull { it.timestampMillis })
+    }
 }
 
 /** The status log already holds only changes and heartbeats, so every reading is kept. */
@@ -129,4 +137,14 @@ private class ActivitySink(
 
     override fun accept(records: List<BleRecord>) =
         dao.insertActivity(records.mapNotNull { it.toActivitySample(vehicleId) }.flatMap(thinner::accept).map { it.toRow() })
+}
+
+/** Lowers the car's session mark to [time], the oldest sample just stored, so the next session cut starts there. */
+private fun SessionDirtyDao.markDirty(
+    vehicleId: String,
+    time: Long?,
+) {
+    if (time == null) return
+    val current = dirtyFrom(vehicleId)
+    if (current == null || time < current) setDirty(SessionDirtyRow(vehicleId, time))
 }

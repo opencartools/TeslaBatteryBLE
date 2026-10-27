@@ -3,6 +3,7 @@ package com.dzid26.teslable.core.health
 
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.ChargeStats
+import com.dzid26.teslable.core.history.Session
 import com.dzid26.teslable.core.history.chargeStats
 import com.dzid26.teslable.protocol.ChargingStateKind
 
@@ -15,11 +16,36 @@ import com.dzid26.teslable.protocol.ChargingStateKind
  * reported nothing or the counter did not grow.
  */
 data class ChargeSession(
+    /** The car's clock at the first charging sample, millis. */
+    override val startMillis: Long,
+    /** The car's clock at the last charging sample, millis. */
+    override val endMillis: Long,
     val startPercent: Float,
     val endPercent: Float,
     val energyAddedKwh: Float?,
     val milesAddedRated: Float?,
-) {
+    /** True for the session that is still going; its figures grow until it ends. */
+    override val inProgress: Boolean = false,
+    /** The car this session belongs to. */
+    val vehicleId: String = "",
+) : Session {
+    override val id: String get() = "charge-$vehicleId-$startMillis"
+    override val socStartPercent: Float get() = startPercent
+    override val socEndPercent: Float get() = endPercent
+    override val energyKwh: Float? get() = energyAddedKwh
+
+    /** Measured by the car, not estimated. */
+    override val energyIsEstimate: Boolean get() = false
+
+    val durationMillis: Long get() = endMillis - startMillis
+
+    /** Energy over duration, kW; null without energy or under five minutes of data, where the sampling interval at each end skews it. */
+    val averageKw: Float?
+        get() {
+            val energy = energyAddedKwh ?: return null
+            return if (durationMillis >= MIN_AVERAGE_MILLIS) energy / (durationMillis / MILLIS_PER_HOUR) else null
+        }
+
     val swingPercent: Float get() = endPercent - startPercent
 
     /** The rated constant this session measured: kWh per rated mile. */
@@ -57,6 +83,22 @@ data class ChargeSession(
  * sample, say); the session then carries the last value.
  */
 fun chargeSessions(samples: List<BatterySample>): List<ChargeSession> = chargeRuns(samples).map { it.toSession() }
+
+/**
+ * [chargeSessions], with the newest marked in progress when the history says one is still going at [nowMillis]
+ * (see [chargeSessionOpen]).
+ */
+fun chargeSessions(
+    samples: List<BatterySample>,
+    nowMillis: Long,
+): List<ChargeSession> {
+    val sessions = chargeSessions(samples)
+    return if (sessions.isNotEmpty() && chargeSessionOpen(samples, nowMillis)) {
+        sessions.dropLast(1) + sessions.last().copy(inProgress = true)
+    } else {
+        sessions
+    }
+}
 
 private fun chargeRuns(samples: List<BatterySample>): List<List<BatterySample>> {
     val runs = mutableListOf<MutableList<BatterySample>>()
@@ -110,10 +152,13 @@ fun chargeSessionStart(
 
 private fun List<BatterySample>.toSession(): ChargeSession =
     ChargeSession(
+        startMillis = first().timestampMillis,
+        endMillis = last().timestampMillis,
         startPercent = first().batteryLevel.toFloat(),
         endPercent = last().batteryLevel.toFloat(),
         energyAddedKwh = counterGrowth { it.chargeEnergyAdded },
         milesAddedRated = counterGrowth { it.chargeMilesAddedRated },
+        vehicleId = first().vehicleId,
     )
 
 /**
@@ -157,6 +202,9 @@ fun chargeSessionOpen(
 
 /** Below this swing the estimator itself refuses to compute a capacity. */
 const val MIN_SWING_PERCENT = 5f
+
+private const val MIN_AVERAGE_MILLIS = 5 * 60_000L
+private const val MILLIS_PER_HOUR = 3_600_000f
 
 /** A pause (Stopped or NoPower) shorter than this does not end a session. */
 private const val MAX_PAUSE_MILLIS = 10 * 60_000L

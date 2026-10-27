@@ -47,9 +47,11 @@ internal fun <T> rememberInBackground(
 internal fun <T> rememberThrottled(
     value: T,
     intervalMillis: Long,
+    // A new key (another car on the same screen) starts afresh: its first value passes at once.
+    key: Any? = null,
 ): T {
     if (LocalInspectionMode.current) return value
-    val source = remember { MutableStateFlow(value) }
+    val source = remember(key) { MutableStateFlow(value) }
     SideEffect { source.value = value }
     val throttled by produceState(value, source, intervalMillis) {
         // A StateFlow keeps only its newest value, so after each pause the collector gets the latest one.
