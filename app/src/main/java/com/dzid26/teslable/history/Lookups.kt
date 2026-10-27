@@ -30,7 +30,8 @@ internal class Lookups(
 
     /** The id of [series] if it has been created, or null: reads use this and never create a series row. */
     @Synchronized
-    fun existingSeriesId(series: SeriesRef): Long? = seriesIds[series] ?: dao.seriesId(series.vehicleId, series.kind.id)?.also { seriesIds[series] = it }
+    fun existingSeriesId(series: SeriesRef): Long? =
+        seriesIds[series] ?: dao.seriesId(series.vehicleId, series.kind.id)?.also { seriesIds[series] = it }
 
     /** The series among [ids] (rows of a table) as references; ids of unknown kinds are skipped. */
     fun resolve(ids: List<Long>): List<Pair<Long, SeriesRef>> {

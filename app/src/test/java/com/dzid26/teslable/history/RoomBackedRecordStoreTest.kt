@@ -267,8 +267,20 @@ class RoomBackedRecordStoreTest {
         assertEquals(emptyList<BleRecord>(), store.readNewest(ghostEvents, 5))
         assertEquals(emptyMap<String, List<BleRecord>>(), store.readRecent(RecordKind.DRIVE, 5))
 
-        assertEquals(0, dbs.history.meta().allSeries().size)
-        assertEquals(0, dbs.events.meta().allSeries().size)
+        assertEquals(
+            0,
+            dbs.history
+                .meta()
+                .allSeries()
+                .size,
+        )
+        assertEquals(
+            0,
+            dbs.events
+                .meta()
+                .allSeries()
+                .size,
+        )
     }
 
     @Test

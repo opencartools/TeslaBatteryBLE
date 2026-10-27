@@ -30,8 +30,7 @@ internal class EventLog(
     override fun readNewest(
         series: SeriesRef,
         n: Int,
-    ): List<BleRecord> =
-        lookups.existingSeriesId(series)?.let { id -> dao.newest(id, n).asReversed().mapNotNull(::decode) }.orEmpty()
+    ): List<BleRecord> = lookups.existingSeriesId(series)?.let { id -> dao.newest(id, n).asReversed().mapNotNull(::decode) }.orEmpty()
 
     override fun readRange(
         series: SeriesRef,
