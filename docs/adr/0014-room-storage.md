@@ -1,6 +1,6 @@
 # ADR-0014: Room storage for raw records and derived data
 
-Status: Proposed (raw records in `history.db` and the long-term samples in `derived.db` landed; `owner.db`, sessions and day rollups are open)
+Status: Proposed (raw records in `history.db`, and the long-term samples and sessions in `derived.db` landed; `owner.db` and day rollups are open)
 Date: 2026-10-21
 Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
 
@@ -182,8 +182,18 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   the current-rest line read the live logs. Measured on a JVM with a year of R's logs (117,000 battery, 79,000
   drive and 113,000 status samples): 7 ms for the per-car filter, 27 ms for the fit and 129 ms for the drain
   stats, against 2, 8 and 44 ms over the 20,000-sample window alone.
-- **Not yet: the range and rollup readers.** Every figure still reads one in-memory list per kind. Day rollups,
-  session rows, a recompute of touched days, and charts and stats that read only their time range (so a year
+- **Sessions (version 2).** `charge_sessions` and `drive_sessions`, keyed by `(vehicleId, startTime)`, hold the
+  sessions core cuts (`chargeSessions`, `driveSessions`) from `derived.db`'s own samples, so they outlive the raw
+  records. The sample builder lowers a per-car `session_dirty` mark to the oldest sample it stored, in the same
+  transaction; `SessionBuilder` then re-cuts from the start of the oldest session reaching that time (an hour of
+  lead covers the longest gap that joins a session) and replaces every stored session from there. Levels are stored
+  as the car reported them, so a reader applies the current full-range scale. The screen joins the stored sessions
+  with a live cut of the readings since the newest stored start (`withLiveTail`); the health card reads them that
+  way. Replayed on R's logs, the joined charge sessions equal a full-resolution cut at every split tried, and the 41
+  drives have the same times and odometers, their end levels within 0.3 points. The version 1 to 2 migration is a
+  Room auto-migration (new tables only).
+- **Not yet: the range and rollup readers.** Every figure but the health card still reads one in-memory list
+  per kind. Day rollups and charts and stats that read only their time range (so a year
   of history is neither held in memory nor rescanned) are the next step. Status samples are not thinned (about
   400 a day), so the history held in memory grows by roughly 250,000 samples a year across the kinds until
   then.

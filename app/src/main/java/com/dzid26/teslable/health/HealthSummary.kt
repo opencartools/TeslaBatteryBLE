@@ -49,8 +49,9 @@ data class HealthSummary(
 fun healthSummary(
     samples: List<BatterySample>,
     epaRatedRangeMiles: Float? = null,
+    // The car's charge sessions, oldest first; the screen passes the stored ones joined with the live tail.
+    sessions: List<ChargeSession> = chargeSessions(samples),
 ): HealthSummary {
-    val sessions = chargeSessions(samples)
     val lastSession = sessions.lastOrNull()
     // Rated miles are the backbone (research: range-as-soc-signal section 6).
     // The one full-range definition is the fitted scale of the level steps

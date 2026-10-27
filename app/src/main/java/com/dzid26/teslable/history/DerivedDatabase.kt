@@ -3,6 +3,7 @@
 package com.dzid26.teslable.history
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -113,7 +114,10 @@ internal interface DerivedDao {
     ): ActivitySampleRow?
 }
 
-/** What the read models load: the long-term history before their recent windows. */
+/**
+ * What the read models and the session builder load: the long-term history before the recent windows, and a car's
+ * samples from a time on.
+ */
 @Dao
 internal interface DerivedReadDao {
     /**
@@ -132,6 +136,19 @@ internal interface DerivedReadDao {
 
     @Query("SELECT * FROM activity_samples WHERE time < :before ORDER BY time")
     fun activityBefore(before: Long): List<ActivitySampleRow>
+
+    /** One car's kept battery samples from [from] on, oldest first: what a session re-cut reads. */
+    @Query("SELECT * FROM battery_samples WHERE vehicleId = :vehicleId AND time >= :from ORDER BY time")
+    fun batteryFrom(
+        vehicleId: String,
+        from: Long,
+    ): List<BatterySampleRow>
+
+    @Query("SELECT * FROM drive_samples WHERE vehicleId = :vehicleId AND time >= :from ORDER BY time")
+    fun driveFrom(
+        vehicleId: String,
+        from: Long,
+    ): List<DriveSampleRow>
 }
 
 /**
@@ -140,14 +157,27 @@ internal interface DerivedReadDao {
  * backed up, and one that does not open is kept aside like the others and rebuilt.
  */
 @Database(
-    entities = [BatterySampleRow::class, DriveSampleRow::class, StatusSampleRow::class, ActivitySampleRow::class, ProgressRow::class],
-    version = 1,
+    entities = [
+        BatterySampleRow::class,
+        DriveSampleRow::class,
+        StatusSampleRow::class,
+        ActivitySampleRow::class,
+        ProgressRow::class,
+        ChargeSessionRow::class,
+        DriveSessionRow::class,
+        SessionDirtyRow::class,
+    ],
+    // 2 adds the session tables; the samples and marks of 1 stay as they are.
+    version = 2,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 internal abstract class DerivedDatabase : RoomDatabase() {
     abstract fun derived(): DerivedDao
 
     abstract fun reads(): DerivedReadDao
+
+    abstract fun sessions(): SessionDao
 
     companion object {
         const val FILE_NAME = "derived.db"

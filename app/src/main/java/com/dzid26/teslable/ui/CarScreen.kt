@@ -78,8 +78,10 @@ import com.dzid26.teslable.ble.batteryPercent
 import com.dzid26.teslable.ble.chargingStateText
 import com.dzid26.teslable.ble.connectionDisplay
 import com.dzid26.teslable.ble.vehicleStatusText
+import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.health.PriceChange
 import com.dzid26.teslable.core.health.chargeSessionOpen
+import com.dzid26.teslable.core.health.chargeSessions
 import com.dzid26.teslable.core.health.lastFinishedChargeStats
 import com.dzid26.teslable.core.health.priceForCharge
 import com.dzid26.teslable.core.history.ActivitySample
@@ -92,6 +94,7 @@ import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.HistoryRange
 import com.dzid26.teslable.core.history.ProjectionContext
 import com.dzid26.teslable.core.history.RouteSample
+import com.dzid26.teslable.core.history.SESSION_CUT_LEAD_MILLIS
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.TENTHS_PER_PERCENT
 import com.dzid26.teslable.core.history.Trip
@@ -100,11 +103,13 @@ import com.dzid26.teslable.core.history.chargeProjection
 import com.dzid26.teslable.core.history.compactDuration
 import com.dzid26.teslable.core.history.currentRest
 import com.dzid26.teslable.core.history.dischargeProjection
+import com.dzid26.teslable.core.history.fromTime
 import com.dzid26.teslable.core.history.markingLive
 import com.dzid26.teslable.core.history.projectionHorizonMillis
 import com.dzid26.teslable.core.history.restStats
 import com.dzid26.teslable.core.history.socTenths
 import com.dzid26.teslable.core.history.statusDurations
+import com.dzid26.teslable.core.history.withLiveTail
 import com.dzid26.teslable.core.history.within
 import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.core.vehicle.decodeVin
@@ -143,6 +148,8 @@ internal fun CarScreen(
     routes: Map<String, RouteSample> = emptyMap(),
     // The finished navigations per car, for the past-trips card.
     trips: Map<String, List<Trip>> = emptyMap(),
+    // Every car's charge sessions as derived.db stores them; the screen joins the newest with the live readings.
+    storedCharges: List<ChargeSession> = emptyList(),
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onPair: () -> Unit,
@@ -166,6 +173,7 @@ internal fun CarScreen(
     val vehicleDrives = rememberForVehicle(driveHistory, bleName) { it.vehicleId }
     val vehicleStatuses = rememberForVehicle(statusHistory, bleName) { it.vehicleId }
     val vehicleActivity = rememberForVehicle(activityHistory, bleName) { it.vehicleId }
+    val vehicleCharges = rememberForVehicle(storedCharges, bleName) { it.vehicleId }
     val paired = isPaired(connection, vehicle)
     // The figures that scan the whole history (the fit, the stats, the health, both history charts and past trips)
     // follow the logs at most every FIGURES_INTERVAL_MILLIS, not on every reading; the hero and the current-rest
@@ -174,7 +182,7 @@ internal fun CarScreen(
         remember(vehicleHistory, vehicleDrives, vehicleStatuses, vehicleActivity) {
             VehicleLogs(vehicleHistory, vehicleDrives, vehicleStatuses, vehicleActivity)
         }
-    val logs = rememberThrottled(liveLogs, FIGURES_INTERVAL_MILLIS)
+    val logs = rememberThrottled(liveLogs, FIGURES_INTERVAL_MILLIS, key = bleName)
     // Fitted once for every card below: the hero, the trip, both history charts. Off the main thread: the fit reads
     // the car's whole history; until the first fit the cards show whole percents.
     val scale = rememberInBackground(null, logs) { FullRangeScales.of(logs.battery) }
@@ -195,8 +203,12 @@ internal fun CarScreen(
         }
     val factoryRangeMiles = vehicle?.factoryRangeMiles
     val health =
-        rememberInBackground(null, logs, factoryRangeMiles) {
-            healthSummary(logs.battery, epaRatedRangeMiles = factoryRangeMiles)
+        rememberInBackground(null, logs, vehicleCharges, factoryRangeMiles) {
+            val sessions =
+                withLiveTail(vehicleCharges) { from ->
+                    chargeSessions(logs.battery.fromTime(from - SESSION_CUT_LEAD_MILLIS) { it.timestampMillis })
+                }
+            healthSummary(logs.battery, epaRatedRangeMiles = factoryRangeMiles, sessions = sessions)
         }
     // What a pull on this screen will do, and the feedback while it runs.
     val pullLabel =

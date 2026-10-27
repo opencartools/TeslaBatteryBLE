@@ -63,10 +63,26 @@ class ThinningReplayTest {
         val context = ProjectionContext(scale, statuses, activity)
         assertEquals(restStats(battery, drives, context), restStats(thinBattery, thinDrives, context), "rest stats")
         assertEquals(deepSleeps(battery, drives, statuses, scale), deepSleeps(thinBattery, thinDrives, statuses, scale), "deep sleeps")
+        val fullDrives = driveSessions(drives, battery, scale)
+        val thinDrives2 = driveSessions(thinDrives, thinBattery, scale)
+        assertEquals(fullDrives.map { it.ends() }, thinDrives2.map { it.ends() }, "drive sessions")
+        fullDrives.zip(thinDrives2).forEach { (full, thin) ->
+            assertTrue(abs((full.socEndPercent ?: 0f) - (thin.socEndPercent ?: 0f)) <= SOC_TOLERANCE, "drive end level: $full vs $thin")
+        }
+        // The stored sessions are cut from the thinned samples up to a build, the tail from the readings since.
+        val fullCharges = chargeSessions(battery)
+        listOf(0.25, 0.5, 0.75).map { battery[(battery.size * it).toInt()].timestampMillis }.forEach { build ->
+            val stored = chargeSessions(thinBattery.filter { it.timestampMillis < build })
+            val joined =
+                withLiveTail(stored) { from -> chargeSessions(battery.fromTime(from - SESSION_CUT_LEAD_MILLIS) { it.timestampMillis }) }
+            assertEquals(fullCharges, joined, "charge sessions joined at $build")
+        }
         val used = drivePoints(battery, drives, scale).totalDrop { it.socPercent }
         val thinUsed = drivePoints(thinBattery, thinDrives, scale).totalDrop { it.socPercent }
         assertTrue(abs(used - thinUsed) <= used * DRIVE_TOLERANCE, "drive chart percent used: $used vs $thinUsed")
     }
+
+    private fun DriveSession.ends() = listOf(startMillis, endMillis, startOdometer.toLong(), endOdometer.toLong())
 
     private fun <T> List<T>.oldestFirst(time: (T) -> Long) = distinctBy(time).sortedBy(time)
 
@@ -75,5 +91,8 @@ class ThinningReplayTest {
 
         /** The drive chart's ends of each trip may fall on other readings; within 1% of the percent used. */
         const val DRIVE_TOLERANCE = 0.01f
+
+        /** A drive's end levels may come from another parked reading of the same stop: within 0.3 points. */
+        const val SOC_TOLERANCE = 0.3f
     }
 }

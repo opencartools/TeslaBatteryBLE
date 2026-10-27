@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.history.ActivitySample
 import com.dzid26.teslable.core.history.AppState
 import com.dzid26.teslable.core.history.BatterySample
@@ -85,6 +86,9 @@ class TeslaBleController(
 
     /** Drive readings recorded from every DriveState response, oldest first. */
     val driveHistory: StateFlow<List<DriveSample>> get() = historyStore.driveSamples
+
+    /** Every car's charge sessions as `derived.db` stores them, oldest first. */
+    val chargeSessions: StateFlow<List<ChargeSession>> get() = historyStore.chargeSessions
 
     /** The newest route-bearing drive reading per car, for the live trip card. */
     val latestRoutes: StateFlow<Map<String, RouteSample>> get() = historyStore.latestRoutes
