@@ -26,7 +26,7 @@ import kotlin.math.roundToInt
 /**
  * The trip's progress bar: the standard linear progress indicator with the arrow on it, drawn inverted (mirrored, filling
  * the distance still to go) so the part already driven is the dimmed track on the left and the part still to go is in
- * full color on the right. The stop dot is left out, as mirrored it would sit at the start.
+ * full color on the right. The default stop dot, mirrored, marks the start of the trip on the left.
  */
 @Composable
 internal fun TripBar(
@@ -44,7 +44,6 @@ internal fun TripBar(
     ) {
         LinearProgressIndicator(
             progress = { 1f - driven },
-            drawStopIndicator = {},
             modifier =
                 Modifier
                     .align(Alignment.Center)
