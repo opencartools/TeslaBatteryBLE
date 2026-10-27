@@ -91,6 +91,6 @@ class HistoryStoreTest {
             ZipInputStream(ByteArrayInputStream(out.toByteArray())).use { zip ->
                 generateSequence { zip.nextEntry }.map { it.name }.toList()
             }
-        assertEquals(listOf("carA.charge.pblog"), names)
+        assertEquals(listOf("carA.charge.pblog", "manifest.json"), names)
     }
 }
