@@ -37,9 +37,11 @@ internal fun <T> rememberInBackground(
 
 /**
  * [value], passed on at most once each [intervalMillis]: the first value at once, then the newest one when the
- * interval is up. For the figures that scan a car's whole history: the logs grow by a reading about every ten
- * seconds while the car is awake, and redoing those figures for each one would keep a core busy for nothing the
- * owner can see. [value] is compared by `equals`, so pass a holder with identity equality rather than a big list.
+ * interval is up. A value for which [isLoaded] is false (the logs while the store is still publishing them) starts
+ * no pause, so the loaded one follows at once instead of waiting out the interval. For the figures that scan a
+ * car's whole history: the logs grow by a reading about every ten seconds while the car is awake, and redoing
+ * those figures for each one would keep a core busy for nothing the owner can see. [value] is compared by
+ * `equals`, so pass a holder with identity equality rather than a big list.
  *
  * In inspection mode it passes [value] straight through.
  */
@@ -49,6 +51,7 @@ internal fun <T> rememberThrottled(
     intervalMillis: Long,
     // A new key (another car on the same screen) starts afresh: its first value passes at once.
     key: Any? = null,
+    isLoaded: (T) -> Boolean = { true },
 ): T {
     if (LocalInspectionMode.current) return value
     val source = remember(key) { MutableStateFlow(value) }
@@ -57,7 +60,7 @@ internal fun <T> rememberThrottled(
         // A StateFlow keeps only its newest value, so after each pause the collector gets the latest one.
         source.collect {
             this.value = it
-            delay(intervalMillis)
+            if (isLoaded(it)) delay(intervalMillis)
         }
     }
     return throttled

@@ -162,6 +162,8 @@ internal fun CarScreen(
     homePrice: Float? = null,
     // Injectable for the Paparazzi snapshots, to render the screen scrolled down.
     scrollState: ScrollState = rememberScrollState(),
+    // False while the store is still publishing the logs: the whole-history figures follow at once until then.
+    historyLoaded: Boolean = true,
 ) {
     BackHandler { onBack() }
     val connection = state.connections[address]
@@ -178,10 +180,10 @@ internal fun CarScreen(
     // follow the logs at most every FIGURES_INTERVAL_MILLIS, not on every reading; the hero and the current-rest
     // line read the live logs.
     val liveLogs =
-        remember(vehicleHistory, vehicleDrives, vehicleStatuses, vehicleActivity) {
-            VehicleLogs(vehicleHistory, vehicleDrives, vehicleStatuses, vehicleActivity)
+        remember(vehicleHistory, vehicleDrives, vehicleStatuses, vehicleActivity, historyLoaded) {
+            VehicleLogs(vehicleHistory, vehicleDrives, vehicleStatuses, vehicleActivity, historyLoaded)
         }
-    val logs = rememberThrottled(liveLogs, FIGURES_INTERVAL_MILLIS, key = bleName)
+    val logs = rememberThrottled(liveLogs, FIGURES_INTERVAL_MILLIS, key = bleName) { it.loaded }
     // Fitted once for every card below: the hero, the trip, both history charts. Off the main thread: the fit reads
     // the car's whole history; until the first fit the cards show whole percents.
     val scale = rememberInBackground(null, logs) { FullRangeScales.of(logs.battery) }
@@ -1064,6 +1066,8 @@ private class VehicleLogs(
     val drives: List<DriveSample>,
     val statuses: List<StatusSample>,
     val activity: List<ActivitySample>,
+    /** Whether the store has published every log; until then the throttle starts no pause. */
+    val loaded: Boolean,
 )
 
 /** How often the whole-history figures follow new readings: about every third reading of an awake car. */

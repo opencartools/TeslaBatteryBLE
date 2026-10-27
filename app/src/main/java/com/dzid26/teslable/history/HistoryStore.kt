@@ -160,6 +160,15 @@ class HistoryStore internal constructor(
     /** Every car's drives as `derived.db` stores them, oldest first; see [chargeSessions]. */
     val driveSessions: StateFlow<List<DriveSession>> = _driveSessions.asStateFlow()
 
+    private val _loaded = MutableStateFlow(false)
+
+    /**
+     * False while the start is still publishing the logs (the recent windows, then the long-term history after the
+     * `derived.db` build); true once every log holds what it will hold, so a reader can tell a half-loaded screen
+     * from a quiet one.
+     */
+    val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
+
     /** Thins the Sentry and climate readings as they load and arrive. */
     private val activityThinner = ActivityThinner()
 
@@ -189,6 +198,7 @@ class HistoryStore internal constructor(
             mutex.withLock {
                 if (built) (recordStore as? RoomBackedRecordStore)?.let { runCatching { it.trim() } }
                 loadOlder()
+                _loaded.value = true
             }
         }
     }
@@ -595,4 +605,6 @@ data class HistorySamples(
     val trips: Map<String, List<Trip>> = emptyMap(),
     /** Every car's charge sessions as `derived.db` stores them, oldest first; see [HistoryStore.chargeSessions]. */
     val chargeSessions: List<ChargeSession> = emptyList(),
+    /** False while the start is still publishing the logs; see [HistoryStore.loaded]. */
+    val loaded: Boolean = true,
 )
