@@ -45,6 +45,17 @@ class ActivityThinner {
 
     private val seen = mutableMapOf<Pair<String, ActivityKind>, Seen>()
 
+    /**
+     * Starts [latest]'s car and kind from where an earlier run stopped: [kept] is the newest reading that run kept,
+     * [latest] the newest it saw. Without it the series starts afresh and keeps its first reading.
+     */
+    fun resume(
+        kept: ActivitySample,
+        latest: ActivitySample,
+    ) {
+        seen[latest.vehicleId to latest.kind] = Seen(kept, latest)
+    }
+
     /** The readings to keep because [next] arrived, in time order: the one before a change, if dropped, then [next] when kept. */
     fun accept(next: ActivitySample): List<ActivitySample> {
         val key = next.vehicleId to next.kind

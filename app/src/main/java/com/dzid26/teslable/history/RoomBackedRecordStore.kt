@@ -64,8 +64,8 @@ internal class RoomBackedRecordStore(
      * Retention as `DELETE`s. The phone-side events are dropped after [EVENT_RETENTION]. Each file then
      * stays under its size cap by dropping its oldest tenth of the time span, all series together, while
      * the pages in use exceed it ([trimToCap]); the check costs nothing while there is room. Car records
-     * have no age retention (they are kept for years). Nothing yet folds records into summaries first;
-     * that joins this step with the derived store (ADR-0012).
+     * have no age retention (they are kept for years). [HistoryStore] runs the first trim after building
+     * `derived.db`, and the build catches up as often as this runs, so what the cap drops is already there.
      */
     fun trim() {
         appendsSinceTrim = 0

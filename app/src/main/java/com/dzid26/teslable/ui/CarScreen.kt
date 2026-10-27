@@ -168,8 +168,9 @@ internal fun CarScreen(
     val vehicleStatuses = remember(statusHistory, bleName) { statusHistory.filter { it.vehicleId == bleName } }
     val vehicleActivity = remember(activityHistory, bleName) { activityHistory.filter { it.vehicleId == bleName } }
     val paired = isPaired(connection, vehicle)
-    // Fitted once for every card below: the hero, the trip, both history charts.
-    val scale = remember(vehicleHistory) { FullRangeScales.of(vehicleHistory) }
+    // Fitted once for every card below: the hero, the trip, both history charts. Off the main thread: the fit reads
+    // the car's whole history, which derived.db makes months long; until the first fit the cards show whole percents.
+    val scale = rememberInBackground(null, vehicleHistory) { FullRangeScales.of(vehicleHistory) }
     // The stats card looks at the whole log, whatever range the battery chart shows.
     // The status and activity logs the sleep rules read, built once per change of either.
     val sleepLogs = remember(vehicleStatuses, vehicleActivity) { ProjectionContext(statuses = vehicleStatuses, activity = vehicleActivity) }
@@ -821,8 +822,9 @@ internal fun BatteryHistoryCard(
     var range by rememberSaveable { mutableStateOf(initialRange) }
     val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
     val now = nowMillis
-    // Fitted once: the stats, the projection and the chart all read it.
-    val scale = remember(samples) { FullRangeScales.of(samples) }
+    // Fitted off the main thread: the stats, the projection and the chart all read it. The car screen's own fit of
+    // the same samples is cached, so this one is usually a lookup.
+    val scale = rememberInBackground(null, samples) { FullRangeScales.of(samples) }
     val withScale = remember(sleepLogs, scale) { sleepLogs.copy(scale = scale) }
     val priceChanges = LocalPriceChanges.current
     // Every figure scans the whole log, so they run off the main thread; nothing below shows until the first result.

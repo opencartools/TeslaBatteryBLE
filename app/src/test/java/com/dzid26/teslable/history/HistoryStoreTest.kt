@@ -2,8 +2,10 @@
 
 package com.dzid26.teslable.history
 
+import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.BleRecord
 import com.dzid26.teslable.core.history.ProtoLog
+import com.dzid26.teslable.protocol.ChargingStateKind
 import com.tesla.generated.carserver.vehicle.ChargeState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -46,6 +48,8 @@ class HistoryStoreTest {
 
     // InlineDispatcher runs the store's work on the calling thread, so each call has finished when it returns.
     private fun store() = HistoryStore(historyDir, lazy { dbs.store() }, CoroutineScope(InlineDispatcher))
+
+    private fun storeWithDerived() = HistoryStore(historyDir, lazy { dbs.store() }, CoroutineScope(InlineDispatcher), lazy { dbs.derived })
 
     private fun reply(seconds: Long) = ChargeState(timestamp = Instant.ofEpochSecond(seconds), battery_level = 70)
 
@@ -92,5 +96,36 @@ class HistoryStoreTest {
                 generateSequence { zip.nextEntry }.map { it.name }.toList()
             }
         assertEquals(listOf("carA.charge.pblog", "manifest.json"), names)
+    }
+
+    @Test
+    fun `the long-term history from derived db comes before the recent window`() {
+        val now = Instant.now()
+        val old = (now.epochSecond - 90 * 86_400L) * 1000
+        dbs.derived.derived().insertBattery(
+            listOf(BatterySample(old, 80, ChargingStateKind.Disconnected, chargeLimit = 90, vehicleId = "carA").toRow()),
+        )
+        storeWithDerived().record("carA", reply(now.epochSecond - 60), now, rssi = null)
+
+        val restarted = storeWithDerived()
+
+        assertEquals(listOf(old, (now.epochSecond - 60) * 1000), restarted.samples.value.map { it.timestampMillis })
+        assertEquals(listOf(80, 70), restarted.samples.value.map { it.batteryLevel })
+    }
+
+    @Test
+    fun `a start builds derived db from the raw records`() {
+        val now = Instant.now()
+        storeWithDerived().record("carA", reply(now.epochSecond - 60), now, rssi = null)
+
+        storeWithDerived()
+
+        assertEquals(
+            listOf((now.epochSecond - 60) * 1000),
+            dbs.derived
+                .reads()
+                .batteryBefore(Long.MAX_VALUE)
+                .map { it.time },
+        )
     }
 }

@@ -6,6 +6,9 @@
     <cloud-backup disableIfNoEncryptionCapabilities="true">
         <exclude domain="file" path="battery-history" />
         <exclude domain="file" path="battery-history-export" />
+        <exclude domain="database" path="derived.db" />
+        <exclude domain="database" path="derived.db-shm" />
+        <exclude domain="database" path="derived.db-wal" />
         <exclude domain="database" path="history.db" />
         <exclude domain="database" path="history.db-shm" />
         <exclude domain="database" path="history.db-wal" />
@@ -16,6 +19,9 @@
     <device-transfer>
         <exclude domain="file" path="battery-history" />
         <exclude domain="file" path="battery-history-export" />
+        <exclude domain="database" path="derived.db" />
+        <exclude domain="database" path="derived.db-shm" />
+        <exclude domain="database" path="derived.db-wal" />
         <exclude domain="database" path="history.db" />
         <exclude domain="database" path="history.db-shm" />
         <exclude domain="database" path="history.db-wal" />

@@ -16,7 +16,9 @@ import com.dzid26.teslable.core.history.DriveSample
 import com.dzid26.teslable.core.history.RouteSample
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.Trip
+import com.dzid26.teslable.core.history.batteryThinner
 import com.dzid26.teslable.core.history.continuing
+import com.dzid26.teslable.core.history.driveThinner
 import com.dzid26.teslable.core.history.segmentTrips
 import com.dzid26.teslable.core.history.shouldLogStatus
 import com.dzid26.teslable.core.history.toActivitySample
@@ -81,17 +83,33 @@ class HistoryStore internal constructor(
     private val historyDir: File,
     private val recordStoreProvider: Lazy<RecordStore>,
     private val scope: CoroutineScope,
+    private val derivedProvider: Lazy<DerivedDatabase?> = lazy { null },
 ) {
     constructor(context: Context) : this(
         File(context.filesDir, HISTORY_DIR_NAME),
         lazy { RoomBackedRecordStore(HistoryDatabase.open(context), EventsDatabase.open(context), OriginId.load(context)) },
         CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        lazy { DerivedDatabase.open(context) },
     )
 
     private val mutex = Mutex()
 
     /** Opened on first use, which is always off the main thread: the open touches the database file. */
     private val recordStore: RecordStore get() = recordStoreProvider.value
+
+    // Each read model is its full-resolution recent window plus the thinned long-term history before it (ADR-0014).
+    private val battery = TieredList<BatterySample>(MAX_SAMPLES, { it.timestampMillis }, batteryThinner()::accept)
+    private val drives = TieredList<DriveSample>(MAX_SAMPLES, { it.timestampMillis }, driveThinner()::accept)
+    private val statuses = TieredList<StatusSample>(MAX_SAMPLES, { it.timestampMillis })
+    private val activity = TieredList<ActivitySample>(MAX_ACTIVITY_SAMPLES, { it.timestampMillis })
+
+    /** Builds `derived.db` from the raw records; null where there is none (the tests of the raw store). */
+    private val derivedBuilder: DerivedBuilder? by lazy { derivedProvider.value?.let { DerivedBuilder(recordStore, it) } }
+
+    /** One build at a time: the startup build and the periodic catch-ups never overlap. */
+    private val buildMutex = Mutex()
+    private var appendsSinceBuild = 0
+
     private val _samples = MutableStateFlow<List<BatterySample>>(emptyList())
     val samples: StateFlow<List<BatterySample>> = _samples.asStateFlow()
     private val _statusSamples = MutableStateFlow<List<StatusSample>>(emptyList())
@@ -136,16 +154,54 @@ class HistoryStore internal constructor(
         scope.launch {
             mutex.withLock {
                 runCatching { PblogImporter(historyDir, recordStore).importAll() }
-                (recordStore as? RoomBackedRecordStore)?.let { runCatching { it.trim() } }
-                _samples.value = readSamples()
-                _statusSamples.value = readStatusSamples()
+                battery.setRecent(readSamples())
+                _samples.value = battery.all
+                statuses.setRecent(readStatusSamples())
+                _statusSamples.value = statuses.all
                 val (driveSamples, latestRoutes) = readDrive()
-                _driveSamples.value = driveSamples
+                drives.setRecent(driveSamples)
+                _driveSamples.value = drives.all
                 _latestRoutes.value = latestRoutes
                 _trips.value = routeReadings.mapValues { (_, readings) -> segmentTrips(readings).takeLast(MAX_TRIPS) }
-                _activitySamples.value = readActivitySamples()
+                activity.setRecent(readActivitySamples())
+                _activitySamples.value = activity.all
+            }
+            // The recent windows are on screen; the long-term history follows once derived.db is up to date.
+            // Retention runs only after that build, so a record the cap drops has already reached derived.db.
+            buildDerived()
+            mutex.withLock {
+                (recordStore as? RoomBackedRecordStore)?.let { runCatching { it.trim() } }
+                loadOlder()
             }
         }
+    }
+
+    /** Brings `derived.db` up to date with the raw records; a failure leaves the long-term history as it was. */
+    private suspend fun buildDerived() {
+        val builder = derivedBuilder ?: return
+        buildMutex.withLock { runCatching { builder.build() } }
+    }
+
+    /** Counts appended records and catches `derived.db` up every [BUILD_EVERY], so the next start has little to read. */
+    private fun countAppend() {
+        if (++appendsSinceBuild < BUILD_EVERY) return
+        appendsSinceBuild = 0
+        scope.launch { buildDerived() }
+    }
+
+    /** Puts the thinned history from before each recent window under its read model. */
+    private fun loadOlder() {
+        val dao = derivedProvider.value?.reads() ?: return
+        runCatching {
+            battery.setOlder(dao.batteryBefore(battery.olderBefore).map { it.toSample() })
+            drives.setOlder(dao.driveBefore(drives.olderBefore).map { it.toSample() })
+            statuses.setOlder(dao.statusBefore(statuses.olderBefore).map { it.toSample() })
+            activity.setOlder(dao.activityBefore(activity.olderBefore).mapNotNull { it.toSample() })
+        }
+        _samples.value = battery.all
+        _driveSamples.value = drives.all
+        _statusSamples.value = statuses.all
+        _activitySamples.value = activity.all
     }
 
     /**
@@ -168,7 +224,11 @@ class HistoryStore internal constructor(
         scope.launch {
             mutex.withLock {
                 recordStore.append(vehicleId, RecordKind.CHARGE, record)
-                if (sample != null) _samples.value = (_samples.value + sample).takeLast(MAX_SAMPLES)
+                countAppend()
+                if (sample != null) {
+                    battery.append(listOf(sample))
+                    _samples.value = battery.all
+                }
             }
         }
     }
@@ -219,7 +279,11 @@ class HistoryStore internal constructor(
         scope.launch {
             mutex.withLock {
                 recordStore.append(vehicleId, RecordKind.DRIVE, record)
-                if (sample != null) _driveSamples.value = (_driveSamples.value + sample).takeLast(MAX_SAMPLES)
+                countAppend()
+                if (sample != null) {
+                    drives.append(listOf(sample))
+                    _driveSamples.value = drives.all
+                }
                 if (route != null) {
                     val readings = (routeReadings[vehicleId].orEmpty() + route).takeLast(MAX_ROUTE_READINGS)
                     routeReadings[vehicleId] = readings
@@ -383,7 +447,8 @@ class HistoryStore internal constructor(
         recordStore.append(vehicleId, RecordKind.VCSEC, record)
         lastLoggedStatus[vehicleId] = record
         val sample = record.toStatusSample(vehicleId) ?: return
-        _statusSamples.value = (_statusSamples.value + sample).takeLast(MAX_SAMPLES)
+        statuses.append(listOf(sample))
+        _statusSamples.value = statuses.all
     }
 
     private fun appendActivity(
@@ -393,7 +458,8 @@ class HistoryStore internal constructor(
         val sample = record.toActivitySample(vehicleId) ?: return
         val kept = activityThinner.accept(sample)
         if (kept.isEmpty()) return
-        _activitySamples.value = (_activitySamples.value + kept).takeLast(MAX_ACTIVITY_SAMPLES)
+        activity.append(kept)
+        _activitySamples.value = activity.all
     }
 
     /** Reads the closures and climate logs, which hold Sentry and climate state, into one list, oldest first. */
@@ -467,6 +533,9 @@ class HistoryStore internal constructor(
         const val HISTORY_DIR_NAME = "battery-history"
 
         const val MAX_SAMPLES = 20_000
+
+        /** Appended records between two catch-ups of `derived.db`. */
+        const val BUILD_EVERY = 1_000
 
         /** Thinned Sentry and climate readings kept in memory: a state change and one every ten minutes of a run. */
         const val MAX_ACTIVITY_SAMPLES = 50_000
