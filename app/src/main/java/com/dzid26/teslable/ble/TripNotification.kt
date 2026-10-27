@@ -3,6 +3,7 @@
 package com.dzid26.teslable.ble
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Typeface
 import android.os.Build
 import android.text.SpannableStringBuilder
@@ -199,8 +200,9 @@ private fun progressStyle(
     progress: Int,
 ): NotificationCompat.ProgressStyle {
     val driven = progress.coerceIn(0, TRIP_BAR_MAX)
-    val dimmed = context.getColor(android.R.color.system_neutral1_400)
-    val accent = context.getColor(android.R.color.system_accent1_600)
+    val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    val dimmed = context.getColor(if (night) android.R.color.system_neutral1_600 else android.R.color.system_neutral1_400)
+    val accent = context.getColor(if (night) android.R.color.system_accent1_200 else android.R.color.system_accent1_600)
     val style =
         NotificationCompat
             .ProgressStyle()

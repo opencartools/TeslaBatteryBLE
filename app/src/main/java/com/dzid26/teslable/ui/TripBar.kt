@@ -15,8 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 import kotlin.math.roundToInt
@@ -34,7 +36,12 @@ internal fun TripBar(
     val tracker = painterResource(R.drawable.ic_driving_tracker)
     val description = stringResource(R.string.trip_progress_description, (progress * PERCENT_FULL).roundToInt())
     val driven = progress.coerceIn(0f, 1f)
-    BoxWithConstraints(modifier.fillMaxWidth().height(ICON_SIZE).semantics { contentDescription = description }) {
+    BoxWithConstraints(
+        modifier.fillMaxWidth().height(ICON_SIZE).clearAndSetSemantics {
+            contentDescription = description
+            progressBarRangeInfo = ProgressBarRangeInfo(driven, 0f..1f)
+        },
+    ) {
         LinearProgressIndicator(
             progress = { 1f - driven },
             drawStopIndicator = {},
