@@ -62,12 +62,13 @@ internal fun ExportLogsCardBody(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = onPickFile, enabled = status != LogExportStatus.Running) {
-                    Text(stringResource(R.string.settings_export_button))
-                }
-                Spacer(Modifier.width(12.dp))
-                ExportStatusLine(status)
+            Button(onClick = onPickFile, enabled = status != LogExportStatus.Running) {
+                Text(stringResource(R.string.settings_export_button))
+            }
+            if (status != LogExportStatus.Idle) {
+                // Under the button, not beside it: a long message would be squeezed into a sliver on narrow screens.
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) { ExportStatusLine(status) }
             }
         }
     }
