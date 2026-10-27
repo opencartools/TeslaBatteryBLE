@@ -12,17 +12,21 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 import kotlin.math.roundToInt
 
 /**
- * The trip's progress bar: the standard linear progress indicator with the arrow on it. The end dot marks the
- * destination.
+ * The trip's progress bar: the standard linear progress indicator with the arrow on it, drawn inverted (mirrored, filling
+ * the distance still to go) so the part already driven is the dimmed track on the left and the part still to go is in
+ * full color on the right. The stop dot is left out, as mirrored it would sit at the start.
  */
 @Composable
 internal fun TripBar(
@@ -32,10 +36,21 @@ internal fun TripBar(
     val tracker = painterResource(R.drawable.ic_driving_tracker)
     val description = stringResource(R.string.trip_progress_description, (progress * PERCENT_FULL).roundToInt())
     val driven = progress.coerceIn(0f, 1f)
-    BoxWithConstraints(modifier.fillMaxWidth().height(ICON_SIZE).semantics { contentDescription = description }) {
+    BoxWithConstraints(
+        modifier.fillMaxWidth().height(ICON_SIZE).clearAndSetSemantics {
+            contentDescription = description
+            progressBarRangeInfo = ProgressBarRangeInfo(driven, 0f..1f)
+        },
+    ) {
         LinearProgressIndicator(
-            progress = { driven },
-            modifier = Modifier.align(Alignment.Center).fillMaxWidth().height(BAR_HEIGHT),
+            progress = { 1f - driven },
+            drawStopIndicator = {},
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth()
+                    .height(BAR_HEIGHT)
+                    .scale(scaleX = -1f, scaleY = 1f),
         )
         Image(
             painter = tracker,
