@@ -1,6 +1,6 @@
 # Pulling the history logs off the phone
 
-Since ADR-0014 the raw history lives in `databases/history.db` (Room), not in `files/battery-history/*.pblog`.
+Since ADR-0014 the raw history lives in two Room databases, `databases/history.db` (the car's records) and `databases/events.db` (the phone's commands, connection changes and app state), not in `files/battery-history/*.pblog`.
 That directory now holds only `*.imported` files, the old logs renamed after their one-time import. A
 `tar` or `cat` of it returns stale data. To get current logs, use the export below.
 
@@ -21,22 +21,25 @@ For the PR build use `-n com.dzid26.teslable.pr/com.dzid26.teslable.history.Expo
 missing. The newest three exports stay in `files/battery-history-export/`. Unzip, then decode each file
 with `ProtoLog.decode(bytes, BleRecord.ADAPTER)` as before (`docs/adr/0006-raw-chargestate-history-log.md`).
 
+`manifest.json` in the zip says what it holds: the format version, the origin UUID of the phone, the vehicle ids, the app version, and for each file its record count and first and last time (epoch millis on the series' clock: the car's own timestamp for the car kinds, the phone's time for VCSEC and the events).
+
 `vehicleId` empty (rows from before multi-car) is exported as `legacy.<kind>.pblog`; the app-state log is
 `app.pblog`.
 
-## The database itself
+## The databases themselves
 
-For queries instead of decoding, copy the database with its write-ahead log, or the newest rows are
+For queries instead of decoding, copy the databases with their write-ahead logs, or the newest rows are
 missing:
 
 ```bash
-adb exec-out run-as com.dzid26.teslable sh -c 'cd databases && tar -cf - history.db history.db-wal history.db-shm' > history-db.tar
+adb exec-out run-as com.dzid26.teslable sh -c 'cd databases && tar -cf - history.db history.db-wal history.db-shm events.db events.db-wal events.db-shm' > history-db.tar
 ```
 
-Open the extracted `history.db` with the `sqlite3` shell. `records` holds the car's replies (`blob` is the
-encoded `BleRecord`), `events` the phone-side commands, connection changes and app state, `series` and
-`origins` give the integer ids their vehicle, kind and install. Copying while the app writes can catch a
-torn state; prefer the export for anything you need to trust.
+Open the extracted files with the `sqlite3` shell. In `history.db`, `records` holds the car's replies
+(`blob` is the encoded `BleRecord`, `time` is epoch millis); in `events.db`, `events` holds the phone-side
+logs (`phoneTime`). In both, `series` gives the integer `seriesId` its vehicle, kind and clock, and
+`origins` the install's UUID. Copying while the app writes can catch a torn state; prefer the export for
+anything you need to trust.
 
-A `history.db.corrupt-<time>` file next to it is a database that failed to open and was kept aside; the
+A `history.db.corrupt-<time>` or `events.db.corrupt-<time>` file next to them is a database that failed to open and was kept aside; the
 app never deletes it.
