@@ -5,7 +5,7 @@ package com.dzid26.teslable.history
 /**
  * The safety cap on a table's size (ADR-0014): while its series add up to more than [cap] bytes, the
  * oldest rows of the largest series go (through [deleteOldest]), down to [TARGET_PERCENT] of the cap.
- * A row counts as its blob plus [ROW_OVERHEAD_BYTES] of keys and indexes (190 measured on real logs).
+ * A row counts as its blob plus [ROW_OVERHEAD_BYTES] of keys and indexes (about 56 measured on real logs).
  * Callers run it in a transaction.
  */
 internal fun trimToCap(
@@ -28,6 +28,6 @@ internal fun trimToCap(
 private fun SeriesSize.bytes(): Long = blobBytes + rowCount * ROW_OVERHEAD_BYTES
 
 /** What a row costs on disk besides its blob: the key columns and the indexes. */
-private const val ROW_OVERHEAD_BYTES = 200L
+private const val ROW_OVERHEAD_BYTES = 64L
 private const val PERCENT = 100
 private const val TARGET_PERCENT = 90
