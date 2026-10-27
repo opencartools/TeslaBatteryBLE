@@ -6,22 +6,27 @@ import com.dzid26.teslable.core.history.BleRecord
 import java.time.Duration
 
 /**
- * The [RecordStore] over `history.db` (ADR-0014). Each record is one row: the encoded [BleRecord] as a
- * blob next to the key columns, so retention is a `DELETE` and nothing is rewritten. [originId] marks
- * this install's rows. Car records are kept for years (only a safety cap on the database's size,
- * [maxBytes]); phone-side events for [EVENT_RETENTION]. Retention runs every [TRIM_EVERY] appends and
+ * The [RecordStore] over Room (ADR-0014): the car's records in `history.db` ([RecordLog]) and the phone's
+ * own logs in `events.db` ([EventLog]), each file with its own lookups and size cap. [originUuid] marks
+ * this install's rows. Car records are kept for years (only a size cap, [maxBytes]); phone-side events for
+ * [EVENT_RETENTION] and a cap of their own ([eventMaxBytes]). Retention runs every [TRIM_EVERY] appends and
  * whenever [trim] is called.
  */
 internal class RoomBackedRecordStore(
-    private val db: HistoryDatabase,
-    originId: String,
+    history: HistoryDatabase,
+    events: EventsDatabase,
+    override val originUuid: String,
     private val maxBytes: Long = MAX_BYTES,
+    private val eventMaxBytes: Long = MAX_BYTES,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : RecordStore {
-    private val dao = db.records()
-    private val lookups = Lookups(db.meta(), originId)
-    private val events = EventLog(db.events(), lookups)
+    private val records = RecordLog(history, Lookups(history.meta(), originUuid))
+    private val eventLog = EventLog(events, Lookups(events.meta(), originUuid))
     private var appendsSinceTrim = 0
+
+    private fun logFor(kind: RecordKind): TimedLog = if (kind.isEvent) eventLog else records
+
+    private fun logFor(series: SeriesRef): TimedLog = logFor(series.kind)
 
     override fun appendAll(
         vehicleId: String,
@@ -29,108 +34,55 @@ internal class RoomBackedRecordStore(
         records: List<BleRecord>,
     ) {
         if (records.isEmpty()) return
+        val log = logFor(kind)
         val now = clock()
-        db.runInTransaction {
-            if (kind.isEvent) {
-                events.append(vehicleId, kind, records, now)
-            } else {
-                val seriesId = lookups.seriesId(vehicleId, kind)
-                dao.insertAll(records.map { rowOf(seriesId, it, now) })
-            }
-        }
+        log.db.runInTransaction { log.append(SeriesRef(vehicleId, kind), records, now) }
         appendsSinceTrim += records.size
         if (appendsSinceTrim >= TRIM_EVERY) trim()
     }
 
-    override fun readRecent(
-        kind: RecordKind,
-        limitPerVehicle: Int,
-    ): Map<String, List<BleRecord>> =
-        if (kind.isEvent) {
-            events.readRecent(kind, limitPerVehicle)
-        } else {
-            lookups
-                .seriesOf(dao.seriesIds()) { it == kind }
-                .associate { (id, vehicleId, _) -> vehicleId to dao.newest(id, limitPerVehicle).asReversed().mapNotNull(::decode) }
-        }
+    override fun series(): List<SeriesRef> = records.series() + eventLog.series()
 
-    override fun series(): List<Pair<String, RecordKind>> =
-        lookups.seriesOf(dao.seriesIds()) { !it.isEvent }.map { (_, vehicleId, kind) -> vehicleId to kind } + events.series()
+    override fun readNewest(
+        series: SeriesRef,
+        n: Int,
+    ): List<BleRecord> = logFor(series).readNewest(series, n)
 
-    override fun streamSeries(
-        vehicleId: String,
-        kind: RecordKind,
-        onBatch: (List<BleRecord>) -> Unit,
-    ) {
-        if (kind.isEvent) return events.stream(vehicleId, kind, onBatch)
-        val seriesId = lookups.seriesId(vehicleId, kind)
-        var afterId = 0L
-        while (true) {
-            val rows = dao.page(seriesId, afterId, EXPORT_BATCH)
-            if (rows.isEmpty()) return
-            onBatch(rows.mapNotNull(::decode))
-            afterId = rows.last().id
-        }
-    }
+    override fun readRange(
+        series: SeriesRef,
+        from: Long,
+        to: Long,
+    ): List<BleRecord> = logFor(series).readRange(series, from, to)
+
+    override fun stream(
+        series: SeriesRef,
+        afterId: Long,
+        limit: Int,
+    ): List<StoredRecord> = logFor(series).stream(series, afterId, limit)
 
     /**
-     * Retention as `DELETE`s in one transaction. Car records are kept for years: only a size cap applies.
-     * The phone-side events are dropped after [EVENT_RETENTION], and also get [EVENT_SHARE_PERCENT] of
-     * [maxBytes] (the car records the rest), each trimmed oldest-first within itself, so a chatty
-     * command log cannot evict car history. The per-series size scan runs only once the database
-     * holds as many bytes as the cap, so it costs nothing while there is room. Nothing yet folds records into
-     * summaries first; that joins this transaction with the derived store (ADR-0012).
+     * Retention as `DELETE`s. The phone-side events are dropped after [EVENT_RETENTION]. Each file then
+     * stays under its size cap by dropping its oldest tenth of the time span, all series together, while
+     * the pages in use exceed it ([trimToCap]); the check costs nothing while there is room. Car records
+     * have no age retention (they are kept for years). Nothing yet folds records into summaries first;
+     * that joins this step with the derived store (ADR-0012).
      */
     fun trim() {
         appendsSinceTrim = 0
-        val eventCap = maxBytes / PERCENT * EVENT_SHARE_PERCENT
-        // Read before the transaction opens: the size comes over a separate connection.
-        val full = db.usedBytes() > maxBytes
-        db.runInTransaction {
-            events.expire(clock() - EVENT_RETENTION.toMillis())
-            if (full) {
-                trimToCap(maxBytes - eventCap, dao::seriesSizes, dao::deleteOldest)
-                trimToCap(eventCap, events::sizes, events::deleteOldest)
-            }
-        }
+        eventLog.db.runInTransaction { eventLog.expire(clock() - EVENT_RETENTION.toMillis()) }
+        records.trimToCap(maxBytes)
+        eventLog.trimToCap(eventMaxBytes)
     }
 
-    fun rowCount(): Int = dao.count() + events.rowCount()
-
-    private fun rowOf(
-        seriesId: Long,
-        record: BleRecord,
-        now: Long,
-    ): RecordRow {
-        val phone = record.device_timestamp?.toEpochMilli()
-        val car = carTimeMillis(record)
-        return RecordRow(
-            source = RecordSource(seriesId, lookups.originId),
-            carTimestamp = car,
-            phoneTime = phone ?: car ?: now,
-            odometer = record.drive_state?.odometer_in_hundredths_of_a_mile?.toLong(),
-            blob = record.encode(),
-        )
-    }
-
-    private fun decode(row: RecordRow): BleRecord? = runCatching { BleRecord.ADAPTER.decode(row.blob) }.getOrNull()
+    /** All rows of both files. */
+    fun rowCount(): Int = records.rowCount() + eventLog.rowCount()
 
     companion object {
-        /** The safety cap on the rows (blobs plus the key and index bytes of each row); years of history fit under it. */
+        /** The safety cap on each file's pages in use; years of history fit under it. */
         const val MAX_BYTES = 2_000_000_000L
-
-        private const val PERCENT = 100
 
         /** How long the phone-side events (commands, connection changes, app state) are kept. */
         val EVENT_RETENTION: Duration = Duration.ofDays(90)
-
-        /** The share of the size cap the phone-side events may use. */
-        private const val EVENT_SHARE_PERCENT = 15
         private const val TRIM_EVERY = 1_000
-        private const val EXPORT_BATCH = 1_000
-
-        /** The car's own timestamp in the record's payload, or null when the reply has none. */
-        internal fun carTimeMillis(record: BleRecord): Long? =
-            record.charge_state?.timestamp?.toEpochMilli() ?: record.drive_state?.timestamp?.toEpochMilli()
     }
 }

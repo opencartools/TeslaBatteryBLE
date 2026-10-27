@@ -2,26 +2,38 @@
 
 package com.dzid26.teslable.history
 
+/** Whose clock times a series' records (ADR-0014). */
+internal enum class Clock(
+    val id: String,
+) {
+    /** The car's own timestamp inside its reply (the CarServer kinds). */
+    CAR("car"),
+
+    /** The phone's clock when the record arrived (VCSEC replies, and the phone-side events). */
+    PHONE("phone"),
+}
+
 /**
  * The kinds of raw record the history keeps (ADR-0008, ADR-0014). [id] is the `kind` column and the
- * middle of the `<vehicleId>.<kind>.pblog` names of imported and exported files.
+ * middle of the `<vehicleId>.<kind>.pblog` names of imported and exported files. [clock] says whose
+ * clock times the series. [isEvent] marks the phone's own logs, which live in `events.db`.
  */
 internal enum class RecordKind(
     val id: String,
-    /** Phone-side events (the app's commands, connection changes and own state) live in the events table. */
+    val clock: Clock,
     val isEvent: Boolean = false,
 ) {
     /** The app's own state; belongs to no car, so its vehicle id is empty. */
-    APP("app", isEvent = true),
-    CHARGE("charge"),
-    CLIMATE("climate"),
-    CLOSURES("closures"),
-    COMMAND("command", isEvent = true),
-    CONNECTION("connection", isEvent = true),
-    DRIVE("drive"),
-    LOCATION("location"),
-    TIRE_PRESSURE("tire-pressure"),
-    VCSEC("vcsec"),
+    APP("app", Clock.PHONE, isEvent = true),
+    CHARGE("charge", Clock.CAR),
+    CLIMATE("climate", Clock.CAR),
+    CLOSURES("closures", Clock.CAR),
+    COMMAND("command", Clock.PHONE, isEvent = true),
+    CONNECTION("connection", Clock.PHONE, isEvent = true),
+    DRIVE("drive", Clock.CAR),
+    LOCATION("location", Clock.CAR),
+    TIRE_PRESSURE("tire-pressure", Clock.CAR),
+    VCSEC("vcsec", Clock.PHONE),
 }
 
 /** File naming shared by the one-time `.pblog` import and the log export. */

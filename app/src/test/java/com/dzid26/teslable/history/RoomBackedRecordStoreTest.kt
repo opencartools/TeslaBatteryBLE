@@ -8,7 +8,12 @@ import com.dzid26.teslable.core.history.BleRecord
 import com.dzid26.teslable.core.history.Command
 import com.dzid26.teslable.core.history.ConnectionEvent
 import com.tesla.generated.carserver.vehicle.ChargeState
+import com.tesla.generated.carserver.vehicle.ClimateState
+import com.tesla.generated.carserver.vehicle.ClosuresState
 import com.tesla.generated.carserver.vehicle.DriveState
+import com.tesla.generated.carserver.vehicle.LocationState
+import com.tesla.generated.carserver.vehicle.TirePressureState
+import com.tesla.generated.vcsec.VehicleStatus
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -24,33 +29,39 @@ class RoomBackedRecordStoreTest {
     @get:Rule
     val folder = TemporaryFolder()
 
-    private lateinit var db: HistoryDatabase
-    private val now = NOW
+    private lateinit var dbs: TestDatabases
 
     @Before
     fun open() {
-        db = testDatabase(folder.root)
+        dbs = TestDatabases(folder.root)
     }
 
     @After
-    fun close() = db.close()
+    fun close() = dbs.close()
 
     private fun store(
         origin: String = "phone-a",
         maxBytes: Long = RoomBackedRecordStore.MAX_BYTES,
-    ) = RoomBackedRecordStore(db, origin, maxBytes = maxBytes, clock = { now })
+        eventMaxBytes: Long = RoomBackedRecordStore.MAX_BYTES,
+    ) = dbs.store(origin, maxBytes, eventMaxBytes, clock = { NOW })
+
+    private fun at(seconds: Long): Instant = Instant.ofEpochSecond(seconds)
 
     private fun charge(
         carSeconds: Long,
         level: Int = 50,
         phoneSeconds: Long = carSeconds,
     ) = BleRecord(
-        device_timestamp = Instant.ofEpochSecond(phoneSeconds),
-        charge_state = ChargeState(timestamp = Instant.ofEpochSecond(carSeconds), battery_level = level),
+        device_timestamp = at(phoneSeconds),
+        charge_state = ChargeState(timestamp = at(carSeconds), battery_level = level),
     )
 
-    private fun command(seconds: Long) =
-        BleRecord(device_timestamp = Instant.ofEpochSecond(seconds), command = Command(reason = Command.Reason.USER_WAKE))
+    private fun command(seconds: Long) = BleRecord(device_timestamp = at(seconds), command = Command(reason = Command.Reason.USER_WAKE))
+
+    private fun series(
+        vehicleId: String,
+        kind: RecordKind,
+    ) = SeriesRef(vehicleId, kind)
 
     @Test
     fun `records read back per vehicle, oldest first by the car's timestamp`() {
@@ -68,24 +79,49 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
-    fun `readRecent keeps the newest records of a vehicle`() {
+    fun `readNewest keeps the newest by time and readRange bounds the time`() {
         val store = store()
-        store.appendAll("car", RecordKind.CHARGE, (1L..10L).map { charge(NOW_S - 100 + it) })
+        // Inserted out of time order: the readers go by time, never by row id.
+        store.appendAll("car", RecordKind.CHARGE, listOf(5L, 1L, 4L, 2L, 3L).map { charge(NOW_S - 100 + it) })
+        val car = series("car", RecordKind.CHARGE)
 
-        assertEquals(
-            listOf(charge(NOW_S - 92), charge(NOW_S - 91), charge(NOW_S - 90)),
-            store.readRecent(RecordKind.CHARGE, 3).getValue("car"),
-        )
+        assertEquals(listOf(3L, 4L, 5L).map { charge(NOW_S - 100 + it) }, store.readNewest(car, 3))
+        val from = (NOW_S - 100 + 2) * 1000
+        val to = (NOW_S - 100 + 4) * 1000
+        assertEquals(listOf(2L, 3L, 4L).map { charge(NOW_S - 100 + it) }, store.readRange(car, from, to))
+        assertEquals(emptyList<BleRecord>(), store.readRange(car, 0, 1))
     }
 
     @Test
-    fun `a record without a car timestamp sits on the phone's time`() {
+    fun `every car-clock kind is timed by its own timestamp and a reply without one by the phone`() {
         val store = store()
-        store.append("car", RecordKind.COMMAND, command(NOW_S - 20))
-        store.append("car", RecordKind.COMMAND, command(NOW_S - 40))
+        val stamp = at(NOW_S - 50)
+        val phone = at(NOW_S - 10)
+        val replies =
+            mapOf(
+                RecordKind.CHARGE to BleRecord(device_timestamp = phone, charge_state = ChargeState(timestamp = stamp)),
+                RecordKind.CLIMATE to BleRecord(device_timestamp = phone, climate_state = ClimateState(timestamp = stamp)),
+                RecordKind.CLOSURES to BleRecord(device_timestamp = phone, closures_state = ClosuresState(timestamp = stamp)),
+                RecordKind.DRIVE to BleRecord(device_timestamp = phone, drive_state = DriveState(timestamp = stamp)),
+                RecordKind.LOCATION to BleRecord(device_timestamp = phone, location_state = LocationState(timestamp = stamp)),
+                RecordKind.TIRE_PRESSURE to BleRecord(device_timestamp = phone, tire_pressure_state = TirePressureState(timestamp = stamp)),
+            )
+        for ((kind, reply) in replies) store.append("car", kind, reply)
+        val unstamped = BleRecord(device_timestamp = phone, charge_state = ChargeState(battery_level = 40))
+        store.append("car", RecordKind.CHARGE, unstamped)
+        store.append("car", RecordKind.VCSEC, BleRecord(device_timestamp = phone, vehicle_status = VehicleStatus()))
 
-        assertEquals(listOf(command(NOW_S - 40), command(NOW_S - 20)), store.readRecent(RecordKind.COMMAND, 10).getValue("car"))
+        val stampMs = stamp.toEpochMilli()
+        for (kind in replies.keys) {
+            val times = timesOf(series("car", kind))
+            assertEquals("$kind", if (kind == RecordKind.CHARGE) listOf(stampMs, phone.toEpochMilli()) else listOf(stampMs), times.sorted())
+        }
+        // VCSEC replies carry no time: the phone's arrival time is the series' clock.
+        assertEquals(listOf(phone.toEpochMilli()), timesOf(series("car", RecordKind.VCSEC)))
+        assertEquals(2, store.readNewest(series("car", RecordKind.CHARGE), 10).size)
     }
+
+    private fun timesOf(series: SeriesRef): List<Long> = dbs.history.records().newest(checkNotNull(dbs.history.meta().seriesId(series.vehicleId, series.kind.id)), 10).map { it.time }
 
     @Test
     fun `the same record from the same origin is stored once, another origin keeps its own`() {
@@ -98,7 +134,7 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
-    fun `a record without a car timestamp is stored once per phone time and origin`() {
+    fun `events are stored once per series, phone time, origin and content`() {
         store("phone-a").append("car", RecordKind.COMMAND, command(NOW_S - 10))
         store("phone-a").append("car", RecordKind.COMMAND, command(NOW_S - 10))
         store("phone-a").append("car", RecordKind.COMMAND, command(NOW_S - 11))
@@ -113,17 +149,17 @@ class RoomBackedRecordStoreTest {
         val store = store()
         val drive =
             BleRecord(
-                device_timestamp = Instant.ofEpochSecond(NOW_S - 5),
-                drive_state = DriveState(timestamp = Instant.ofEpochSecond(NOW_S - 5), odometer_in_hundredths_of_a_mile = 1_234_567),
+                device_timestamp = at(NOW_S - 5),
+                drive_state = DriveState(timestamp = at(NOW_S - 5), odometer_in_hundredths_of_a_mile = 1_234_567),
             )
         store.append("car", RecordKind.DRIVE, drive)
         store.append("car", RecordKind.CHARGE, charge(NOW_S - 4))
 
         val odometers =
             listOf(RecordKind.DRIVE, RecordKind.CHARGE).map {
-                db
+                dbs.history
                     .records()
-                    .newest(checkNotNull(db.meta().seriesId("car", it.id)), 1)
+                    .newest(checkNotNull(dbs.history.meta().seriesId("car", it.id)), 1)
                     .single()
                     .odometer
             }
@@ -131,22 +167,30 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
-    fun `the database file reopens with its records and its unique key`() {
+    fun `the database files reopen with their records and their unique keys`() {
         val context = TestContext(folder.root)
         val driver = BundledSQLiteDriver()
         val first = HistoryDatabase.open(context, driver, log = {})
-        RoomBackedRecordStore(first, "phone-a").append("car", RecordKind.COMMAND, command(NOW_S))
+        val firstEvents = EventsDatabase.open(context, driver, log = {})
+        RoomBackedRecordStore(first, firstEvents, "phone-a").run {
+            append("car", RecordKind.CHARGE, charge(NOW_S))
+            append("car", RecordKind.COMMAND, command(NOW_S))
+        }
         first.close()
+        firstEvents.close()
 
         val second = HistoryDatabase.open(context, driver, log = {})
-        val reopened = RoomBackedRecordStore(second, "phone-a")
+        val secondEvents = EventsDatabase.open(context, driver, log = {})
+        val reopened = RoomBackedRecordStore(second, secondEvents, "phone-a")
         val rows = reopened.rowCount()
+        reopened.append("car", RecordKind.CHARGE, charge(NOW_S))
         reopened.append("car", RecordKind.COMMAND, command(NOW_S))
-        val rowsAfterDuplicate = reopened.rowCount()
+        val rowsAfterDuplicates = reopened.rowCount()
         second.close()
+        secondEvents.close()
 
-        assertEquals(1, rows)
-        assertEquals(1, rowsAfterDuplicate)
+        assertEquals(2, rows)
+        assertEquals(2, rowsAfterDuplicates)
     }
 
     @Test
@@ -161,24 +205,13 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
-    fun `old records are kept because there is no age retention`() {
-        val store = store()
-        val ancient = NOW_S - Duration.ofDays(3 * 365).seconds
-        store.append("car", RecordKind.CHARGE, charge(ancient))
-
-        store.trim()
-
-        assertEquals(listOf(charge(ancient)), store.readRecent(RecordKind.CHARGE, 10).getValue("car"))
-    }
-
-    @Test
     fun `phone-side events expire after 90 days and car records do not`() {
         val store = store()
         val old = NOW_S - Duration.ofDays(91).seconds
         val recent = NOW_S - Duration.ofDays(89).seconds
         store.append("car", RecordKind.COMMAND, command(old))
         store.append("car", RecordKind.COMMAND, command(recent))
-        store.append("", RecordKind.APP, BleRecord(device_timestamp = Instant.ofEpochSecond(old), app_state = AppState()))
+        store.append("", RecordKind.APP, BleRecord(device_timestamp = at(old), app_state = AppState()))
         store.append("car", RecordKind.CHARGE, charge(old))
 
         store.trim()
@@ -186,6 +219,16 @@ class RoomBackedRecordStoreTest {
         assertEquals(listOf(command(recent)), store.readRecent(RecordKind.COMMAND, 10).getValue("car"))
         assertEquals(emptyMap<String, List<BleRecord>>(), store.readRecent(RecordKind.APP, 10))
         assertEquals(listOf(charge(old)), store.readRecent(RecordKind.CHARGE, 10).getValue("car"))
+    }
+
+    @Test
+    fun `nothing is dropped while the file is under its cap`() {
+        val store = store()
+        store.appendAll("car", RecordKind.CHARGE, (1L..20L).map { charge(NOW_S - 100 + it) })
+
+        store.trim()
+
+        assertEquals(20, store.readNewest(series("car", RecordKind.CHARGE), 100).size)
     }
 
     @Test
@@ -197,31 +240,34 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
-    fun `the car cap drops the oldest car records and spares the events`() {
-        val store = store(maxBytes = 1_000)
-        store.appendAll("car", RecordKind.CHARGE, (1L..20L).map { charge(NOW_S - 100 + it) })
+    fun `the car cap drops the oldest of the time span across series and leaves the events file alone`() {
+        val store = store(maxBytes = 1)
+        store.appendAll("carA", RecordKind.CHARGE, (1L..20L).map { charge(NOW_S - 100 + it) })
+        store.appendAll("carB", RecordKind.CHARGE, (1L..20L).map { charge(NOW_S - 100 + it) })
         store.append("car", RecordKind.COMMAND, command(NOW_S - 50))
 
         store.trim()
 
-        val charges = store.readRecent(RecordKind.CHARGE, 100).getValue("car")
-        assertTrue(charges.size in 1..19)
-        assertEquals((20L - charges.size + 1..20L).map { charge(NOW_S - 100 + it) }, charges)
+        for (car in listOf("carA", "carB")) {
+            val charges = store.readNewest(series(car, RecordKind.CHARGE), 100)
+            assertTrue(charges.size in 1..19)
+            assertEquals((20L - charges.size + 1..20L).map { charge(NOW_S - 100 + it) }, charges)
+        }
         assertEquals(listOf(command(NOW_S - 50)), store.readRecent(RecordKind.COMMAND, 10).getValue("car"))
     }
 
     @Test
-    fun `the event cap drops the oldest events and spares the car records`() {
-        val store = store(maxBytes = 1_000)
+    fun `the event cap drops the oldest events and leaves the car records alone`() {
+        val store = store(eventMaxBytes = 1)
         store.appendAll("car", RecordKind.CHARGE, listOf(charge(NOW_S - 100), charge(NOW_S - 99)))
         store.appendAll("car", RecordKind.COMMAND, (1L..8L).map { command(NOW_S - 100 + it) })
 
         store.trim()
 
-        val commands = store.readRecent(RecordKind.COMMAND, 100).getValue("car")
+        val commands = store.readNewest(series("car", RecordKind.COMMAND), 100)
         assertTrue(commands.size in 1..7)
         assertEquals((8L - commands.size + 1..8L).map { command(NOW_S - 100 + it) }, commands)
-        assertEquals(2, store.readRecent(RecordKind.CHARGE, 100).getValue("car").size)
+        assertEquals(2, store.readNewest(series("car", RecordKind.CHARGE), 100).size)
     }
 
     @Test
@@ -232,57 +278,66 @@ class RoomBackedRecordStoreTest {
         val connected =
             BleRecord(device_timestamp = wake.device_timestamp, connection_event = ConnectionEvent(state = ConnectionEvent.State.CONNECTED))
         val disconnected =
-            BleRecord(
-                device_timestamp = wake.device_timestamp,
-                connection_event = ConnectionEvent(state = ConnectionEvent.State.DISCONNECTED),
-            )
+            BleRecord(device_timestamp = wake.device_timestamp, connection_event = ConnectionEvent(state = ConnectionEvent.State.DISCONNECTED))
 
         store.appendAll("car", RecordKind.COMMAND, listOf(wake, handshake, wake))
         store.appendAll("car", RecordKind.CONNECTION, listOf(connected, disconnected))
 
-        assertEquals(2, store.readRecent(RecordKind.COMMAND, 10).getValue("car").size)
-        assertEquals(setOf(connected, disconnected), store.readRecent(RecordKind.CONNECTION, 10).getValue("car").toSet())
+        assertEquals(2, store.readNewest(series("car", RecordKind.COMMAND), 10).size)
+        assertEquals(setOf(connected, disconnected), store.readNewest(series("car", RecordKind.CONNECTION), 10).toSet())
         assertEquals(4, store.rowCount())
     }
 
     @Test
-    fun `app events belong to no car and are exported as app pblog`() {
+    fun `app events belong to no car and every series of both files is listed`() {
         val store = store()
-        val screenOn = BleRecord(device_timestamp = Instant.ofEpochSecond(NOW_S), app_state = AppState(event = AppState.Event.SCREEN_ON))
-        val tracking =
-            BleRecord(device_timestamp = Instant.ofEpochSecond(NOW_S), app_state = AppState(event = AppState.Event.TRACKING_STARTED))
+        val screenOn = BleRecord(device_timestamp = at(NOW_S), app_state = AppState(event = AppState.Event.SCREEN_ON))
+        val tracking = BleRecord(device_timestamp = at(NOW_S), app_state = AppState(event = AppState.Event.TRACKING_STARTED))
         store.appendAll("", RecordKind.APP, listOf(tracking, screenOn))
+        store.append("carA", RecordKind.CHARGE, charge(NOW_S - 1))
 
-        assertEquals(listOf("" to RecordKind.APP), store.series())
-        assertEquals(setOf(tracking, screenOn), store.readRecent(RecordKind.APP, 10).getValue("").toSet())
+        assertEquals(setOf(series("", RecordKind.APP), series("carA", RecordKind.CHARGE)), store.series().toSet())
+        assertEquals(setOf(tracking, screenOn), store.readNewest(series("", RecordKind.APP), 10).toSet())
     }
 
     @Test
-    fun `a database that does not open is kept aside as corrupt, not deleted`() {
+    fun `the exporter's stream pages a series in storage order`() {
+        val store = store()
+        store.appendAll("car", RecordKind.CHARGE, (1L..5L).map { charge(NOW_S - 100 + it) })
+        val car = series("car", RecordKind.CHARGE)
+
+        val first = store.stream(car, 0, 2)
+        val second = store.stream(car, first.last().id, 10)
+
+        assertEquals(2, first.size)
+        assertEquals(3, second.size)
+        assertEquals((NOW_S - 100 + 3) * 1000, second.first().time)
+        assertEquals(emptyList<StoredRecord>(), store.stream(car, second.last().id, 10).toList())
+    }
+
+    @Test
+    fun `databases that do not open are kept aside as corrupt, not deleted`() {
         // Windows keeps the failed connection's file handle open, so the rename cannot happen there.
         assumeFalse(System.getProperty("os.name").startsWith("Windows"))
         val context = TestContext(folder.root)
         val damaged = "not a database, but the owner's only copy".toByteArray()
         context.getDatabasePath(HistoryDatabase.FILE_NAME).writeBytes(damaged)
+        context.getDatabasePath(EventsDatabase.FILE_NAME).writeBytes(damaged)
 
-        val db = HistoryDatabase.open(context, BundledSQLiteDriver(), log = {})
-        val fresh = RoomBackedRecordStore(db, "phone-a")
+        val history = HistoryDatabase.open(context, BundledSQLiteDriver(), log = {})
+        val events = EventsDatabase.open(context, BundledSQLiteDriver(), log = {})
+        val fresh = RoomBackedRecordStore(history, events, "phone-a")
+        fresh.append("car", RecordKind.CHARGE, charge(NOW_S))
         fresh.append("car", RecordKind.COMMAND, command(NOW_S))
         val rows = fresh.rowCount()
-        db.close()
+        history.close()
+        events.close()
 
-        val kept = folder.root.listFiles { file -> file.name.startsWith("${HistoryDatabase.FILE_NAME}.corrupt-") }!!.single()
-        assertEquals(damaged.toList(), kept.readBytes().toList())
-        assertEquals(1, rows)
-    }
-
-    @Test
-    fun `the series list names every vehicle and kind stored`() {
-        val store = store()
-        store.append("carA", RecordKind.CHARGE, charge(NOW_S - 1))
-        store.append("", RecordKind.APP, BleRecord(device_timestamp = Instant.ofEpochSecond(NOW_S), app_state = AppState()))
-
-        assertEquals(setOf("carA" to RecordKind.CHARGE, "" to RecordKind.APP), store.series().toSet())
+        for (name in listOf(HistoryDatabase.FILE_NAME, EventsDatabase.FILE_NAME)) {
+            val kept = folder.root.listFiles { file -> file.name.startsWith("$name.corrupt-") }!!.single()
+            assertEquals(damaged.toList(), kept.readBytes().toList())
+        }
+        assertEquals(2, rows)
     }
 
     private companion object {

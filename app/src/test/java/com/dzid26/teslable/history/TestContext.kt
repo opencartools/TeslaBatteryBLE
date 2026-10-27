@@ -24,6 +24,22 @@ internal class TestContext(
     override fun getSystemService(name: String): Any? = null
 }
 
-/** The in-memory history database over the bundled SQLite driver, usable from the test thread. */
-internal fun testDatabase(dir: File): HistoryDatabase =
-    HistoryDatabase.inMemory(TestContext(dir), onMainThread = true, driver = BundledSQLiteDriver())
+/** The two in-memory databases over the bundled SQLite driver, usable from the test thread. */
+internal class TestDatabases(
+    dir: File,
+) : AutoCloseable {
+    val history: HistoryDatabase = HistoryDatabase.inMemory(TestContext(dir), onMainThread = true, driver = BundledSQLiteDriver())
+    val events: EventsDatabase = EventsDatabase.inMemory(TestContext(dir), onMainThread = true, driver = BundledSQLiteDriver())
+
+    fun store(
+        origin: String = "phone-a",
+        maxBytes: Long = RoomBackedRecordStore.MAX_BYTES,
+        eventMaxBytes: Long = RoomBackedRecordStore.MAX_BYTES,
+        clock: () -> Long = System::currentTimeMillis,
+    ) = RoomBackedRecordStore(history, events, origin, maxBytes, eventMaxBytes, clock)
+
+    override fun close() {
+        history.close()
+        events.close()
+    }
+}

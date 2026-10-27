@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.util.Log
+import com.dzid26.teslable.BuildConfig
 import java.io.File
 import kotlin.concurrent.thread
 
@@ -26,17 +27,20 @@ class ExportLogsReceiver : BroadcastReceiver() {
         thread {
             runCatching {
                 // A second reader of the live file: it never moves a database aside, unlike the app's own open.
-                val db = HistoryDatabase.openExisting(context)
+                val history = HistoryDatabase.openExisting(context)
+                val events = EventsDatabase.openExisting(context)
                 try {
                     val zip =
                         LogExporter.exportToDirectory(
-                            RoomBackedRecordStore(db, OriginId.load(context)),
+                            RoomBackedRecordStore(history, events, OriginId.load(context)),
                             File(context.filesDir, EXPORT_DIR_NAME),
                             System.currentTimeMillis(),
+                            BuildConfig.VERSION_NAME,
                         )
                     Log.i(TAG, "exported ${zip.name}")
                 } finally {
-                    db.close()
+                    history.close()
+                    events.close()
                 }
             }.onFailure { Log.w(TAG, "export failed: ${it.javaClass.simpleName}") }
             pending.finish()

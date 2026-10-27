@@ -34,18 +34,18 @@ class HistoryStoreTest {
     val folder = TemporaryFolder()
 
     private val historyDir get() = File(folder.root, "battery-history")
-    private lateinit var db: HistoryDatabase
+    private lateinit var dbs: TestDatabases
 
     @Before
     fun open() {
-        db = testDatabase(folder.root)
+        dbs = TestDatabases(folder.root)
     }
 
     @After
-    fun close() = db.close()
+    fun close() = dbs.close()
 
     // InlineDispatcher runs the store's work on the calling thread, so each call has finished when it returns.
-    private fun store() = HistoryStore(historyDir, lazy { RoomBackedRecordStore(db, "phone-a") }, CoroutineScope(InlineDispatcher))
+    private fun store() = HistoryStore(historyDir, lazy { dbs.store() }, CoroutineScope(InlineDispatcher))
 
     private fun reply(seconds: Long) = ChargeState(timestamp = Instant.ofEpochSecond(seconds), battery_level = 70)
 

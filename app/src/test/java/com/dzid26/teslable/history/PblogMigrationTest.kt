@@ -27,17 +27,17 @@ class PblogMigrationTest {
     @get:Rule
     val folder = TemporaryFolder()
 
-    private lateinit var db: HistoryDatabase
+    private lateinit var dbs: TestDatabases
     private lateinit var store: RoomBackedRecordStore
 
     @Before
     fun open() {
-        db = testDatabase(folder.root)
-        store = RoomBackedRecordStore(db, "phone-a", clock = { NOW })
+        dbs = TestDatabases(folder.root)
+        store = dbs.store(clock = { NOW })
     }
 
     @After
-    fun close() = db.close()
+    fun close() = dbs.close()
 
     private fun charge(seconds: Long) =
         BleRecord(
@@ -117,13 +117,33 @@ class PblogMigrationTest {
         store.append("", RecordKind.APP, appState(50))
 
         val out = ByteArrayOutputStream()
-        val exported = LogExporter.export(store, out)
+        val exported = LogExporter.export(store, out, APP_VERSION)
 
         assertEquals(5, exported)
         val entries = unzip(out.toByteArray())
-        assertEquals(setOf("app.pblog", "carA.charge.pblog", "carA.command.pblog", "legacy.drive.pblog"), entries.keys)
+        assertEquals(
+            setOf("app.pblog", "carA.charge.pblog", "carA.command.pblog", "legacy.drive.pblog", LogExporter.MANIFEST_NAME),
+            entries.keys,
+        )
         assertEquals(listOf(charge(100), charge(200)), ProtoLog.decode(entries.getValue("carA.charge.pblog"), BleRecord.ADAPTER))
         assertEquals(listOf(appState(50)), ProtoLog.decode(entries.getValue("app.pblog"), BleRecord.ADAPTER))
+    }
+
+    @Test
+    fun `the manifest names the origin, the vehicles and each file's count and time span`() {
+        store.appendAll("carA", RecordKind.CHARGE, listOf(charge(100), charge(200)))
+        store.append("carA", RecordKind.COMMAND, command(150))
+        val out = ByteArrayOutputStream()
+        LogExporter.export(store, out, APP_VERSION)
+
+        val manifest = String(unzip(out.toByteArray()).getValue(LogExporter.MANIFEST_NAME), Charsets.UTF_8)
+
+        assertTrue(manifest.contains("\"formatVersion\":1"))
+        assertTrue(manifest.contains("\"originUuid\":\"phone-a\""))
+        assertTrue(manifest.contains("\"appVersion\":\"$APP_VERSION\""))
+        assertTrue(manifest.contains("\"vehicleIds\":[\"carA\"]"))
+        assertTrue(manifest.contains("{\"name\":\"carA.charge.pblog\",\"records\":2,\"firstTime\":100000,\"lastTime\":200000}"))
+        assertTrue(manifest.contains("{\"name\":\"carA.command.pblog\",\"records\":1,\"firstTime\":150000,\"lastTime\":150000}"))
     }
 
     @Test
@@ -131,23 +151,23 @@ class PblogMigrationTest {
         store.append("carA", RecordKind.CHARGE, charge(100))
         val dir = File(folder.root, "exports")
 
-        val zips = (1..4).map { LogExporter.exportToDirectory(store, dir, it * 60_000L) }
+        val zips = (1..4).map { LogExporter.exportToDirectory(store, dir, it * 60_000L, APP_VERSION) }
 
         assertEquals("19700101-000100.zip", zips.first().name)
         assertEquals(zips.drop(1).map { it.name }.toSet(), dir.list()!!.toSet())
-        assertEquals(setOf("carA.charge.pblog"), unzip(zips.last().readBytes()).keys)
+        assertEquals(setOf("carA.charge.pblog", LogExporter.MANIFEST_NAME), unzip(zips.last().readBytes()).keys)
     }
 
     @Test
     fun `an export imports back into an empty store unchanged`() {
         store.appendAll("carA", RecordKind.CHARGE, listOf(charge(100), charge(200)))
         val out = ByteArrayOutputStream()
-        LogExporter.export(store, out)
+        LogExporter.export(store, out, APP_VERSION)
         unzip(out.toByteArray()).forEach { (name, bytes) -> File(folder.root, name).writeBytes(bytes) }
 
         db.close()
-        db = testDatabase(folder.root)
-        store = RoomBackedRecordStore(db, "phone-a", clock = { NOW })
+        dbs = TestDatabases(folder.root)
+        store = dbs.store(clock = { NOW })
         PblogImporter(folder.root, store).importAll()
 
         assertEquals(listOf(charge(100), charge(200)), store.readRecent(RecordKind.CHARGE, 10).getValue("carA"))
@@ -163,5 +183,6 @@ class PblogMigrationTest {
 
     private companion object {
         const val NOW = 1_800_000_000_000L
+        const val APP_VERSION = "1.2.3-test"
     }
 }

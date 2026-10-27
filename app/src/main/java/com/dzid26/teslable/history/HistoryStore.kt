@@ -5,6 +5,7 @@ package com.dzid26.teslable.history
 import android.content.Context
 import com.dzid26.teslable.core.history.ActivitySample
 import com.dzid26.teslable.core.history.ActivityThinner
+import com.dzid26.teslable.BuildConfig
 import com.dzid26.teslable.core.history.AppState
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.BleRecord
@@ -83,7 +84,7 @@ class HistoryStore internal constructor(
 ) {
     constructor(context: Context) : this(
         File(context.filesDir, HISTORY_DIR_NAME),
-        lazy { RoomBackedRecordStore(HistoryDatabase.open(context), OriginId.load(context)) },
+        lazy { RoomBackedRecordStore(HistoryDatabase.open(context), EventsDatabase.open(context), OriginId.load(context)) },
         CoroutineScope(SupervisorJob() + Dispatchers.IO),
     )
 
@@ -372,7 +373,7 @@ class HistoryStore internal constructor(
      * Writes every record as framed `<vehicleId>.<kind>.pblog` files into a zip on [out] and returns
      * how many records it holds (ADR-0014). The caller owns the stream's target; this closes [out].
      */
-    suspend fun exportLogs(out: OutputStream): Int = withContext(Dispatchers.IO) { LogExporter.export(recordStore, out) }
+    suspend fun exportLogs(out: OutputStream): Int = withContext(Dispatchers.IO) { LogExporter.export(recordStore, out, BuildConfig.VERSION_NAME) }
 
     private fun appendStatus(
         vehicleId: String,
