@@ -80,7 +80,7 @@ class DrivingScreenSnapshots {
                 address = DemoScreenFixtures.DEMO_ADDRESS,
                 history = DemoScreenFixtures.drivingHistory(NOW),
                 driveHistory = DemoScreenFixtures.drives(NOW),
-                statusHistory = emptyList(),
+                statusHistory = DemoScreenFixtures.statuses(NOW),
                 onBack = {},
                 onEdit = {},
                 onPair = {},
@@ -110,8 +110,8 @@ class DrivingScreenSnapshots {
     private companion object {
         const val HOME_PRICE = 0.30f
 
-        /** Scrolls the car view down to the drive card. */
-        const val DRIVE_CARD_SCROLL_PX = 1570
+        /** Scrolls the car view down to the drive card, its rounded top corners just clear of the top bar. */
+        const val DRIVE_CARD_SCROLL_PX = 1625
 
         /** The live trip began fourteen minutes before the render. */
         const val TRIP_ELAPSED_MILLIS = 14 * 60_000L
