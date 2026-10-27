@@ -47,3 +47,9 @@ fun permissionSteps(permissions: List<String>): List<PermissionStep> =
             )
         }
     }
+
+/** The first step that still has a missing permission, or null when none is left. */
+fun nextPermissionStep(
+    steps: List<PermissionStep>,
+    missing: List<String>,
+): PermissionStep? = steps.firstOrNull { step -> step.permissions.any { it in missing } }

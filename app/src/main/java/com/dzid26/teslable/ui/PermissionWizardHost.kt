@@ -43,6 +43,9 @@ internal fun PermissionWizardHost(
     val context = LocalContext.current
     var permissionsGranted by remember { mutableStateOf(hasBlePermissions(context)) }
     var locationServicesEnabled by remember { mutableStateOf(isLocationEnabled(context)) }
+    // Observable so the wizard page advances as soon as a dialog is answered;
+    // reading the permissions straight from the context would not recompose.
+    var missingPermissions by remember { mutableStateOf(missingOnboardingPermissions(context)) }
     var wizardOpen by remember { mutableStateOf(false) }
     var introDone by remember { mutableStateOf(false) }
     // The step whose dialog was denied; a different step starts without an error.
@@ -60,6 +63,7 @@ internal fun PermissionWizardHost(
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
             permissionsGranted = hasBlePermissions(context)
+            missingPermissions = missingOnboardingPermissions(context)
             deniedStep = results.deniedStep()
             deniedForever = deniedStep != null && shouldOpenAppSettings(context)
             if (results.finishesOnboarding(context)) {
@@ -71,8 +75,9 @@ internal fun PermissionWizardHost(
 
     LaunchedEffect(refreshKey) {
         permissionsGranted = hasBlePermissions(context)
+        missingPermissions = missingOnboardingPermissions(context)
         locationServicesEnabled = isLocationEnabled(context)
-        if (wizardOpen && missingOnboardingPermissions(context).isEmpty()) {
+        if (wizardOpen && missingPermissions.isEmpty()) {
             wizardOpen = false
             onGranted()
         }
@@ -111,6 +116,7 @@ internal fun PermissionWizardHost(
             )
         } else if (wizardOpen) {
             PermissionWizardSteps(
+                missing = missingPermissions,
                 deniedStep = deniedStep,
                 deniedForever = deniedForever,
                 onAllow = { permissions, openSettings ->
@@ -129,15 +135,14 @@ internal fun PermissionWizardHost(
 /** The page for the first onboarding permission that is still missing, if any. */
 @Composable
 private fun PermissionWizardSteps(
+    missing: List<String>,
     deniedStep: List<String>?,
     deniedForever: Boolean,
     onAllow: (permissions: List<String>, openSettings: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val context = LocalContext.current
     val allSteps = permissionSteps(onboardingPermissions())
-    val missing = missingOnboardingPermissions(context)
-    val nextStep = allSteps.firstOrNull { step -> step.permissions.any { it in missing } }
+    val nextStep = nextPermissionStep(allSteps, missing)
     if (nextStep != null) {
         val denied = deniedStep?.toSet() == nextStep.permissions.toSet()
         PermissionWizardPage(
