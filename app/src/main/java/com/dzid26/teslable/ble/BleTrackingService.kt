@@ -64,6 +64,7 @@ class BleTrackingService : Service() {
     private var startLogged = false
 
     private val tripSource by lazy { TripNoticeSource() }
+    private val tripAlerts = TripAlerts()
 
     /** Screen on and off only reach a receiver registered at run time; the app-state log keeps them (ADR-0008). */
     private val screenReceiver =
@@ -217,6 +218,12 @@ class BleTrackingService : Service() {
 
     private fun publish(models: List<NotificationModel>) {
         val summary = summaryModel(models)
+        val now = System.currentTimeMillis()
+        val alerting =
+            models.mapNotNullTo(
+                mutableSetOf(),
+            ) { model -> model.bleName?.takeIf { tripAlerts.shouldAlert(it, model.trip, now) } }
+        val summaryAlert = models.size == 1 && summary.bleName in alerting
         if (!foregroundStarted) {
             // A sticky restart after Bluetooth permission was revoked: Android 14+ refuses the
             // connected-device type without it, and a crash loop would be worse than no service.
@@ -224,7 +231,7 @@ class BleTrackingService : Service() {
                 ServiceCompat.startForeground(
                     this,
                     NOTIFICATION_ID,
-                    buildNotification(summary, groupSummary = models.size > 1, alert = summary.trip != null),
+                    buildNotification(summary, groupSummary = models.size > 1, alert = summaryAlert),
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
                     } else {
@@ -242,11 +249,10 @@ class BleTrackingService : Service() {
             foregroundStarted = true
             lastSummary = summary
         } else if (shouldPost(lastSummary, summary)) {
-            val alert = tripStarted(lastSummary, summary)
             lastSummary = summary
-            post(NOTIFICATION_ID, buildNotification(summary, groupSummary = models.size > 1, alert = alert))
+            post(NOTIFICATION_ID, buildNotification(summary, groupSummary = models.size > 1, alert = summaryAlert))
         }
-        syncCarNotifications(models)
+        syncCarNotifications(models, alerting)
     }
 
     /**
@@ -284,7 +290,10 @@ class BleTrackingService : Service() {
                 )
         }
 
-    private fun syncCarNotifications(models: List<NotificationModel>) {
+    private fun syncCarNotifications(
+        models: List<NotificationModel>,
+        alerting: Set<String>,
+    ) {
         val wanted: Map<String, NotificationModel> =
             if (models.size > 1) {
                 models.mapNotNull { model -> model.bleName?.let { it to model } }.toMap()
@@ -300,11 +309,10 @@ class BleTrackingService : Service() {
             }
         }
         for ((bleName, model) in wanted) {
-            val previous = lastCarModels[bleName]
-            if (!shouldPost(previous, model)) continue
+            if (!shouldPost(lastCarModels[bleName], model)) continue
             lastCarModels[bleName] = model
             val id = postedCarIds.getOrPut(bleName) { carNotificationId(bleName) }
-            post(id, buildNotification(model, groupSummary = false, alert = tripStarted(previous, model)))
+            post(id, buildNotification(model, groupSummary = false, alert = bleName in alerting))
         }
     }
 
@@ -339,12 +347,6 @@ class BleTrackingService : Service() {
         if (oldRssi == null || newRssi == null) return oldRssi != newRssi
         return kotlin.math.abs(newRssi - oldRssi) >= RSSI_NOTIFICATION_STEP
     }
-
-    /** A trip counts as new when the car had none in the previous post; only then does the notification pop up. */
-    private fun tripStarted(
-        previous: NotificationModel?,
-        current: NotificationModel,
-    ): Boolean = current.trip != null && previous?.trip == null
 
     /**
      * [alert] makes the post a heads-up (a new trip); every other post is silent and alerts only once.
