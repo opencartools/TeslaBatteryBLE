@@ -82,7 +82,7 @@ internal class TripAlerts {
     }
 }
 
-private const val TRIP_END_GAP_MILLIS = 10 * 60_000L
+private const val TRIP_END_GAP_MILLIS = 2 * 60_000L
 
 /** The route-independent inputs of [tripEstimate] for one car, fitted from its history. */
 internal data class TripInputs(

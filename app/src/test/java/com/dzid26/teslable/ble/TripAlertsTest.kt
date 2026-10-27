@@ -21,8 +21,8 @@ class TripAlertsTest {
     fun `a short gap in the notice does not alert again`() {
         val alerts = TripAlerts()
         alerts.shouldAlert("car", notice(), 0)
-        assertFalse(alerts.shouldAlert("car", null, 2 * minute))
-        assertFalse(alerts.shouldAlert("car", notice(), 3 * minute))
+        assertFalse(alerts.shouldAlert("car", null, minute))
+        assertFalse(alerts.shouldAlert("car", notice(), 2 * minute))
     }
 
     @Test
@@ -44,8 +44,8 @@ class TripAlertsTest {
         val alerts = TripAlerts()
         alerts.shouldAlert("car", notice(), 0)
         assertFalse(alerts.shouldAlert("car", null, minute))
-        assertFalse(alerts.shouldAlert("car", null, 12 * minute))
-        assertTrue(alerts.shouldAlert("car", notice(), 13 * minute))
+        assertFalse(alerts.shouldAlert("car", null, 4 * minute))
+        assertTrue(alerts.shouldAlert("car", notice(), 5 * minute))
     }
 
     @Test
