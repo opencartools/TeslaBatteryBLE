@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ui
 
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityOptionsCompat
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.ide.common.rendering.api.SessionParams
@@ -646,16 +651,31 @@ class CardSnapshots {
 
     @Test
     fun screenSettings() {
+        // The export button asks for an activity result launcher, which Paparazzi has no activity for.
+        val registryOwner =
+            object : ActivityResultRegistryOwner {
+                override val activityResultRegistry =
+                    object : ActivityResultRegistry() {
+                        override fun <I, O> onLaunch(
+                            requestCode: Int,
+                            contract: ActivityResultContract<I, O>,
+                            input: I,
+                            options: ActivityOptionsCompat?,
+                        ) = Unit
+                    }
+            }
         snapScreen("screen-settings") {
-            SettingsScreen(
-                keyStore = PairingKeyStore(LocalContext.current),
-                vehicles = listOf(DemoScreenFixtures.vehicle),
-                onClearPairingCache = {},
-                onExportLogs = { 0 },
-                onOpenAbout = {},
-                onBack = {},
-                versionName = DemoScreenFixtures.VERSION_NAME,
-            )
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+                SettingsScreen(
+                    keyStore = PairingKeyStore(LocalContext.current),
+                    vehicles = listOf(DemoScreenFixtures.vehicle),
+                    onClearPairingCache = {},
+                    onExportLogs = { 0 },
+                    onOpenAbout = {},
+                    onBack = {},
+                    versionName = DemoScreenFixtures.VERSION_NAME,
+                )
+            }
         }
     }
 
