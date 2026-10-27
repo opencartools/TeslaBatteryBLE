@@ -77,15 +77,15 @@ internal class RoomBackedRecordStore(
      * Retention as `DELETE`s in one transaction. Car records are kept for years: only a size cap applies.
      * The phone-side events are dropped after [EVENT_RETENTION], and also get [EVENT_SHARE_PERCENT] of
      * [maxBytes] (the car records the rest), each trimmed oldest-first within itself, so a chatty
-     * command log cannot evict car history. The per-series size scan runs only once the database file
-     * is as big as the cap, so it costs nothing while there is room. Nothing yet folds records into
+     * command log cannot evict car history. The per-series size scan runs only once the database
+     * holds as many bytes as the cap, so it costs nothing while there is room. Nothing yet folds records into
      * summaries first; that joins this transaction with the derived store (ADR-0012).
      */
     fun trim() {
         appendsSinceTrim = 0
         val eventCap = maxBytes / PERCENT * EVENT_SHARE_PERCENT
         // Read before the transaction opens: the size comes over a separate connection.
-        val full = db.fileBytes() > maxBytes
+        val full = db.usedBytes() > maxBytes
         db.runInTransaction {
             events.expire(clock() - EVENT_RETENTION.toMillis())
             if (full) {

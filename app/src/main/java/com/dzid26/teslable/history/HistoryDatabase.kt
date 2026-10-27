@@ -213,21 +213,15 @@ internal abstract class HistoryDatabase : RoomDatabase() {
 
     abstract fun events(): EventDao
 
-    /** The size of the database file, free pages included (`page_count * page_size`). */
-    fun fileBytes(): Long =
+    /**
+     * The bytes of pages in use, `(page_count - freelist_count) * page_size`. A trim frees pages but the
+     * file keeps its length, so the file size alone would never fall back under the cap.
+     */
+    fun usedBytes(): Long =
         runBlocking {
             useReaderConnection { connection ->
-                val pages =
-                    connection.usePrepared("PRAGMA page_count") {
-                        it.step()
-                        it.getLong(0)
-                    }
-                val pageSize =
-                    connection.usePrepared("PRAGMA page_size") {
-                        it.step()
-                        it.getLong(0)
-                    }
-                pages * pageSize
+                fun pragma(name: String): Long = connection.usePrepared("PRAGMA $name") { it.step(); it.getLong(0) }
+                (pragma("page_count") - pragma("freelist_count")) * pragma("page_size")
             }
         }
 
