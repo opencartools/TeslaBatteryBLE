@@ -152,6 +152,7 @@ fun MainScreen(
             routes = history.routes,
             trips = history.trips,
             storedCharges = history.chargeSessions,
+            historyLoaded = history.loaded,
             onBack = { viewingBleName = null },
             onEdit = { vinTarget = bleName },
             onPair = { onPairKey(address) },

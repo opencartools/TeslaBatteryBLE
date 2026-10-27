@@ -87,6 +87,9 @@ class TeslaBleController(
     /** Drive readings recorded from every DriveState response, oldest first. */
     val driveHistory: StateFlow<List<DriveSample>> get() = historyStore.driveSamples
 
+    /** False while the start is still publishing the logs; see [HistoryStore.loaded]. */
+    val historyLoaded: StateFlow<Boolean> get() = historyStore.loaded
+
     /** Every car's charge sessions as `derived.db` stores them, oldest first. */
     val chargeSessions: StateFlow<List<ChargeSession>> get() = historyStore.chargeSessions
 

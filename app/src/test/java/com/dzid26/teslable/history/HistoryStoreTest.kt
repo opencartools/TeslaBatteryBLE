@@ -71,6 +71,11 @@ class HistoryStoreTest {
     }
 
     @Test
+    fun `the store reports loaded once the long-term history is in`() {
+        assertTrue(storeWithDerived().loaded.value)
+    }
+
+    @Test
     fun `the files of an earlier version are imported on the first start`() {
         val now = Instant.now()
         val dir = historyDir.apply { mkdirs() }
