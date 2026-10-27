@@ -133,7 +133,9 @@ class PblogMigrationTest {
         LogExporter.export(store, out)
         unzip(out.toByteArray()).forEach { (name, bytes) -> File(folder.root, name).writeBytes(bytes) }
 
-        db.clearAllTables()
+        db.close()
+        db = testDatabase(folder.root)
+        store = RoomBackedRecordStore(db, "phone-a", clock = { NOW })
         PblogImporter(folder.root, store).importAll()
 
         assertEquals(listOf(charge(100), charge(200)), store.readRecent(RecordKind.CHARGE, 10).getValue("carA"))
