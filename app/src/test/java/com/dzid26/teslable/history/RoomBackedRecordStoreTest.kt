@@ -198,7 +198,7 @@ class RoomBackedRecordStoreTest {
 
     @Test
     fun `the car cap drops the oldest car records and spares the events`() {
-        val store = store(maxBytes = 4_000)
+        val store = store(maxBytes = 1_000)
         store.appendAll("car", RecordKind.CHARGE, (1L..20L).map { charge(NOW_S - 100 + it) })
         store.append("car", RecordKind.COMMAND, command(NOW_S - 50))
 
@@ -212,7 +212,7 @@ class RoomBackedRecordStoreTest {
 
     @Test
     fun `the event cap drops the oldest events and spares the car records`() {
-        val store = store(maxBytes = 4_000)
+        val store = store(maxBytes = 1_000)
         store.appendAll("car", RecordKind.CHARGE, listOf(charge(NOW_S - 100), charge(NOW_S - 99)))
         store.appendAll("car", RecordKind.COMMAND, (1L..8L).map { command(NOW_S - 100 + it) })
 
