@@ -70,7 +70,7 @@ internal class EventLog(
     ): EventRow {
         val blob = record.encode()
         val phone = record.device_timestamp?.toEpochMilli() ?: now
-        return EventRow(RowSource(seriesId, lookups.originId), phone, contentHash(blob), blob)
+        return EventRow(source = RowSource(seriesId, lookups.originId), phoneTime = phone, contentHash = contentHash(blob), blob = blob)
     }
 
     private fun decode(row: EventRow): BleRecord? = runCatching { BleRecord.ADAPTER.decode(row.blob) }.getOrNull()
