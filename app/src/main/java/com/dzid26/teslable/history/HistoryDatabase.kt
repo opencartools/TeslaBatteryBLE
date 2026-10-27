@@ -129,8 +129,12 @@ internal interface RecordDao {
         limit: Int,
     ): List<RecordRow>
 
-    /** Up to [limit] rows of a series after [afterId], in insertion order, for streaming reads. */
-    @Query("SELECT * FROM records WHERE seriesId = :seriesId AND id > :afterId ORDER BY id LIMIT :limit")
+    /**
+     * Up to [limit] rows of a series after [afterId], in insertion order, for streaming reads. The unary
+     * plus keeps SQLite from picking the series index, which would sort the whole series for every page;
+     * it walks the primary key from [afterId] instead and stops after [limit] matches.
+     */
+    @Query("SELECT * FROM records WHERE id > :afterId AND +seriesId = :seriesId ORDER BY id LIMIT :limit")
     fun page(
         seriesId: Long,
         afterId: Long,
@@ -171,7 +175,7 @@ internal interface EventDao {
     ): List<EventRow>
 
     /** Up to [limit] events of a series after [afterId], in insertion order, for streaming reads. */
-    @Query("SELECT * FROM events WHERE seriesId = :seriesId AND id > :afterId ORDER BY id LIMIT :limit")
+    @Query("SELECT * FROM events WHERE id > :afterId AND +seriesId = :seriesId ORDER BY id LIMIT :limit")
     fun page(
         seriesId: Long,
         afterId: Long,
