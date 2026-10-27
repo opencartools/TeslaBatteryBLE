@@ -127,6 +127,18 @@ class PblogMigrationTest {
     }
 
     @Test
+    fun `exporting to a directory names the zip by UTC time and keeps the newest three`() {
+        store.append("carA", RecordKind.CHARGE, charge(100))
+        val dir = File(folder.root, "exports")
+
+        val zips = (1..4).map { LogExporter.exportToDirectory(store, dir, it * 60_000L) }
+
+        assertEquals("19700101-000100.zip", zips.first().name)
+        assertEquals(zips.drop(1).map { it.name }.toSet(), dir.list()!!.toSet())
+        assertEquals(setOf("carA.charge.pblog"), unzip(zips.last().readBytes()).keys)
+    }
+
+    @Test
     fun `an export imports back into an empty store unchanged`() {
         store.appendAll("carA", RecordKind.CHARGE, listOf(charge(100), charge(200)))
         val out = ByteArrayOutputStream()
