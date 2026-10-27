@@ -128,8 +128,9 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   `manifest.json` with the format version, the origin UUID, the vehicle ids, each file's record count and
   first and last time, and the app version. For a debuggable build, a shell broadcast to
   `ExportLogsReceiver` writes it to `files/battery-history-export/<time>.zip`, where `run-as` can read it;
-  the receiver ignores a release build and only the shell holds the permission it asks for. There is no
-  in-app button yet. The pull commands, and how to copy the databases themselves, are in
+  the receiver ignores a release build and only the shell holds the permission it asks for. Settings has
+  an "Export logs" button that writes the same zip to a file the user picks through the Storage Access
+  Framework (`CreateDocument`), so a release build can hand logs out too. The pull commands, and how to copy the databases themselves, are in
   [`docs/reference/log-pull.md`](../reference/log-pull.md). The old `run-as ... tar files/battery-history`
   now returns only the stale `*.imported` files.
 - A database that fails to open (damaged, or a schema without a migration) is never deleted, in either

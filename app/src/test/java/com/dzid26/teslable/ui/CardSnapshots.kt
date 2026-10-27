@@ -651,6 +651,7 @@ class CardSnapshots {
                 keyStore = PairingKeyStore(LocalContext.current),
                 vehicles = listOf(DemoScreenFixtures.vehicle),
                 onClearPairingCache = {},
+                onExportLogs = { 0 },
                 onOpenAbout = {},
                 onBack = {},
                 versionName = DemoScreenFixtures.VERSION_NAME,

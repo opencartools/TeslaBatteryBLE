@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
                                 keyStore = remember { PairingKeyStore(context) },
                                 vehicles = state.vehicles,
                                 onClearPairingCache = controller::clearPairingCache,
+                                onExportLogs = controller::exportLogs,
                                 onOpenAbout = { screen = AppScreen.ABOUT },
                                 onBack = { screen = AppScreen.MAIN },
                             )

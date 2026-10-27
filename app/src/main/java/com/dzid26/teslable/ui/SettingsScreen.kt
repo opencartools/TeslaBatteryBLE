@@ -57,6 +57,7 @@ import com.dzid26.teslable.core.units.EfficiencyUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.OutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +65,8 @@ fun SettingsScreen(
     keyStore: PairingKeyStore,
     vehicles: List<Vehicle>,
     onClearPairingCache: () -> Unit,
+    // Writes the raw history zip to the stream and returns its record count; closes the stream.
+    onExportLogs: suspend (OutputStream) -> Int,
     onOpenAbout: () -> Unit,
     onBack: () -> Unit,
     // Injectable for the Paparazzi snapshots: the version line would otherwise
@@ -149,6 +152,8 @@ fun SettingsScreen(
                 keys = vehicleKeys,
                 onClearCache = { showClearCacheDialog = true },
             )
+            Spacer(Modifier.height(16.dp))
+            ExportLogsCard(onExportLogs = onExportLogs)
             Spacer(Modifier.height(16.dp))
             AboutCard(onOpenAbout = onOpenAbout, versionName = versionName)
             // Debug builds only, and not in the Paparazzi renders, which feed the release screenshots.

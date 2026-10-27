@@ -53,6 +53,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.io.OutputStream
 import java.time.Instant
 
 /**
@@ -88,6 +89,9 @@ class TeslaBleController(
     /** The newest route-bearing drive reading per car, for the live trip card. */
     val latestRoutes: StateFlow<Map<String, RouteSample>> get() = historyStore.latestRoutes
     val trips: StateFlow<Map<String, List<Trip>>> get() = historyStore.trips
+
+    /** Writes the raw history as a zip to [out] (closing it) and returns the number of records. */
+    suspend fun exportLogs(out: OutputStream): Int = historyStore.exportLogs(out)
 
     private val links = mutableMapOf<String, VehicleLink>()
     private val handler = Handler(Looper.getMainLooper())

@@ -4,10 +4,17 @@ Since ADR-0014 the raw history lives in two Room databases, `databases/history.d
 That directory now holds only `*.imported` files, the old logs renamed after their one-time import. A
 `tar` or `cat` of it returns stale data. To get current logs, use the export below.
 
+## From the app (any build)
+
+Settings has a **Logs** card with an **Export logs** button. It opens the system file picker (Storage Access
+Framework), writes `teslabatteryble-logs-<UTC time>.zip` there in the background while the card shows
+progress, and then says how many records it holds. It is the same zip as the debug pull below, so it works
+on release builds, with no adb. The zip holds locations and drive details, so share it only where you mean to.
+
 ## Framed `.pblog` files (the format the decode tooling reads)
 
 The app writes one framed `<vehicleId>.<kind>.pblog` per series (and `app.pblog`) into a zip, the same
-bytes the old files held. Only a debuggable build does it: the CI debug builds (`com.dzid26.teslable.pr`)
+bytes the old files held. From adb, only a debuggable build does it: the CI debug builds (`com.dzid26.teslable.pr`)
 and the rolling "Preview of main" debuggable APK (`com.dzid26.teslable`). A release build ignores the
 broadcast. Replace the package name for the build you pull from.
 
