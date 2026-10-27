@@ -9,7 +9,7 @@ That directory now holds only `*.imported` files, the old logs renamed after the
 Settings has a **Logs** card with an **Export logs** button. It opens the system file picker (Storage Access
 Framework), writes `teslabatteryble-logs-<UTC time>.zip` there in the background while the card shows
 progress, and then says how many records it holds. It is the same zip as the debug pull below, so it works
-on release builds, with no adb. The zip holds locations and drive details, so share it only where you mean to.
+on release builds, with no adb. One export runs at a time, and its result stays on the card after leaving Settings. Records the car adds during a long export may or may not be in the zip, so it is not one consistent snapshot. If it fails, a provider that cannot delete the half-written file leaves it behind, and the card says so. The zip holds locations and drive details, so share it only where you mean to.
 
 ## Framed `.pblog` files (the format the decode tooling reads)
 

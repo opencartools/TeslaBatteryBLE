@@ -51,6 +51,7 @@ import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.core.units.EfficiencyUnit
 import com.dzid26.teslable.health.HealthConfidence
 import com.dzid26.teslable.health.HealthSummary
+import com.dzid26.teslable.history.LogExportStatus
 import com.dzid26.teslable.protocol.ChargingStateKind
 import com.dzid26.teslable.protocol.ShiftStateKind
 import com.tesla.generated.carserver.common.Void
@@ -650,6 +651,18 @@ class CardSnapshots {
     }
 
     @Test
+    fun exportLogsCardIdle() = snapCard("export-logs-card_idle") { ExportLogsCardBody(LogExportStatus.Idle) {} }
+
+    @Test
+    fun exportLogsCardRunning() = snapCard("export-logs-card_running") { ExportLogsCardBody(LogExportStatus.Running) {} }
+
+    @Test
+    fun exportLogsCardDone() = snapCard("export-logs-card_done") { ExportLogsCardBody(LogExportStatus.Done(116_353)) {} }
+
+    @Test
+    fun exportLogsCardFailed() = snapCard("export-logs-card_failed") { ExportLogsCardBody(LogExportStatus.Failed(leftover = true)) {} }
+
+    @Test
     fun screenSettings() {
         // The export button asks for an activity result launcher, which Paparazzi has no activity for.
         val registryOwner =
@@ -670,7 +683,8 @@ class CardSnapshots {
                     keyStore = PairingKeyStore(LocalContext.current),
                     vehicles = listOf(DemoScreenFixtures.vehicle),
                     onClearPairingCache = {},
-                    onExportLogs = { 0 },
+                    logExportStatus = LogExportStatus.Idle,
+                    onExportLogs = {},
                     onOpenAbout = {},
                     onBack = {},
                     versionName = DemoScreenFixtures.VERSION_NAME,

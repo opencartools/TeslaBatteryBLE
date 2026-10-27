@@ -23,6 +23,7 @@ import com.dzid26.teslable.core.history.Trip
 import com.dzid26.teslable.core.infotainment.InfotainmentPollPolicy
 import com.dzid26.teslable.core.infotainment.InfotainmentSessionGate
 import com.dzid26.teslable.history.HistoryStore
+import com.dzid26.teslable.history.LogExportRunner
 import com.dzid26.teslable.protocol.AntiReplayWindow
 import com.dzid26.teslable.protocol.FaultRecovery
 import com.dzid26.teslable.protocol.PairingFlow
@@ -53,7 +54,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import java.io.OutputStream
 import java.time.Instant
 
 /**
@@ -90,8 +90,8 @@ class TeslaBleController(
     val latestRoutes: StateFlow<Map<String, RouteSample>> get() = historyStore.latestRoutes
     val trips: StateFlow<Map<String, List<Trip>>> get() = historyStore.trips
 
-    /** Writes the raw history as a zip to [out] (closing it) and returns the number of records. */
-    suspend fun exportLogs(out: OutputStream): Int = historyStore.exportLogs(out)
+    /** The Settings "Export logs" run into a picked document: one at a time, result kept across screens. */
+    val logExport: LogExportRunner by lazy { LogExportRunner(appContext.contentResolver, historyStore::exportLogs) }
 
     private val links = mutableMapOf<String, VehicleLink>()
     private val handler = Handler(Looper.getMainLooper())

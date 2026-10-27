@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
                 val activityHistory by controller.activityHistory.collectAsState()
                 val latestRoutes by controller.latestRoutes.collectAsState()
                 val trips by controller.trips.collectAsState()
+                val logExportStatus by controller.logExport.status.collectAsState()
                 val history =
                     remember(batteryHistory, driveHistory, statusHistory, activityHistory, latestRoutes, trips) {
                         HistorySamples(batteryHistory, driveHistory, statusHistory, activityHistory, latestRoutes, trips)
@@ -118,7 +119,8 @@ class MainActivity : ComponentActivity() {
                                 keyStore = remember { PairingKeyStore(context) },
                                 vehicles = state.vehicles,
                                 onClearPairingCache = controller::clearPairingCache,
-                                onExportLogs = controller::exportLogs,
+                                logExportStatus = logExportStatus,
+                                onExportLogs = controller.logExport::start,
                                 onOpenAbout = { screen = AppScreen.ABOUT },
                                 onBack = { screen = AppScreen.MAIN },
                             )

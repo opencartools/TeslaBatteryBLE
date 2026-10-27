@@ -17,8 +17,12 @@
     <string name="settings_energy_cost">Home charging</string>
     <string name="settings_energy_cost_hint">Your home electricity price. It shows what a charge session cost beside the car\'s charge details; leave it empty to hide that. A new price applies from the start of the latest charge.</string>
     <string name="settings_export_button">Export logs</string>
-    <string name="settings_export_done">Exported %1$d records.</string>
-    <string name="settings_export_failed">Export failed. Nothing was shared.</string>
+    <plurals name="settings_export_done">
+        <item quantity="one">Exported %1$s record.</item>
+        <item quantity="other">Exported %1$s records.</item>
+    </plurals>
+    <string name="settings_export_failed">Export failed.</string>
+    <string name="settings_export_failed_leftover">Export failed. A partial file may remain; delete it.</string>
     <string name="settings_export_hint">Saves the raw history, what the car sent and what the app did, as a zip you choose the place for, for example to attach to a bug report. It holds locations and drive details. It stays on the phone until you share it.</string>
     <string name="settings_export_running">Exporting\u2026</string>
     <string name="settings_export_title">Logs</string>

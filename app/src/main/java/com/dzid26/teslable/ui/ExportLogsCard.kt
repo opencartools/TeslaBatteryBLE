@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ui
 
-import android.content.Context
 import android.net.Uri
-import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -18,38 +16,39 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.OutputStream
+import com.dzid26.teslable.history.LogExportStatus
+import java.text.NumberFormat
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
+/** The picker wrapper: asks where to save, then hands the chosen document to [onExport]. */
 @Composable
-internal fun ExportLogsCard(onExportLogs: suspend (OutputStream) -> Int) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var status by remember { mutableStateOf<ExportStatus>(ExportStatus.Idle) }
+internal fun ExportLogsCard(
+    status: LogExportStatus,
+    onExport: (Uri) -> Unit,
+) {
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-            if (uri == null) return@rememberLauncherForActivityResult
-            status = ExportStatus.Running
-            scope.launch { status = writeExport(context, uri, onExportLogs) }
+            if (uri != null) onExport(uri)
         }
+    ExportLogsCardBody(
+        status = status,
+        onPickFile = { launcher.launch(exportFileName(System.currentTimeMillis())) },
+    )
+}
+
+@Composable
+internal fun ExportLogsCardBody(
+    status: LogExportStatus,
+    onPickFile: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(
@@ -64,10 +63,7 @@ internal fun ExportLogsCard(onExportLogs: suspend (OutputStream) -> Int) {
             )
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Button(
-                    onClick = { launcher.launch(exportFileName(System.currentTimeMillis())) },
-                    enabled = status != ExportStatus.Running,
-                ) {
+                Button(onClick = onPickFile, enabled = status != LogExportStatus.Running) {
                     Text(stringResource(R.string.settings_export_button))
                 }
                 Spacer(Modifier.width(12.dp))
@@ -78,51 +74,26 @@ internal fun ExportLogsCard(onExportLogs: suspend (OutputStream) -> Int) {
 }
 
 @Composable
-private fun ExportStatusLine(status: ExportStatus) {
+private fun ExportStatusLine(status: LogExportStatus) {
     val body = MaterialTheme.typography.bodyMedium
     when (status) {
-        ExportStatus.Idle -> Unit
-        ExportStatus.Running -> {
+        LogExportStatus.Idle -> Unit
+        LogExportStatus.Running -> {
             BusySpinner(size = 16.dp)
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.settings_export_running), style = body)
         }
-        is ExportStatus.Done -> Text(stringResource(R.string.settings_export_done, status.records), style = body)
-        ExportStatus.Failed ->
-            Text(stringResource(R.string.settings_export_failed), style = body, color = MaterialTheme.colorScheme.error)
-    }
-}
-
-/** Not cancelled by leaving Settings: a half-written zip is worse than a finished one. */
-private suspend fun writeExport(
-    context: Context,
-    uri: Uri,
-    onExportLogs: suspend (OutputStream) -> Int,
-    dispatcher: CoroutineDispatcher = Dispatchers.IO,
-): ExportStatus =
-    withContext(NonCancellable) {
-        withContext(dispatcher) {
-            runCatching {
-                val out = checkNotNull(context.contentResolver.openOutputStream(uri)) { "no stream" }
-                ExportStatus.Done(onExportLogs(out))
-            }.getOrElse {
-                // Do not leave an empty or half-written file behind.
-                runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }
-                ExportStatus.Failed
-            }
+        is LogExportStatus.Done -> {
+            val count = NumberFormat.getIntegerInstance().format(status.records)
+            Text(pluralStringResource(R.plurals.settings_export_done, status.records, count), style = body)
         }
+        is LogExportStatus.Failed ->
+            Text(
+                text = stringResource(if (status.leftover) R.string.settings_export_failed_leftover else R.string.settings_export_failed),
+                style = body,
+                color = MaterialTheme.colorScheme.error,
+            )
     }
-
-private sealed interface ExportStatus {
-    data object Idle : ExportStatus
-
-    data object Running : ExportStatus
-
-    data class Done(
-        val records: Int,
-    ) : ExportStatus
-
-    data object Failed : ExportStatus
 }
 
 private val EXPORT_NAME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC)
