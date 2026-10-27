@@ -220,7 +220,11 @@ internal abstract class HistoryDatabase : RoomDatabase() {
     fun usedBytes(): Long =
         runBlocking {
             useReaderConnection { connection ->
-                suspend fun pragma(name: String): Long = connection.usePrepared("PRAGMA $name") { it.step(); it.getLong(0) }
+                suspend fun pragma(name: String): Long =
+                    connection.usePrepared("PRAGMA $name") {
+                        it.step()
+                        it.getLong(0)
+                    }
                 (pragma("page_count") - pragma("freelist_count")) * pragma("page_size")
             }
         }
