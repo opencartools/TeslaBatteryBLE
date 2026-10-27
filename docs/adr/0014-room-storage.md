@@ -94,13 +94,23 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   and starts with the pages in use (`page_count - freelist_count`, times `page_size`): the per-series
   `SUM(length(blob))` scan runs only once those reach the cap, and a trim frees pages, so the check falls
   back below the cap afterwards.
-- **Measured on R's real logs** (2026-10-26, 14 MB of `.pblog` files from the phone, 116,384 rows after
-  dropping 24 exact duplicates): 13.9 MB of blobs (about 119 bytes a row) in a 20.4 MB `history.db`, so
-  about 56 bytes a row of keys and indexes and about 175 a row; roughly 1.45 times the files. The first
-  layout, with the text columns repeated and three indexes on `records`, took 35.7 MB (2.6 times the
-  files, about 309 a row). At the current polling, about 12,800 rows (2.2 MB) a day while the command log
-  is chatty (6,900 rows a day over its last 2.8 days) and about 6,900 rows (1.2 MB) a day otherwise,
-  2 GB holds roughly 2.5 years at the first rate and 4.6 years at the second.
+- **Measured on R's real logs** (2026-10-27, 14 MB of `.pblog` files from the phone, 116,384 rows after
+  dropping 24 exact duplicates): 13.9 MB of blobs (about 119 bytes a row) in a 20.0 MB `history.db`
+  (pages in use), so about 52 bytes a row of keys and indexes and about 172 a row; roughly 1.43 times the
+  files. The first layout, with the text columns repeated and three indexes on `records`, took 35.7 MB
+  (2.6 times the files, about 309 a row). At the current polling, about 12,800 rows (2.2 MB) a day while
+  the command log is chatty (6,900 rows a day over its last 2.8 days) and about 6,900 rows (1.2 MB) a day
+  otherwise, 2 GB holds roughly 2.5 years at the first rate and 4.7 years at the second.
+- **Query plans** (SQLite `EXPLAIN QUERY PLAN` on that database). `records` newest-first reads
+  (`WHERE seriesId = ? ORDER BY coalesce(carTimestamp, phoneTime) DESC, id DESC LIMIT n`) search the unique
+  index by series and take their order from it; only ties are sorted by `id` in a small temp b-tree
+  ("USE TEMP B-TREE FOR LAST TERM OF ORDER BY"), so there is no full scan and no full sort. Reading 20,000
+  charge records takes about 300 ms, nearly all of it decoding the blobs (vcsec 20 ms, command 70 ms).
+  `events` newest-first reads do sort the whole series, because its unique key puts `originId` before
+  `phoneTime`; the app does not use them (only the export, by id), so no index is added for them. The
+  export pages along the primary key (`SEARCH records USING INTEGER PRIMARY KEY (rowid>?)`, with a unary plus
+  on `seriesId` so SQLite does not pick the series index and re-sort the series on every page): the
+  charge series (19,786 rows) exports in about 370 ms.
 - **Trim timing** on the same data: the gated `trim()` takes about 5 ms on the real database; the per-series
   size scan, which now runs only near the cap, takes 80 to 110 ms there, and 2.7 to 6.9 s on ten times
   the data (1.16 million rows, 205 MB), so tens of seconds at the cap, once per roughly 10% of growth.
@@ -145,7 +155,7 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   implementation notes).
 - Log pulls need the export routine or a host tool, not just `tar`: the debug broadcast in
   `docs/reference/log-pull.md`, or the database itself.
-- Size on disk is about 1.45 times the `.pblog` files (20.4 MB for 14 MB of logs, about 175 bytes a
+- Size on disk is about 1.43 times the `.pblog` files (20.0 MB for 14 MB of logs, about 172 bytes a
   row), measured on real logs.
 - The raw layer stays Android-only. A future iOS app implements the same store
   interfaces with its own storage.
