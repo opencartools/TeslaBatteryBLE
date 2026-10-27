@@ -51,9 +51,9 @@ internal data class SessionDirtyRow(
     val fromTime: Long,
 )
 
-/** What the session builder and the session readers use. */
+/** The per-car marks the sample builder lowers and the session builder clears. */
 @Dao
-internal interface SessionDao {
+internal interface SessionDirtyDao {
     @Query("SELECT * FROM session_dirty")
     fun dirty(): List<SessionDirtyRow>
 
@@ -66,15 +66,23 @@ internal interface SessionDao {
         fromTime: Long,
     )
 
-    /** The start of the oldest charge session of the car that ends at or after [time], where a re-cut begins. */
-    @Query("SELECT MIN(startTime) FROM charge_sessions WHERE vehicleId = :vehicleId AND endTime >= :time")
-    fun chargeStartEndingAfter(
+    /** The car's mark, if it has one. */
+    @Query("SELECT fromTime FROM session_dirty WHERE vehicleId = :vehicleId")
+    fun dirtyFrom(vehicleId: String): Long?
+}
+
+/** What the session builder and the session readers use. */
+@Dao
+internal interface SessionDao {
+    /** The start of the car's newest charge session that starts before [time], where a re-cut begins. */
+    @Query("SELECT MAX(startTime) FROM charge_sessions WHERE vehicleId = :vehicleId AND startTime < :time")
+    fun newestChargeStartBefore(
         vehicleId: String,
         time: Long,
     ): Long?
 
-    @Query("SELECT MIN(startTime) FROM drive_sessions WHERE vehicleId = :vehicleId AND endTime >= :time")
-    fun driveStartEndingAfter(
+    @Query("SELECT MAX(startTime) FROM drive_sessions WHERE vehicleId = :vehicleId AND startTime < :time")
+    fun newestDriveStartBefore(
         vehicleId: String,
         time: Long,
     ): Long?

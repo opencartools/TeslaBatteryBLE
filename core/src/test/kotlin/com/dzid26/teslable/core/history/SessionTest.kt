@@ -20,13 +20,20 @@ class SessionTest {
                 askedFrom = from
                 listOf(drive(20, 30), drive(40, 50), drive(60, 70))
             }
-        assertEquals(40L, askedFrom)
+        assertEquals(40L - SESSION_CUT_LEAD_MILLIS, askedFrom)
         assertEquals(listOf(drive(0, 10), drive(20, 30), drive(40, 50), drive(60, 70)), joined)
     }
 
     @Test
     fun `with nothing stored the live cut is everything`() {
-        assertEquals(listOf(drive(0, 10)), withLiveTail(emptyList<DriveSession>()) { listOf(drive(0, 10)) })
+        var askedFrom: Long? = null
+        val joined =
+            withLiveTail(emptyList<DriveSession>()) { from ->
+                askedFrom = from
+                listOf(drive(0, 10))
+            }
+        assertEquals(listOf(drive(0, 10)), joined)
+        assertEquals(Long.MIN_VALUE, askedFrom)
     }
 
     @Test

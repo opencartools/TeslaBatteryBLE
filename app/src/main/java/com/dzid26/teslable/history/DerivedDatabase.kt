@@ -149,6 +149,13 @@ internal interface DerivedReadDao {
         vehicleId: String,
         from: Long,
     ): List<DriveSampleRow>
+
+    /** The time of the car's newest kept drive sample with an odometer before [time]. */
+    @Query("SELECT MAX(time) FROM drive_samples WHERE vehicleId = :vehicleId AND time < :time AND odometer IS NOT NULL")
+    fun driveReadingBefore(
+        vehicleId: String,
+        time: Long,
+    ): Long?
 }
 
 /**
@@ -178,6 +185,8 @@ internal abstract class DerivedDatabase : RoomDatabase() {
     abstract fun reads(): DerivedReadDao
 
     abstract fun sessions(): SessionDao
+
+    abstract fun sessionMarks(): SessionDirtyDao
 
     companion object {
         const val FILE_NAME = "derived.db"

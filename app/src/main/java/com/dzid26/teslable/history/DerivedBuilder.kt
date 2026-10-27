@@ -53,8 +53,8 @@ internal class DerivedBuilder(
 
     private fun sinkFor(series: SeriesRef): Sink =
         when (series.kind) {
-            RecordKind.CHARGE -> BatterySink(dao, db.sessions(), series.vehicleId)
-            RecordKind.DRIVE -> DriveSink(dao, db.sessions(), series.vehicleId)
+            RecordKind.CHARGE -> BatterySink(dao, db.sessionMarks(), series.vehicleId)
+            RecordKind.DRIVE -> DriveSink(dao, db.sessionMarks(), series.vehicleId)
             RecordKind.VCSEC -> StatusSink(dao, series.vehicleId)
             else -> ActivitySink(dao, series.vehicleId)
         }
@@ -76,7 +76,7 @@ private interface Sink {
 
 private class BatterySink(
     private val dao: DerivedDao,
-    private val sessions: SessionDao,
+    private val marks: SessionDirtyDao,
     private val vehicleId: String,
 ) : Sink {
     private val thinner = batteryThinner()
@@ -89,13 +89,13 @@ private class BatterySink(
     override fun accept(records: List<BleRecord>) {
         val kept = records.mapNotNull { it.toBatterySample(vehicleId) }.flatMap(thinner::accept)
         dao.insertBattery(kept.map { it.toRow() })
-        sessions.markDirty(vehicleId, kept.minOfOrNull { it.timestampMillis })
+        marks.markDirty(vehicleId, kept.minOfOrNull { it.timestampMillis })
     }
 }
 
 private class DriveSink(
     private val dao: DerivedDao,
-    private val sessions: SessionDao,
+    private val marks: SessionDirtyDao,
     private val vehicleId: String,
 ) : Sink {
     private val thinner = driveThinner()
@@ -108,7 +108,7 @@ private class DriveSink(
     override fun accept(records: List<BleRecord>) {
         val kept = records.mapNotNull { it.toDriveSample(vehicleId) }.flatMap(thinner::accept)
         dao.insertDrive(kept.map { it.toRow() })
-        sessions.markDirty(vehicleId, kept.minOfOrNull { it.timestampMillis })
+        marks.markDirty(vehicleId, kept.minOfOrNull { it.timestampMillis })
     }
 }
 
@@ -140,11 +140,11 @@ private class ActivitySink(
 }
 
 /** Lowers the car's session mark to [time], the oldest sample just stored, so the next session cut starts there. */
-private fun SessionDao.markDirty(
+private fun SessionDirtyDao.markDirty(
     vehicleId: String,
     time: Long?,
 ) {
     if (time == null) return
-    val current = dirty().firstOrNull { it.vehicleId == vehicleId }?.fromTime
+    val current = dirtyFrom(vehicleId)
     if (current == null || time < current) setDirty(SessionDirtyRow(vehicleId, time))
 }

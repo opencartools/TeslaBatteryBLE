@@ -32,21 +32,22 @@ interface Session {
 /**
  * The stored sessions joined with the live ones: every one of [stored] (oldest first) that starts before the newest
  * stored start, then [live]'s sessions from that start on. The newest stored session may still be growing, and the
- * readings since the last build are not stored yet, so that tail is cut again from the readings in memory; [live]
- * gets the time the tail starts at and cuts from a little before it. With nothing stored yet, [live] cuts everything.
+ * readings since the last build are not stored yet, so that tail is cut again from the readings in memory: [live]
+ * gets the time to read from, [SESSION_CUT_LEAD_MILLIS] before the tail starts, or [Long.MIN_VALUE] with nothing
+ * stored yet, when it cuts everything.
  */
 fun <S : Session> withLiveTail(
     stored: List<S>,
-    live: (fromMillis: Long) -> List<S>,
+    live: (readFromMillis: Long) -> List<S>,
 ): List<S> {
-    val tailFrom = stored.lastOrNull()?.startMillis ?: Long.MIN_VALUE
-    return stored.filter { it.startMillis < tailFrom } + live(tailFrom).filter { it.startMillis >= tailFrom }
+    val tailFrom = stored.lastOrNull()?.startMillis ?: return live(Long.MIN_VALUE)
+    return stored.filter { it.startMillis < tailFrom } +
+        live(tailFrom - SESSION_CUT_LEAD_MILLIS).filter { it.startMillis >= tailFrom }
 }
 
 /**
- * How far before a session's start the readings must reach to cut it the same way again: longer than the longest
- * gap that still joins two readings into one session (a charge's ten-minute pause, a drive's thirty-minute hole in
- * gear).
+ * How far around a session the battery readings must reach to cut it the same way again: a drive's end levels come
+ * from the parked reading next to each end, and a charge's tail is cut from a little before its start.
  */
 const val SESSION_CUT_LEAD_MILLIS = 60 * 60_000L
 

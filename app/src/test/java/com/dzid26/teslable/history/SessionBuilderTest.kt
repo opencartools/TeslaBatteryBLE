@@ -107,7 +107,7 @@ class SessionBuilderTest {
         assertEquals(1000 to 2000, drive.startOdometer to drive.endOdometer)
         assertTrue(
             dbs.derived
-                .sessions()
+                .sessionMarks()
                 .dirty()
                 .isEmpty(),
         )
@@ -124,6 +124,38 @@ class SessionBuilderTest {
         val charge = charges().single()
         assertEquals(10L to 70L, minutes(charge.startTime) to minutes(charge.endTime))
         assertEquals(13f, charge.energyAdded)
+    }
+
+    @Test
+    fun `a charge that resumes after hours without reads stays one session`() {
+        store.appendAll("carA", RecordKind.CHARGE, listOf(charge(0, 20, false), charge(10, 20, true, 0f), charge(40, 30, true, 6f)))
+        build()
+        // The phone was away for hours while the car kept charging: nothing in the reads ends the session.
+        store.appendAll("carA", RecordKind.CHARGE, listOf(charge(240, 60, true, 25f), charge(250, 60, false)))
+
+        build()
+
+        val charge = charges().single()
+        assertEquals(10L to 240L, minutes(charge.startTime) to minutes(charge.endTime))
+        assertEquals(25f, charge.energyAdded)
+    }
+
+    @Test
+    fun `a drive the phone missed after hours parked is stored`() {
+        store.appendAll("carA", RecordKind.DRIVE, listOf(drive(0, false, 1000)))
+        build()
+        // Hours later the car is parked again with more miles: it was driven while the phone was away.
+        store.appendAll("carA", RecordKind.DRIVE, listOf(drive(300, false, 3000)))
+
+        build()
+
+        val drive =
+            dbs.derived
+                .sessions()
+                .drives()
+                .single()
+        assertEquals(1000 to 3000, drive.startOdometer to drive.endOdometer)
+        assertTrue(drive.unseen)
     }
 
     @Test

@@ -2,47 +2,65 @@
 
 package com.dzid26.teslable.history
 
-import com.dzid26.teslable.core.health.chargeSessions
-import com.dzid26.teslable.core.history.SESSION_CUT_LEAD_MILLIS
-import com.dzid26.teslable.core.history.driveSessions
+import com.dzid26.teslable.core.health.ChargeSession
+import com.dzid26.teslable.core.history.BatterySample
+import com.dzid26.teslable.core.history.DriveSample
+import com.dzid26.teslable.core.history.DriveSession
+import com.dzid26.teslable.core.history.SessionStore
+import com.dzid26.teslable.core.history.recutSessions
 
 /**
  * Cuts the charge and drive sessions of `derived.db` from its stored samples (ADR-0014), with the same core functions
  * the screen uses. The sample builder marks, per car, the oldest sample time it stored since the last cut; this
- * re-cuts from the start of the oldest session that reaches that time (or from the time itself), replacing every
- * stored session from there in one transaction. Re-cutting is idempotent, so late replies and re-runs are safe, and
- * since it reads `derived.db`'s own samples, sessions survive the raw records they came from. Levels are stored as
- * the car reported them; readers apply the current full-range scale. Blocking; call it off the main thread.
+ * re-cuts from there with [recutSessions], replacing the sessions it can change in one transaction. Re-cutting is
+ * idempotent, so late replies and re-runs are safe, and since it reads `derived.db`'s own samples, sessions survive
+ * the raw records they came from. Levels are stored as the car reported them; readers apply the current full-range
+ * scale. Blocking; call it off the main thread.
  */
 internal class SessionBuilder(
     private val db: DerivedDatabase,
 ) {
     private val sessions = db.sessions()
+    private val marks = db.sessionMarks()
     private val reads = db.reads()
 
     /** Re-cuts every car with new samples; returns how many cars it re-cut. */
     fun build(): Int =
-        sessions.dirty().count { mark ->
+        marks.dirty().count { mark ->
             db.runInTransaction {
-                recut(mark.vehicleId, mark.fromTime)
-                sessions.clearDirty(mark.vehicleId, mark.fromTime)
+                recutSessions(Stored(mark.vehicleId), mark.fromTime)
+                marks.clearDirty(mark.vehicleId, mark.fromTime)
             }
             true
         }
 
-    private fun recut(
-        vehicleId: String,
-        from: Long,
-    ) {
-        val reach = from - SESSION_CUT_LEAD_MILLIS
-        val chargesFrom = minOf(from, sessions.chargeStartEndingAfter(vehicleId, reach) ?: from)
-        val drivesFrom = minOf(from, sessions.driveStartEndingAfter(vehicleId, reach) ?: from)
-        val readFrom = minOf(chargesFrom, drivesFrom) - SESSION_CUT_LEAD_MILLIS
-        val battery = reads.batteryFrom(vehicleId, readFrom).map { it.toSample() }
-        val drives = reads.driveFrom(vehicleId, readFrom).map { it.toSample() }
-        sessions.deleteChargesFrom(vehicleId, chargesFrom)
-        sessions.insertCharges(chargeSessions(battery).filter { it.startMillis >= chargesFrom }.map { it.toRow() })
-        sessions.deleteDrivesFrom(vehicleId, drivesFrom)
-        sessions.insertDrives(driveSessions(drives, battery).filter { it.startMillis >= drivesFrom }.map { it.toRow() })
+    private inner class Stored(
+        private val vehicleId: String,
+    ) : SessionStore {
+        override fun newestChargeStartBefore(millis: Long) = sessions.newestChargeStartBefore(vehicleId, millis)
+
+        override fun newestDriveStartBefore(millis: Long) = sessions.newestDriveStartBefore(vehicleId, millis)
+
+        override fun driveReadingBefore(millis: Long) = reads.driveReadingBefore(vehicleId, millis)
+
+        override fun batteryFrom(millis: Long): List<BatterySample> = reads.batteryFrom(vehicleId, millis).map { it.toSample() }
+
+        override fun drivesFrom(millis: Long): List<DriveSample> = reads.driveFrom(vehicleId, millis).map { it.toSample() }
+
+        override fun replaceCharges(
+            millis: Long,
+            sessions: List<ChargeSession>,
+        ) {
+            this@SessionBuilder.sessions.deleteChargesFrom(vehicleId, millis)
+            this@SessionBuilder.sessions.insertCharges(sessions.map { it.toRow() })
+        }
+
+        override fun replaceDrives(
+            millis: Long,
+            sessions: List<DriveSession>,
+        ) {
+            this@SessionBuilder.sessions.deleteDrivesFrom(vehicleId, millis)
+            this@SessionBuilder.sessions.insertDrives(sessions.map { it.toRow() })
+        }
     }
 }

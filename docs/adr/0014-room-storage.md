@@ -185,11 +185,13 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
 - **Sessions (version 2).** `charge_sessions` and `drive_sessions`, keyed by `(vehicleId, startTime)`, hold the
   sessions core cuts (`chargeSessions`, `driveSessions`) from `derived.db`'s own samples, so they outlive the raw
   records. The sample builder lowers a per-car `session_dirty` mark to the oldest sample it stored, in the same
-  transaction; `SessionBuilder` then re-cuts from the start of the oldest session reaching that time (an hour of
-  lead covers the longest gap that joins a session) and replaces every stored session from there. Levels are stored
+  transaction; `SessionBuilder` then re-cuts (`recutSessions`) from the start of the newest session that starts
+  before it, however old, since a charge joins across a hole in the reads of any length, and replaces every stored
+  session from there. Levels are stored
   as the car reported them, so a reader applies the current full-range scale. The screen joins the stored sessions
   with a live cut of the readings since the newest stored start (`withLiveTail`); the health card reads them that
-  way. Replayed on R's logs, the joined charge sessions equal a full-resolution cut at every split tried, and the 41
+  way. Replayed on R's logs with builds every 5min, 1h and 10h, the stored sessions equal a cut of all the samples,
+  the joined charge sessions equal a full-resolution cut at every build, and the 41
   drives have the same times and odometers, their end levels within 0.3 points. The version 1 to 2 migration is a
   Room auto-migration (new tables only).
 - **Not yet: the range and rollup readers.** Every figure but the health card still reads one in-memory list

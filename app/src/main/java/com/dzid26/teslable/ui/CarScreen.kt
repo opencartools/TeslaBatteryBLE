@@ -94,7 +94,6 @@ import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.HistoryRange
 import com.dzid26.teslable.core.history.ProjectionContext
 import com.dzid26.teslable.core.history.RouteSample
-import com.dzid26.teslable.core.history.SESSION_CUT_LEAD_MILLIS
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.TENTHS_PER_PERCENT
 import com.dzid26.teslable.core.history.Trip
@@ -206,7 +205,7 @@ internal fun CarScreen(
         rememberInBackground(null, logs, vehicleCharges, factoryRangeMiles) {
             val sessions =
                 withLiveTail(vehicleCharges) { from ->
-                    chargeSessions(logs.battery.fromTime(from - SESSION_CUT_LEAD_MILLIS) { it.timestampMillis })
+                    chargeSessions(logs.battery.fromTime(from) { it.timestampMillis })
                 }
             healthSummary(logs.battery, epaRatedRangeMiles = factoryRangeMiles, sessions = sessions)
         }
