@@ -74,7 +74,13 @@ internal object LogExporter {
         files: List<FileInfo>,
         appVersion: String,
     ): String {
-        val vehicles = store.series().map { it.vehicleId }.filter { it.isNotEmpty() }.distinct().sorted()
+        val vehicles =
+            store
+                .series()
+                .map { it.vehicleId }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .sorted()
         val fileJson =
             files.joinToString(",") {
                 "{\"name\":${quote(it.name)},\"records\":${it.records},\"firstTime\":${it.firstTime},\"lastTime\":${it.lastTime}}"

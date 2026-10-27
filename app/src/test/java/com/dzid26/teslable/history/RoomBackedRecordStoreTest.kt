@@ -121,7 +121,10 @@ class RoomBackedRecordStoreTest {
         assertEquals(2, store.readNewest(series("car", RecordKind.CHARGE), 10).size)
     }
 
-    private fun timesOf(series: SeriesRef): List<Long> = dbs.history.records().newest(checkNotNull(dbs.history.meta().seriesId(series.vehicleId, series.kind.id)), 10).map { it.time }
+    private fun timesOf(series: SeriesRef): List<Long> =
+        dbs.history.records().newest(checkNotNull(dbs.history.meta().seriesId(series.vehicleId, series.kind.id)), 10).map {
+            it.time
+        }
 
     @Test
     fun `the same record from the same origin is stored once, another origin keeps its own`() {
@@ -278,7 +281,10 @@ class RoomBackedRecordStoreTest {
         val connected =
             BleRecord(device_timestamp = wake.device_timestamp, connection_event = ConnectionEvent(state = ConnectionEvent.State.CONNECTED))
         val disconnected =
-            BleRecord(device_timestamp = wake.device_timestamp, connection_event = ConnectionEvent(state = ConnectionEvent.State.DISCONNECTED))
+            BleRecord(
+                device_timestamp = wake.device_timestamp,
+                connection_event = ConnectionEvent(state = ConnectionEvent.State.DISCONNECTED),
+            )
 
         store.appendAll("car", RecordKind.COMMAND, listOf(wake, handshake, wake))
         store.appendAll("car", RecordKind.CONNECTION, listOf(connected, disconnected))

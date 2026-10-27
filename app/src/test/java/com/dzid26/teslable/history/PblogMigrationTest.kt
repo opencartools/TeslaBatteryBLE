@@ -165,7 +165,7 @@ class PblogMigrationTest {
         LogExporter.export(store, out, APP_VERSION)
         unzip(out.toByteArray()).forEach { (name, bytes) -> File(folder.root, name).writeBytes(bytes) }
 
-        db.close()
+        dbs.close()
         dbs = TestDatabases(folder.root)
         store = dbs.store(clock = { NOW })
         PblogImporter(folder.root, store).importAll()

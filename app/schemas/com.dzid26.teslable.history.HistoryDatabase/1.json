@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "7793c3fd4d0287e485593eb7f5d6e291",
+    "identityHash": "6896d9693c61c189c674e9e501bcd929",
     "entities": [
       {
         "tableName": "series",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `vehicleId` TEXT NOT NULL, `kind` TEXT NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `vehicleId` TEXT NOT NULL, `kind` TEXT NOT NULL, `clock` TEXT NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -23,6 +23,12 @@
           {
             "fieldPath": "kind",
             "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clock",
+            "columnName": "clock",
             "affinity": "TEXT",
             "notNull": true
           }
@@ -83,7 +89,7 @@
       },
       {
         "tableName": "records",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `seriesId` INTEGER NOT NULL, `originId` INTEGER NOT NULL, `carTimestamp` INTEGER, `phoneTime` INTEGER NOT NULL, `odometer` INTEGER, `blob` BLOB NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `odometer` INTEGER, `blob` BLOB NOT NULL, `seriesId` INTEGER NOT NULL, `originId` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -92,25 +98,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "seriesId",
-            "columnName": "seriesId",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "originId",
-            "columnName": "originId",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "carTimestamp",
-            "columnName": "carTimestamp",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "phoneTime",
-            "columnName": "phoneTime",
+            "fieldPath": "time",
+            "columnName": "time",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -124,53 +113,17 @@
             "columnName": "blob",
             "affinity": "BLOB",
             "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "id"
-          ]
-        }
-      },
-      {
-        "tableName": "events",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `seriesId` INTEGER NOT NULL, `originId` INTEGER NOT NULL, `phoneTime` INTEGER NOT NULL, `contentHash` INTEGER NOT NULL, `blob` BLOB NOT NULL)",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
           },
           {
-            "fieldPath": "seriesId",
+            "fieldPath": "source.seriesId",
             "columnName": "seriesId",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "originId",
+            "fieldPath": "source.originId",
             "columnName": "originId",
             "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "phoneTime",
-            "columnName": "phoneTime",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "contentHash",
-            "columnName": "contentHash",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "blob",
-            "columnName": "blob",
-            "affinity": "BLOB",
             "notNull": true
           }
         ],
@@ -182,23 +135,22 @@
         },
         "indices": [
           {
-            "name": "index_events_seriesId_originId_phoneTime_contentHash",
+            "name": "index_records_seriesId_time_originId",
             "unique": true,
             "columnNames": [
               "seriesId",
-              "originId",
-              "phoneTime",
-              "contentHash"
+              "time",
+              "originId"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_events_seriesId_originId_phoneTime_contentHash` ON `${TABLE_NAME}` (`seriesId`, `originId`, `phoneTime`, `contentHash`)"
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_records_seriesId_time_originId` ON `${TABLE_NAME}` (`seriesId`, `time`, `originId`)"
           }
         ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7793c3fd4d0287e485593eb7f5d6e291')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6896d9693c61c189c674e9e501bcd929')"
     ]
   }
 }
