@@ -23,7 +23,7 @@ account, nothing leaves the phone."*
 | Distribution | GitHub Releases + Obtainium now; F-Droid + IzzyOnDroid next; Play later | Signed releases are a prerequisite for F-Droid/IzzyOnDroid. |
 | Core library | `:protocol` module (ADR-0013); internal until v1, then publish to Maven Central as `io.github.dzid26:teslable-protocol` | Library-grade docs and API hygiene from now on. |
 | Platforms | Android-first; JVM library first; KMP (jvm + apple) only if an iOS app becomes a goal (2026-10-21, ADR-0007) | Keep JVM-only dependencies out of `protocol` and `core`, so the switch stays cheap. |
-| Interop | Decisions weigh TeslaMate export/sync and the KMP path (2026-10-08) | Today's limits (20k-record cap, no INTERNET permission) are current choices, not commitments. The local log stays raw within its retention window (ADR-0012); filtering happens at export. |
+| Interop | Decisions weigh TeslaMate export/sync and the KMP path (2026-10-08) | Today's limits (90-day / 200k-row retention, no INTERNET permission) are current choices, not commitments. The local log stays raw within its retention window (ADR-0012); filtering happens at export. |
 | UX | Phased product pass: P0 polish → P1 product features → P2 extras | |
 | Website | GitHub Pages landing for the app; library docs TBD at library release | |
 | Money | Donations only (GitHub Sponsors / Ko-fi) | One free FOSS build everywhere; no ads, no telemetry. |

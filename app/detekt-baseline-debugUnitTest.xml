@@ -7,11 +7,6 @@
     <ID>FunctionNaming:AutoStartTest.kt:AutoStartTest$@Test fun `does nothing when tracking was switched off`</ID>
     <ID>FunctionNaming:AutoStartTest.kt:AutoStartTest$@Test fun `does nothing without a paired car`</ID>
     <ID>FunctionNaming:AutoStartTest.kt:AutoStartTest$@Test fun `starts when tracking is on, a car is paired and permissions are granted`</ID>
-    <ID>FunctionNaming:BleLogsTest.kt:BleLogsTest$@Test fun `a reloaded command log trims by the count of the file it read`</ID>
-    <ID>FunctionNaming:BleLogsTest.kt:BleLogsTest$@Test fun `a vehicle's files are not read as the app log and the legacy raw files stay unread`</ID>
-    <ID>FunctionNaming:BleLogsTest.kt:BleLogsTest$@Test fun `app pblog is not read as any kind of vehicle log`</ID>
-    <ID>FunctionNaming:BleLogsTest.kt:BleLogsTest$@Test fun `the app log and the command logs are separate files in one directory`</ID>
-    <ID>FunctionNaming:BleLogsTest.kt:BleLogsTest$@Test fun `the app log keeps the same cap and trim as the vehicle logs`</ID>
     <ID>FunctionNaming:ConnectionLabelTest.kt:ConnectionLabelTest$@Test fun `every phase and status reads the same on the pill and the status line`</ID>
     <ID>FunctionNaming:ConnectionLabelTest.kt:ConnectionLabelTest$@Test fun `no connection at all reads disconnected`</ID>
     <ID>FunctionNaming:FakeCarProtocolTest.kt:FakeCarProtocolTest$@Test fun `a drive request is not mistaken for a wake command`</ID>
@@ -51,8 +46,6 @@
     <ID>FunctionNaming:VehicleStatusTextTest.kt:VehicleStatusTextTest$@Test fun `asleep and locked each show how long they have held`</ID>
     <ID>FunctionNaming:VehicleStatusTextTest.kt:VehicleStatusTextTest$@Test fun `without durations the line is the plain labels, asleep first`</ID>
     <ID>LongParameterList:HealthSummaryTest.kt:HealthSummaryTest$private fun sample</ID>
-    <ID>MagicNumber:BleLogsTest.kt:BleLogsTest$3</ID>
-    <ID>MagicNumber:BleLogsTest.kt:BleLogsTest$4</ID>
     <ID>MagicNumber:FakeCarProtocolTest.kt:FakeCarProtocolTest$0.01f</ID>
     <ID>MagicNumber:FakeCarProtocolTest.kt:FakeCarProtocolTest$20</ID>
     <ID>MagicNumber:FakeCarProtocolTest.kt:FakeCarProtocolTest$226.2f</ID>

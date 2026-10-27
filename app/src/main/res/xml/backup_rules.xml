@@ -5,4 +5,11 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="pairing_key.xml" />
     <exclude domain="file" path="battery-history" />
+    <exclude domain="file" path="battery-history-export" />
+    <exclude domain="database" path="history.db" />
+    <exclude domain="database" path="history.db-shm" />
+    <exclude domain="database" path="history.db-wal" />
+    <exclude domain="database" path="events.db" />
+    <exclude domain="database" path="events.db-shm" />
+    <exclude domain="database" path="events.db-wal" />
 </full-backup-content>
