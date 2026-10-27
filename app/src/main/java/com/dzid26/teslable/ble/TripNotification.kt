@@ -43,14 +43,15 @@ internal data class TripNotice(
 )
 
 /**
- * Decides which trip notification pops up. A car's trip is identified by its destination and alerts once; a gap in
- * the notice (a dropped link, a route sample that lapsed, a car-count change) keeps the trip, and only a gap longer
- * than [TRIP_END_GAP_MILLIS] ends it, so the next trip, even to the same place, alerts again.
+ * Decides which trip notification pops up. A car's trip is identified by its destination and alerts once. The trip
+ * ends only once its notice has been seen missing for [TRIP_END_GAP_MILLIS], so a dropped link, a lapsed route
+ * sample, a car-count change or a stretch with no calls at all keeps the trip; the next trip, even to the same
+ * place, then alerts again.
  */
 internal class TripAlerts {
     private class Seen(
         val key: String,
-        var lastSeenMillis: Long,
+        var goneSinceMillis: Long? = null,
     )
 
     private val seen = mutableMapOf<String, Seen>()
@@ -61,15 +62,21 @@ internal class TripAlerts {
         nowMillis: Long,
     ): Boolean {
         val previous = seen[bleName]
-        val expired = previous != null && nowMillis - previous.lastSeenMillis > TRIP_END_GAP_MILLIS
-        if (expired) seen.remove(bleName)
-        if (notice == null) return false
+        val goneSince = previous?.goneSinceMillis
+        if (notice == null) {
+            when {
+                previous == null -> Unit
+                goneSince == null -> previous.goneSinceMillis = nowMillis
+                nowMillis - goneSince > TRIP_END_GAP_MILLIS -> seen.remove(bleName)
+            }
+            return false
+        }
         val key = notice.destination.orEmpty()
-        val sameTrip = previous != null && !expired && previous.key == key
+        val sameTrip = previous != null && previous.key == key && (goneSince == null || nowMillis - goneSince <= TRIP_END_GAP_MILLIS)
         if (sameTrip) {
-            previous.lastSeenMillis = nowMillis
+            previous.goneSinceMillis = null
         } else {
-            seen[bleName] = Seen(key, nowMillis)
+            seen[bleName] = Seen(key)
         }
         return !sameTrip
     }

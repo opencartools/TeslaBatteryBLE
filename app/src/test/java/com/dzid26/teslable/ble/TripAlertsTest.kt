@@ -33,11 +33,19 @@ class TripAlertsTest {
     }
 
     @Test
+    fun `no calls for a long while does not end the trip`() {
+        val alerts = TripAlerts()
+        alerts.shouldAlert("car", notice(), 0)
+        assertFalse(alerts.shouldAlert("car", notice(), 20 * minute))
+    }
+
+    @Test
     fun `the same destination after a long gap is a new trip`() {
         val alerts = TripAlerts()
         alerts.shouldAlert("car", notice(), 0)
-        assertFalse(alerts.shouldAlert("car", null, 20 * minute))
-        assertTrue(alerts.shouldAlert("car", notice(), 21 * minute))
+        assertFalse(alerts.shouldAlert("car", null, minute))
+        assertFalse(alerts.shouldAlert("car", null, 12 * minute))
+        assertTrue(alerts.shouldAlert("car", notice(), 13 * minute))
     }
 
     @Test
