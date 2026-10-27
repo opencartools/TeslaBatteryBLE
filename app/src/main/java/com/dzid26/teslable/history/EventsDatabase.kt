@@ -71,8 +71,12 @@ internal interface EventDao {
     @Query("SELECT MIN(phoneTime) FROM events WHERE seriesId = :seriesId")
     fun firstTime(seriesId: Long): Long?
 
-    @Query("SELECT MAX(phoneTime) FROM events WHERE seriesId = :seriesId")
-    fun lastTime(seriesId: Long): Long?
+    /** The newest time of a series that is not after [notAfter]. */
+    @Query("SELECT MAX(phoneTime) FROM events WHERE seriesId = :seriesId AND phoneTime <= :notAfter")
+    fun lastTime(
+        seriesId: Long,
+        notAfter: Long,
+    ): Long?
 
     /** Retention: drops a series' events older than [cutoff]. */
     @Query("DELETE FROM events WHERE seriesId = :seriesId AND phoneTime < :cutoff")

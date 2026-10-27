@@ -96,6 +96,24 @@ class PblogMigrationTest {
     }
 
     @Test
+    fun `a database that starts empty gets its imported files back and a filled one does not`() {
+        write("carA.charge.pblog.imported", charge(100), charge(200))
+        write("carA.command.pblog.imported", command(150))
+        // The events file already holds a row, so only the car's file counts as newly created.
+        store.append("carA", RecordKind.COMMAND, command(999))
+
+        PblogImporter(folder.root, store).importAll()
+
+        assertEquals(listOf(charge(100), charge(200)), store.readRecent(RecordKind.CHARGE, 10).getValue("carA"))
+        assertEquals(listOf(command(999)), store.readRecent(RecordKind.COMMAND, 10).getValue("carA"))
+        assertTrue(File(folder.root, "carA.charge.pblog.imported").isFile)
+
+        // Running again changes nothing: the car file is no longer empty.
+        PblogImporter(folder.root, store).importAll()
+        assertEquals(3, store.rowCount())
+    }
+
+    @Test
     fun `importing the same file again adds nothing`() {
         val file = write("carA.charge.pblog", charge(100), charge(200))
         val copy = file.readBytes()

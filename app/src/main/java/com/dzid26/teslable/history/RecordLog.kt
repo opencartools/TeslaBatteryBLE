@@ -27,22 +27,25 @@ internal class RecordLog(
     override fun readNewest(
         series: SeriesRef,
         n: Int,
-    ): List<BleRecord> = dao.newest(lookups.seriesId(series), n).asReversed().mapNotNull(::decode)
+    ): List<BleRecord> =
+        lookups.existingSeriesId(series)?.let { id -> dao.newest(id, n).asReversed().mapNotNull(::decode) }.orEmpty()
 
     override fun readRange(
         series: SeriesRef,
         from: Long,
         to: Long,
-    ): List<BleRecord> = dao.range(lookups.seriesId(series), from, to).mapNotNull(::decode)
+    ): List<BleRecord> = lookups.existingSeriesId(series)?.let { id -> dao.range(id, from, to).mapNotNull(::decode) }.orEmpty()
 
     override fun stream(
         series: SeriesRef,
         afterId: Long,
         limit: Int,
     ): List<StoredRecord> =
-        dao.page(lookups.seriesId(series), afterId, limit).mapNotNull { row ->
-            decode(row)?.let { StoredRecord(row.id, row.time, it) }
-        }
+        lookups
+            .existingSeriesId(series)
+            ?.let { id ->
+                dao.page(id, afterId, limit).mapNotNull { row -> decode(row)?.let { StoredRecord(row.id, row.time, it) } }
+            }.orEmpty()
 
     override fun rowCount(): Int = dao.count()
 
@@ -52,7 +55,10 @@ internal class RecordLog(
 
             override fun firstTime(seriesId: Long): Long? = dao.firstTime(seriesId)
 
-            override fun lastTime(seriesId: Long): Long? = dao.lastTime(seriesId)
+            override fun lastTime(
+                seriesId: Long,
+                notAfter: Long,
+            ): Long? = dao.lastTime(seriesId, notAfter)
 
             override fun deleteBefore(
                 seriesId: Long,

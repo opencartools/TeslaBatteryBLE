@@ -126,8 +126,12 @@ internal interface RecordDao {
     @Query("SELECT MIN(time) FROM records WHERE seriesId = :seriesId")
     fun firstTime(seriesId: Long): Long?
 
-    @Query("SELECT MAX(time) FROM records WHERE seriesId = :seriesId")
-    fun lastTime(seriesId: Long): Long?
+    /** The newest time of a series that is not after [notAfter] (a far-future stamp does not count). */
+    @Query("SELECT MAX(time) FROM records WHERE seriesId = :seriesId AND time <= :notAfter")
+    fun lastTime(
+        seriesId: Long,
+        notAfter: Long,
+    ): Long?
 
     /** Size retention: drops a series' rows older than [cutoff]. */
     @Query("DELETE FROM records WHERE seriesId = :seriesId AND time < :cutoff")

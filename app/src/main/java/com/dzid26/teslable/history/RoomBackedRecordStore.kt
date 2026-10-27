@@ -17,7 +17,7 @@ internal class RoomBackedRecordStore(
     events: EventsDatabase,
     override val originUuid: String,
     private val maxBytes: Long = MAX_BYTES,
-    private val eventMaxBytes: Long = MAX_BYTES,
+    private val eventMaxBytes: Long = EVENT_MAX_BYTES,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : RecordStore {
     private val records = RecordLog(history, Lookups(history.meta(), originUuid))
@@ -70,16 +70,21 @@ internal class RoomBackedRecordStore(
     fun trim() {
         appendsSinceTrim = 0
         eventLog.db.runInTransaction { eventLog.expire(clock() - EVENT_RETENTION.toMillis()) }
-        records.trimToCap(maxBytes)
-        eventLog.trimToCap(eventMaxBytes)
+        records.trimToCap(maxBytes, clock())
+        eventLog.trimToCap(eventMaxBytes, clock())
     }
+
+    override fun isEmpty(events: Boolean): Boolean = (if (events) eventLog else records).rowCount() == 0
 
     /** All rows of both files. */
     fun rowCount(): Int = records.rowCount() + eventLog.rowCount()
 
     companion object {
-        /** The safety cap on each file's pages in use; years of history fit under it. */
+        /** The safety cap on `history.db`'s pages in use; years of history fit under it. */
         const val MAX_BYTES = 2_000_000_000L
+
+        /** The cap on `events.db`: 90 days at the current rate is 50 to 60 MB, so this is a backstop. */
+        const val EVENT_MAX_BYTES = 256_000_000L
 
         /** How long the phone-side events (commands, connection changes, app state) are kept. */
         val EVENT_RETENTION: Duration = Duration.ofDays(90)

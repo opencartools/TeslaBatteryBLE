@@ -40,6 +40,9 @@ internal interface RecordStore {
         records: List<BleRecord>,
     )
 
+    /** Whether the file behind the car's records (or, with [events], the phone's events) holds no rows. */
+    fun isEmpty(events: Boolean): Boolean
+
     /** Every series stored. */
     fun series(): List<SeriesRef>
 

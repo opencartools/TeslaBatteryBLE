@@ -243,6 +243,41 @@ class RoomBackedRecordStoreTest {
     }
 
     @Test
+    fun `a far-future timestamp does not stretch the span the cap deletes from`() {
+        val log = RecordLog(dbs.history, Lookups(dbs.history.meta(), "phone-a"))
+        val car = series("car", RecordKind.CHARGE)
+        val farFuture = charge(NOW_S + Duration.ofDays(3650).seconds)
+        log.append(car, (1L..20L).map { charge(NOW_S - 100 + it) } + farFuture, NOW)
+
+        log.trimToCap(maxBytes = 1, nowMillis = NOW, maxPasses = 1)
+
+        // One pass takes the oldest tenth of the real span (two rows); nothing else goes, the stray row included.
+        assertEquals((3L..20L).map { charge(NOW_S - 100 + it) } + farFuture, log.readNewest(car, 100))
+    }
+
+    @Test
+    fun `reads of an unknown series create nothing`() {
+        val store = store()
+        val ghostCar = series("ghost", RecordKind.CHARGE)
+        val ghostEvents = series("ghost", RecordKind.COMMAND)
+
+        assertEquals(emptyList<BleRecord>(), store.readNewest(ghostCar, 5))
+        assertEquals(emptyList<BleRecord>(), store.readRange(ghostCar, 0, Long.MAX_VALUE))
+        assertEquals(emptyList<StoredRecord>(), store.stream(ghostCar, 0, 5))
+        assertEquals(emptyList<BleRecord>(), store.readNewest(ghostEvents, 5))
+        assertEquals(emptyMap<String, List<BleRecord>>(), store.readRecent(RecordKind.DRIVE, 5))
+
+        assertEquals(0, dbs.history.meta().allSeries().size)
+        assertEquals(0, dbs.events.meta().allSeries().size)
+    }
+
+    @Test
+    fun `the events file has a smaller cap than the car records`() {
+        assertEquals(256_000_000L, RoomBackedRecordStore.EVENT_MAX_BYTES)
+        assertTrue(RoomBackedRecordStore.EVENT_MAX_BYTES < RoomBackedRecordStore.MAX_BYTES)
+    }
+
+    @Test
     fun `the car cap drops the oldest of the time span across series and leaves the events file alone`() {
         val store = store(maxBytes = 1)
         store.appendAll("carA", RecordKind.CHARGE, (1L..20L).map { charge(NOW_S - 100 + it) })
