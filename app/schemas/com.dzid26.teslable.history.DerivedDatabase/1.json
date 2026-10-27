@@ -1,0 +1,253 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "64dad47aa99eb9455a5561ba09a48272",
+    "entities": [
+      {
+        "tableName": "battery_samples",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `time` INTEGER NOT NULL, `level` INTEGER NOT NULL, `usableLevel` INTEGER NOT NULL, `chargingState` TEXT, `chargeLimit` INTEGER, `ratedRangeMiles` REAL, `chargeEnergyAdded` REAL, `chargeMilesAddedRated` REAL, `chargerVoltage` INTEGER, `chargeRateMph` REAL, `readAt` INTEGER, PRIMARY KEY(`vehicleId`, `time`))",
+        "fields": [
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "time",
+            "columnName": "time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "level",
+            "columnName": "level",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usableLevel",
+            "columnName": "usableLevel",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chargingState",
+            "columnName": "chargingState",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "chargeLimit",
+            "columnName": "chargeLimit",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "ratedRangeMiles",
+            "columnName": "ratedRangeMiles",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "chargeEnergyAdded",
+            "columnName": "chargeEnergyAdded",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "chargeMilesAddedRated",
+            "columnName": "chargeMilesAddedRated",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "chargerVoltage",
+            "columnName": "chargerVoltage",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "chargeRateMph",
+            "columnName": "chargeRateMph",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "readAt",
+            "columnName": "readAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "vehicleId",
+            "time"
+          ]
+        }
+      },
+      {
+        "tableName": "drive_samples",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `time` INTEGER NOT NULL, `shiftState` TEXT, `speed` INTEGER, `power` INTEGER, `odometer` INTEGER, PRIMARY KEY(`vehicleId`, `time`))",
+        "fields": [
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "time",
+            "columnName": "time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "shiftState",
+            "columnName": "shiftState",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "speed",
+            "columnName": "speed",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "power",
+            "columnName": "power",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "odometer",
+            "columnName": "odometer",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "vehicleId",
+            "time"
+          ]
+        }
+      },
+      {
+        "tableName": "status_samples",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `time` INTEGER NOT NULL, `asleep` INTEGER NOT NULL, `userPresent` INTEGER NOT NULL, `locked` INTEGER NOT NULL, PRIMARY KEY(`vehicleId`, `time`))",
+        "fields": [
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "time",
+            "columnName": "time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "asleep",
+            "columnName": "asleep",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userPresent",
+            "columnName": "userPresent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locked",
+            "columnName": "locked",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "vehicleId",
+            "time"
+          ]
+        }
+      },
+      {
+        "tableName": "activity_samples",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `kind` TEXT NOT NULL, `time` INTEGER NOT NULL, `on` INTEGER NOT NULL, PRIMARY KEY(`vehicleId`, `kind`, `time`))",
+        "fields": [
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "time",
+            "columnName": "time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "on",
+            "columnName": "on",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "vehicleId",
+            "kind",
+            "time"
+          ]
+        }
+      },
+      {
+        "tableName": "progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `kind` TEXT NOT NULL, `lastRecordId` INTEGER NOT NULL, `lastTime` INTEGER NOT NULL, PRIMARY KEY(`vehicleId`, `kind`))",
+        "fields": [
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastRecordId",
+            "columnName": "lastRecordId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastTime",
+            "columnName": "lastTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "vehicleId",
+            "kind"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '64dad47aa99eb9455a5561ba09a48272')"
+    ]
+  }
+}

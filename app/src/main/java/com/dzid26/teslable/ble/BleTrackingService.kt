@@ -31,6 +31,7 @@ import com.dzid26.teslable.core.history.RouteSample
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.statusDurations
 import com.dzid26.teslable.protocol.asleep
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,8 +41,10 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Foreground service that keeps the Tesla BLE connections alive in the
@@ -55,7 +58,10 @@ import kotlinx.coroutines.launch
  * gets its own grouped notification with its own Wake action. ADR-0001
  * milestone 5.
  */
-class BleTrackingService : Service() {
+class BleTrackingService(
+    // Where the notification models are built: they scan the logs. Defaulted, so Android's no-argument constructor exists.
+    private val modelDispatcher: CoroutineDispatcher = Dispatchers.Default,
+) : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var foregroundStarted = false
     private var lastSummary: NotificationModel? = null
@@ -105,9 +111,13 @@ class BleTrackingService : Service() {
                 controller.latestRoutes,
             ) { state, history, statuses, routes ->
                 modelsFor(state, history, statuses, routes)
-            }.collect { models ->
-                publish(models)
             }
+                // The models scan the logs, which hold the cars' whole history (ADR-0014), and the state re-emits on
+                // every RSSI poll: build them off the main thread and only post from it.
+                .flowOn(modelDispatcher)
+                .collect { models ->
+                    publish(models)
+                }
         }
         // The charge reading ages between state changes; re-evaluate when the
         // newest one is due to turn gray (sooner than the minute tick while it
@@ -124,7 +134,7 @@ class BleTrackingService : Service() {
                     // A newer read restarts this loop, so the timing follows the latest reading.
                     while (true) {
                         delay(stalenessTickDelayMs(newestRead, System.currentTimeMillis()))
-                        publish(currentModels(controller))
+                        publish(withContext(modelDispatcher) { currentModels(controller) })
                     }
                 }
         }

@@ -1,6 +1,6 @@
 # ADR-0014: Room storage for raw records and derived data
 
-Status: Proposed (raw records in `history.db` landed; `owner.db` and `derived.db` are open)
+Status: Proposed (raw records in `history.db` and the long-term samples in `derived.db` landed; `owner.db`, sessions and day rollups are open)
 Date: 2026-10-21
 Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
 
@@ -55,13 +55,13 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   (`(page_count - freelist_count) * page_size`): 2 GB for `history.db`, 256 MB for `events.db` (90 days at
   the current rate is 50 to 60 MB, so that one is a backstop). While over it, the rows older than a cutoff
   go, the oldest tenth of the file's time span, all series together, in one transaction.
-- **Four files, as the charging plan needs them; two exist now.**
+- **Four files, as the charging plan needs them; three exist now.**
   - `history.db` (not backed up): the car's raw records, above.
   - `events.db` (not backed up): the phone's own logs, above.
   - `owner.db` (backed up, later): prices and places, the only data that cannot be rebuilt. Schema export is
     binding from the first normal release.
-  - `derived.db` (not backed up, versioned, later): session and day summaries per ADR-0012, stored as plain
-    columns. Rebuildable from the raw records only while they cover the period; once raw ages out, the
+  - `derived.db` (not backed up, versioned): the thinned long-term samples the charts and stats read, and later
+    session and day summaries per ADR-0012, stored as plain columns. Rebuildable from the raw records only while they cover the period; once raw ages out, the
     summaries are the only copy.
   `owner.db` and `derived.db` reference raw records by `(vehicleId, time)`, never by row id, which is local
   to a file. The raw files are also excluded from backup (ADR-0006).
@@ -139,6 +139,54 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   files stay on disk as `*.imported`. `fallbackToDestructiveMigration` is not used; real Room migrations
   are required from the first normal release (ADR-0004: pre-1.0 formats change freely, and the old file is
   kept for the owner).
+
+## Implementation notes (derived samples)
+
+- **What the read models hold.** Each read model is its full-resolution recent window (the newest
+  `MAX_SAMPLES` per kind, as before) plus the thinned history before it from `derived.db`, so the 30-day and
+  all-time chart ranges and the stats cover the whole history kept, not the last 15 days. One cutoff, the first
+  time of the recent window, holds for every car, since the window is the newest samples of all cars merged.
+  Appends past the window move its oldest samples to the older part through the same thinner.
+- **Tables.** `battery_samples`, `drive_samples` and `status_samples` keyed by `(vehicleId, time)`,
+  `activity_samples` by `(vehicleId, kind, time)`, enums stored by name, and `progress(vehicleId, kind,
+  lastRecordId, lastTime)`: how far the builder has read each raw series.
+- **Thinning** (`SampleThinner` in core). A battery reading is kept at the first reading, on both sides of a
+  change of level, usable level, charging state or charge limit, on both sides of a hole in the reads, and
+  otherwise once a minute while charging, every 30 s while the rated range moves (a drive) and every 5 min
+  otherwise. A drive reading: both sides of a gear change and of an odometer change out of gear, both sides of
+  a hole, 30 s in gear and 2 min out of gear (the battery-to-odometer match window). Status readings are
+  already changes and heartbeats and are all kept; Sentry and climate go through the read model's own thinner.
+  Replaying R's logs (17.7 days, 2026-10-22 pull): 18,713 battery readings became 4,909 (about 280 a day) and
+  16,059 drive readings 3,147 (about 180 a day); the full-range fit, the charge sessions, the longest parked and
+  power-down spans, all 82 deep sleeps and their drops, and the lowest drain are identical to the
+  full-resolution ones. The drive chart keeps every percent step and the trips; its percent used over 228 mi
+  differs by 0.4 points of 114, from the readings at the ends of each trip.
+- **Builder.** `DerivedBuilder` pages each raw series by row id from its progress mark, 1,000 rows a page,
+  and commits each page's samples with its mark in one transaction, so an interrupted build resumes and a
+  re-run adds nothing (rows are keyed by time). A mark whose row id and time no longer match a raw row (a
+  recreated `history.db`) builds that series again from the start. It runs at start after the recent windows
+  are on screen, then every 1,000 appends. The first size-cap trim of a start runs after that build, so the cap
+  never drops a record that has not reached `derived.db`.
+- **Checked on real logs.** `ThinningReplayTest` (core) replays a directory of `.pblog` files set in
+  `TESLABLE_REPLAY_LOGS` and asserts the figures above match; it is skipped without it.
+- **Retention.** The first size-cap trim of a start runs only after that start's build succeeded. Nothing in
+  `derived.db` is deleted (rows are replaced on their time key) and it has no size cap: at about 1,000 rows a
+  day per car it stays small for years. A rebuild over a period raw still covers adds the union of the old and
+  new thinning; a changed thinning rule therefore applies to new rows only, until a recompute over the periods
+  raw covers comes with the rollups.
+- **One cutoff for all cars.** The older part ends at the first time of the merged recent window. A car whose
+  own recent window starts later reads that stretch from `derived.db`, thinned and still in order.
+- **Read cost.** The joined list is a view, so a new reading copies only the recent window, as before. The
+  car screen filters each car's logs off the main thread, and the whole-history figures (the fit, the drain
+  stats, the health card, both history charts, past trips) follow new readings at most every 30 s; the hero and
+  the current-rest line read the live logs. Measured on a JVM with a year of R's logs (117,000 battery, 79,000
+  drive and 113,000 status samples): 7 ms for the per-car filter, 27 ms for the fit and 129 ms for the drain
+  stats, against 2, 8 and 44 ms over the 20,000-sample window alone.
+- **Not yet: the range and rollup readers.** Every figure still reads one in-memory list per kind. Day rollups,
+  session rows, a recompute of touched days, and charts and stats that read only their time range (so a year
+  of history is neither held in memory nor rescanned) are the next step. Status samples are not thinned (about
+  400 a day), so the history held in memory grows by roughly 250,000 samples a year across the kinds until
+  then.
 
 ## Consequences
 
