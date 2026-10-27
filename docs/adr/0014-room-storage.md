@@ -51,9 +51,10 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
 - **Retention is a `DELETE`.** Car records have no age retention for now (owner decision 2026-10-26: keep
   years); it returns with the derived store (ADR-0012), in the same transaction that writes the summaries
   it folds, and no record is deleted before its summary is committed. Events are kept for 90 days (owner
-  decision 2026-10-26). Each file also has a safety cap of 2 GB of pages in use
-  (`(page_count - freelist_count) * page_size`): while over it, the rows older than a cutoff go, the oldest
-  tenth of the file's time span, all series together, in one transaction.
+  decision 2026-10-26). Each file also has a safety cap on its pages in use
+  (`(page_count - freelist_count) * page_size`): 2 GB for `history.db`, 256 MB for `events.db` (90 days at
+  the current rate is 50 to 60 MB, so that one is a backstop). While over it, the rows older than a cutoff
+  go, the oldest tenth of the file's time span, all series together, in one transaction.
 - **Four files, as the charging plan needs them; two exist now.**
   - `history.db` (not backed up): the car's raw records, above.
   - `events.db` (not backed up): the phone's own logs, above.
@@ -93,6 +94,15 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
 - **Reader API.** `RecordStore` offers `append`, `readNewest(series, n)` and `readRange(series, from, to)`
   (both ordered by time, neither exposing a row id), and an internal `stream(series, afterId, limit)` for
   the exporters. `readRecent(kind, n)` is the per-kind convenience over them.
+- **Reads never create series rows.** `Lookups` has a lookup-only path for the readers (an unknown series
+  reads as empty); only `append` creates a series.
+- **A stray timestamp cannot shrink the history.** The span the size cap works on ends at the newest time
+  that is not more than a day after the current clock, so one far-future car timestamp neither stretches
+  the span nor makes the first pass delete real history; that row stays until it is old enough itself.
+- **A database that starts empty is refilled from the phone.** When the import starts and `history.db` (or
+  `events.db`) holds no rows, for example because the old file was kept aside as corrupt, the
+  `*.imported` files of its kinds are read again, idempotently through the unique keys, and keep their
+  names. A database with rows is left alone.
 - **Size cap.** The check is two pragmas, so it costs nothing while there is room, and it runs outside
   the transaction because it reads over a separate connection (reading it inside deadlocks). Each pass
   deletes `time < first + span / 10` per series with an indexed range delete, at most 20 passes per call;
