@@ -189,16 +189,30 @@ internal fun NotificationCompat.Builder.showTrip(
     return setContentText(headline).setStyle(NotificationCompat.BigTextStyle().bigText(body))
 }
 
-/** The bar: [TRIP_BAR_MAX] units for the whole trip, in the system's default color. */
+/**
+ * The bar: [TRIP_BAR_MAX] units for the whole trip. The part already driven is dimmed on the left and the part still
+ * to go is in the accent color on the right; the arrow sits where the car is.
+ */
 private fun progressStyle(
     context: Context,
     progress: Int,
-): NotificationCompat.ProgressStyle =
-    NotificationCompat
-        .ProgressStyle()
-        .setProgress(progress)
-        .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_driving_tracker))
-        .addProgressSegment(NotificationCompat.ProgressStyle.Segment(TRIP_BAR_MAX))
+): NotificationCompat.ProgressStyle {
+    val driven = progress.coerceIn(0, TRIP_BAR_MAX)
+    val dimmed = context.getColor(android.R.color.system_neutral1_400)
+    val accent = context.getColor(android.R.color.system_accent1_600)
+    val style =
+        NotificationCompat
+            .ProgressStyle()
+            .setProgress(driven)
+            .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_driving_tracker))
+    if (driven > 0) {
+        style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(driven).setColor(dimmed))
+    }
+    if (driven < TRIP_BAR_MAX) {
+        style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(TRIP_BAR_MAX - driven).setColor(accent))
+    }
+    return style
+}
 
 private fun SpannableStringBuilder.appendBold(
     label: String,
