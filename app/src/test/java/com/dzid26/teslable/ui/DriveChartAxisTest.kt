@@ -43,22 +43,25 @@ class DriveChartAxisTest {
     }
 
     @Test
-    fun aGradientMarksARiseInRatedRangeWithinATrip() {
+    fun aGradientMarksTwoRegeneratingReadingsThatHeldTheRatedRange() {
         fun at(
             i: Int,
             miles: Float?,
+            regen: Boolean = true,
             trip: Int = 0,
-        ) = Plotted(i * 10.0, 60f, regenerating = false, trip = trip, timestampMillis = 0, ratedMiles = miles)
+        ) = Plotted(i * 10.0, 60f, regenerating = regen, trip = trip, timestampMillis = 0, ratedMiles = miles)
         val points =
             listOf(
                 at(0, 200f),
-                at(1, 199f), // falls
-                at(2, 199f), // flat
+                at(1, 199f), // drops
+                at(2, 199f), // holds
                 at(3, 199.5f), // rises
-                at(4, null), // no rated range
-                at(5, 205f), // no pair to compare
-                at(6, 210f, trip = 1), // new trip
+                at(4, 199.5f, regen = false), // not regenerating
+                at(5, 199.5f), // not next to a regenerating reading
+                at(6, null), // no rated range
+                at(7, 205f),
+                at(8, 205f, trip = 1), // new trip
             )
-        assertEquals(listOf(listOf(points[2], points[3])), rangeGains(points))
+        assertEquals(listOf(listOf(points[1], points[2]), listOf(points[2], points[3])), regenHolds(points))
     }
 }

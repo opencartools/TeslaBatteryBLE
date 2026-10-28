@@ -12,9 +12,12 @@ internal class Plotted(
     val ratedMiles: Float? = null,
 )
 
-/** The pairs of adjacent readings of one trip where the rated range rose: energy came in between them. */
-internal fun rangeGains(points: List<Plotted>): List<List<Plotted>> =
-    points
-        .zipWithNext()
-        .filter { (a, b) -> a.trip == b.trip && a.ratedMiles != null && b.ratedMiles != null && b.ratedMiles > a.ratedMiles }
-        .map { it.toList() }
+/**
+ * The pairs of adjacent readings of one trip that both regenerate with the rated range not lower at the second: the
+ * regeneration held the range up between them.
+ */
+internal fun regenHolds(points: List<Plotted>): List<List<Plotted>> =
+    points.zipWithNext().filter { (a, b) -> a.trip == b.trip && a.regenerating && b.regenerating && b.holds(a) }.map { it.toList() }
+
+/** True when both readings carry a rated range and this one is not lower than [earlier]. */
+private fun Plotted.holds(earlier: Plotted): Boolean = ratedMiles != null && earlier.ratedMiles != null && ratedMiles >= earlier.ratedMiles
