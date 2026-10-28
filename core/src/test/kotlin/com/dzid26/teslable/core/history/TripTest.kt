@@ -279,6 +279,23 @@ class TripTest {
     }
 
     @Test
+    fun `a stop under half an hour keeps the trip together even without readings during it`() {
+        fun trip(stopMinutes: Long) =
+            segmentTrips(
+                listOf(
+                    reading(0, 10f, "Work", odometer = 1_000),
+                    reading(5, 7f, "Work", odometer = 1_300),
+                    reading(5, 2f, "Shop", odometer = 1_300),
+                    reading(9, 0.02f, "Shop", odometer = 1_500),
+                    reading(9 + stopMinutes, 5f, "Work", odometer = 1_500),
+                    reading(14 + stopMinutes, 0.02f, "Work", odometer = 2_000),
+                ),
+            ).map { it.destination }
+        assertEquals(listOf("Work"), trip(stopMinutes = 25))
+        assertEquals(listOf("Work", "Shop", "Work"), trip(stopMinutes = 40))
+    }
+
+    @Test
     fun `a route picked and dropped while parked is not a waypoint`() {
         val trips =
             segmentTrips(

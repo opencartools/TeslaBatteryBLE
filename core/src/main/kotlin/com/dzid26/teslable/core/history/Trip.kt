@@ -229,7 +229,6 @@ private const val HUNDREDTHS_PER_MILE = 100f
 /** A navigation that moved the car less than this is not a trip. */
 private const val MIN_TRIP_MILES = 0.1f
 private const val ARRIVED_MINUTES = 3f
-
 private const val SAMPLE_MAX_AGE_MILLIS = 30 * MILLIS_PER_MINUTE
 
 /** A rate over less than this is noise: the efficiency of a few hundred metres means nothing. */
