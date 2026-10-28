@@ -1,19 +1,21 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- The arrow on the trip bar, in the shape and red of Tesla's navigation arrow: the card draws it as is, the notification's progress style uses it as the tracker icon. -->
+<!-- The arrow on the trip bar, in the shape and red of Tesla's navigation arrow, cropped tight so it fills the icon: the card draws it as is, the notification's progress style uses it as the tracker icon. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24"
+    android:viewportWidth="16"
+    android:viewportHeight="16"
     android:autoMirrored="true">
     <group
-        android:pivotX="12"
-        android:pivotY="12"
-        android:rotation="90"
-        android:scaleX="1.4"
-        android:scaleY="1.4">
-        <path
-            android:fillColor="#FFE31937"
-            android:pathData="M12,5L6.5,18.29l0.71,0.71L12,17l4.79,2 0.71,-0.71z" />
+        android:translateX="-4"
+        android:translateY="-4">
+        <group
+            android:pivotX="12"
+            android:pivotY="12"
+            android:rotation="90">
+            <path
+                android:fillColor="#FFE31937"
+                android:pathData="M12,5L6.5,18.29l0.71,0.71L12,17l4.79,2 0.71,-0.71z" />
+        </group>
     </group>
 </vector>

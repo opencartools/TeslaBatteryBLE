@@ -59,6 +59,6 @@ internal fun TripBar(
     }
 }
 
-private val ICON_SIZE = 24.dp
+private val ICON_SIZE = 32.dp
 private val BAR_HEIGHT = 8.dp
 private const val PERCENT_FULL = 100f
