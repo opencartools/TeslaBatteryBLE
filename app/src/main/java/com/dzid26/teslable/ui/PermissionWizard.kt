@@ -4,6 +4,7 @@ package com.dzid26.teslable.ui
 import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 
@@ -95,6 +98,7 @@ fun PermissionWizardPage(
     deniedForever: Boolean,
     onAllow: () -> Unit,
     onDismiss: () -> Unit,
+    onHintLink: () -> Unit = {},
 ) {
     BackHandler { onDismiss() }
     WizardPage {
@@ -113,6 +117,23 @@ fun PermissionWizardPage(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        if (step.hint != null && step.hintLink != null) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = stringResource(step.hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = stringResource(step.hintLink),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                textDecoration = TextDecoration.Underline,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.clickable(role = Role.Button, onClick = onHintLink).padding(vertical = 8.dp),
+            )
+        }
         if (denied) {
             Spacer(Modifier.height(16.dp))
             Text(

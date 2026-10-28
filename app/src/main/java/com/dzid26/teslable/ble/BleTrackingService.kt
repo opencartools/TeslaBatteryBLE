@@ -2,8 +2,6 @@
 package com.dzid26.teslable.ble
 
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
@@ -92,7 +90,7 @@ class BleTrackingService(
     override fun onCreate() {
         super.onCreate()
         isRunning = true
-        createChannel()
+        TrackingChannels.ensure(this)
         ContextCompat.registerReceiver(
             this,
             screenReceiver,
@@ -474,35 +472,6 @@ class BleTrackingService(
         return if (label.isEmpty()) text else "[$label] $text"
     }
 
-    private fun createChannel() {
-        val manager = getSystemService(NotificationManager::class.java) ?: return
-        if (manager.getNotificationChannel(TRIP_CHANNEL_ID) == null) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    TRIP_CHANNEL_ID,
-                    withBuildLabel(getString(R.string.trip_channel_name)),
-                    NotificationManager.IMPORTANCE_HIGH,
-                ).apply {
-                    description = getString(R.string.trip_channel_description)
-                    setShowBadge(false)
-                    setSound(null, null)
-                    enableVibration(false)
-                },
-            )
-        }
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
-        val channel =
-            NotificationChannel(
-                CHANNEL_ID,
-                withBuildLabel(getString(R.string.tracking_channel_name)),
-                NotificationManager.IMPORTANCE_LOW,
-            ).apply {
-                description = getString(R.string.tracking_channel_description)
-                setShowBadge(false)
-            }
-        manager.createNotificationChannel(channel)
-    }
-
     private data class NotificationModel(
         val bleName: String?,
         val title: String,
@@ -526,8 +495,8 @@ class BleTrackingService(
         /** Extra carrying a car's advertised name for notification taps/wakes. */
         const val EXTRA_BLE_NAME = "com.dzid26.teslable.extra.BLE_NAME"
         private const val LOG_TAG = "BleTrackingService"
-        private const val CHANNEL_ID = "tracking"
-        private const val TRIP_CHANNEL_ID = "trip"
+        private const val CHANNEL_ID = TrackingChannels.TRACKING
+        private const val TRIP_CHANNEL_ID = TrackingChannels.TRIP
         private const val GROUP_KEY = "com.dzid26.teslable.cars"
         private const val NOTIFICATION_ID = 1
         private const val CAR_NOTIFICATION_BASE = 1000
