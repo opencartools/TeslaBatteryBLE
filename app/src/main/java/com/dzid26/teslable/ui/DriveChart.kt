@@ -212,11 +212,16 @@ private class ReadingDots(
     override fun drawOverLayers(context: CartesianDrawingContext) {
         with(context) {
             val radius = DOT_SIZE.pixels / 2
+            // Hoisted: inside Paint().apply, `color` would resolve to Paint.color.
+            val normal = color
+            val regen = regenColor
+            val orange = Paint().apply { color = normal }
+            val green = Paint().apply { color = regen }
             points.forEach {
                 canvas.drawCircle(
                     Offset(canvasX(it.distance), canvasY(it.value.toDouble())),
                     radius,
-                    Paint().apply { this.color = if (it.regenerating) regenColor else color },
+                    if (it.regenerating) green else orange,
                 )
             }
         }
