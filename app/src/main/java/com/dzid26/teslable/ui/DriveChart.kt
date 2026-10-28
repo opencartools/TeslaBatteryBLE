@@ -44,8 +44,8 @@ import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 /**
  * One orange line per trip with its gradient and, when any reading was
  * regenerating, a line-less series of those readings as green dots drawn
- * over them, so the colour never depends on the odometer value a point
- * happens to share. Two regenerating readings that held the rated range are the green gradient under the lines.
+ * under them, so the colour never depends on the odometer value a point
+ * happens to share. A regenerating reading that held the rated range is the green gradient under the lines.
  */
 @Composable
 private fun rememberDriveLines(
@@ -74,7 +74,7 @@ private fun rememberDriveLines(
             pointProvider = remember(regenPoint) { LineCartesianLayer.PointProvider.single(regenPoint) },
         )
     return remember(tripCount, hasRegen, driveLine, regenLine) {
-        LineCartesianLayer.LineProvider.series(List(tripCount) { driveLine } + if (hasRegen) listOf(regenLine) else emptyList())
+        LineCartesianLayer.LineProvider.series((if (hasRegen) listOf(regenLine) else emptyList()) + List(tripCount) { driveLine })
     }
 }
 
@@ -119,7 +119,8 @@ internal fun RangeChart(
     // A trip of one reading has no line to draw; its point still shows as a regen dot if it regenerates, so it is
     // dropped from the trip series only.
     val trips = remember(points) { points.groupBy { it.trip }.values.filter { it.size >= 2 } }
-    // The gradient marks two regen readings with no drop in rated range; at one odometer value it has no width.
+    // The gradient marks a regen reading with no drop in rated range from the previous or to the next reading;
+    // at one odometer value it has no width.
     val regenBands = remember(points) { regenHolds(points).filter { it.first().distance != it.last().distance } }
     val regenDots = remember(points) { points.filter { it.regenerating } }
     val unit = LocalDistanceUnit.current
@@ -166,15 +167,18 @@ internal fun RangeChart(
     }
 }
 
-/** One series per trip of the battery percent over distance driven, then, when any, one series of the regen dots. */
+/**
+ * When any, one series of the regen dots, drawn first so the orange lines and dots cover them, then one series per
+ * trip of the battery percent over distance driven.
+ */
 private fun rangeModel(
     trips: List<List<Plotted>>,
     regenDots: List<Plotted>,
 ): CartesianChartModel =
     CartesianChartModel(
         LineCartesianLayerModel.build {
-            trips.forEach { trip -> series(x = trip.map { it.distance }, y = trip.map { it.value }) }
             if (regenDots.isNotEmpty()) series(x = regenDots.map { it.distance }, y = regenDots.map { it.value })
+            trips.forEach { trip -> series(x = trip.map { it.distance }, y = trip.map { it.value }) }
         },
     )
 

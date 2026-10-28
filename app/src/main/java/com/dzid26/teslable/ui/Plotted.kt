@@ -13,11 +13,11 @@ internal class Plotted(
 )
 
 /**
- * The pairs of adjacent readings of one trip that both regenerate with the rated range not lower at the second: the
+ * The pairs of adjacent readings of one trip that at least one regenerates, with the rated range not lower at the second: the
  * regeneration held the range up between them.
  */
 internal fun regenHolds(points: List<Plotted>): List<List<Plotted>> =
-    points.zipWithNext().filter { (a, b) -> a.trip == b.trip && a.regenerating && b.regenerating && b.holds(a) }.map { it.toList() }
+    points.zipWithNext().filter { (a, b) -> a.trip == b.trip && (a.regenerating || b.regenerating) && b.holds(a) }.map { it.toList() }
 
 /** True when both readings carry a rated range and this one is not lower than [earlier]. */
 private fun Plotted.holds(earlier: Plotted): Boolean = ratedMiles != null && earlier.ratedMiles != null && ratedMiles >= earlier.ratedMiles
