@@ -46,6 +46,13 @@ class ActiveRouteTest {
     }
 
     @Test
+    fun `a route the car stopped reporting stays for the trip end gap`() {
+        val ended = route(carMinutes = 100, phoneMinutes = 100).copy(endedAtMillis = 101 * MINUTE)
+        assertEquals(ended, activeRoute(ended, nowMillis = 103 * MINUTE))
+        assertNull(activeRoute(ended, nowMillis = 103 * MINUTE + 1))
+    }
+
+    @Test
     fun `recency is judged on the phone clock when the car clock is off`() {
         // The car says 90 minutes, the phone read it at 100: ten minutes old at 105, not fifteen.
         val latest = route(carMinutes = 90, phoneMinutes = 100)

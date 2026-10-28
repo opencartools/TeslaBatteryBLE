@@ -45,9 +45,17 @@ data class RouteSample(
     val tripStartMiles: Float? = null,
     /** The phone clock at this navigation's first reading, so the trip's total time is known; set by [continuing]. */
     val tripStartedAtMillis: Long? = null,
+    /**
+     * The phone clock when the car first answered without a route after this one: the navigation ended, and the trip
+     * stays up for [TRIP_END_GAP_MILLIS] more (see [activeRoute]). Null while the car still reports this route.
+     */
+    val endedAtMillis: Long? = null,
     /** The car's odometer in this reading (`odometer_in_hundredths_of_a_mile`), for the distance actually driven. */
     val odometerInHundredthsOfAMile: Int? = null,
 ) {
+    /** Whether this route is still the trip at [nowMillis]: the car still reports it, or stopped within [TRIP_END_GAP_MILLIS]. */
+    fun isHeldAt(nowMillis: Long): Boolean = endedAtMillis.let { endedAt -> endedAt == null || nowMillis - endedAt <= TRIP_END_GAP_MILLIS }
+
     override fun toString(): String {
         val shownDestination = if (destination != null) "<redacted>" else "null"
         return "RouteSample(timestampMillis=$timestampMillis, vehicleId=$vehicleId, destination=$shownDestination, " +

@@ -14,7 +14,8 @@ import kotlin.math.roundToInt
  * ([RouteSample.readAtMillis], else the car's own timestamp) against
  * [nowMillis], the phone's wall clock: the car answers a drive read every few
  * minutes while it navigates, so an older reading is a trip that ended with
- * the phone out of range.
+ * the phone out of range. A route the car stopped reporting ([RouteSample.endedAtMillis]) stays for
+ * [TRIP_END_GAP_MILLIS] after that, so a trip lost to a glitch or just finished does not vanish at once.
  */
 fun activeRoute(
     latestRoute: RouteSample?,
@@ -22,7 +23,8 @@ fun activeRoute(
 ): RouteSample? =
     latestRoute?.takeIf { route ->
         route.milesToArrival != null &&
-            nowMillis - route.observedAtMillis() <= ROUTE_FRESH_MILLIS
+            nowMillis - route.observedAtMillis() <= ROUTE_FRESH_MILLIS &&
+            route.isHeldAt(nowMillis)
     }
 
 /**
@@ -130,5 +132,11 @@ fun RouteSample.observedAtMillis(): Long = readAtMillis ?: timestampMillis
 
 /** A route reading older than this is a finished trip: the car answers a drive read every few minutes while it navigates. */
 internal const val ROUTE_FRESH_MILLIS = 10 * 60_000L
+
+/**
+ * How long a trip is kept after the car stops reporting it: the trip card and notification stay up, and a trip to the
+ * same place is not announced again.
+ */
+const val TRIP_END_GAP_MILLIS = 2 * 60_000L
 
 private const val MILLIS_PER_MINUTE = 60_000L
