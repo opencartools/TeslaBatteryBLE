@@ -27,27 +27,31 @@ class OnboardingSnapshots {
             ),
         )
 
+    // Each Jelly Star render is as tall as its page needs, in px at that width: the text wraps a lot at 240dp, so
+    // a page is far taller than the 854px screen, and one shared height would leave a void under the short ones.
     @Test
     fun onboardingGreeting() =
-        snapOnboarding("onboarding_greeting", jellyStarHeight = JELLY_STAR_GREETING_HEIGHT) {
+        snapOnboarding("onboarding_greeting", jellyStarHeight = 1150) {
             PermissionWizardGreeting(onContinue = {}, onDismiss = {})
         }
 
     @Test
-    fun onboardingNearby() = snapOnboarding("onboarding_nearby") { page(0) }
+    fun onboardingNearby() = snapOnboarding("onboarding_nearby", jellyStarHeight = 1500) { page(0) }
 
     @Test
-    fun onboardingLocation() = snapOnboarding("onboarding_location") { page(1) }
+    fun onboardingLocation() = snapOnboarding("onboarding_location", jellyStarHeight = 1450) { page(1) }
 
     @Test
-    fun onboardingNotifications() = snapOnboarding("onboarding_notifications") { page(2) }
+    fun onboardingNotifications() = snapOnboarding("onboarding_notifications", jellyStarHeight = 1700) { page(2) }
 
     @Test
-    fun onboardingNearbyDenied() = snapOnboarding("onboarding_nearby-denied") { page(0, denied = true) }
+    fun onboardingNearbyDenied() = snapOnboarding("onboarding_nearby-denied", jellyStarHeight = 1600) { page(0, denied = true) }
 
     @Test
     fun onboardingNearbyDeniedForever() =
-        snapOnboarding("onboarding_nearby-denied-forever") { page(0, denied = true, deniedForever = true) }
+        snapOnboarding("onboarding_nearby-denied-forever", jellyStarHeight = 1700) {
+            page(0, denied = true, deniedForever = true)
+        }
 
     @Composable
     private fun page(
@@ -66,7 +70,7 @@ class OnboardingSnapshots {
 
     private fun snapOnboarding(
         name: String,
-        jellyStarHeight: Int = JELLY_STAR_PAGE_HEIGHT,
+        jellyStarHeight: Int,
         content: @Composable () -> Unit,
     ) {
         paparazzi.unsafeUpdateConfig(
@@ -81,13 +85,5 @@ class OnboardingSnapshots {
             renderingMode = SessionParams.RenderingMode.NORMAL,
         )
         paparazzi.snapshot(name + "_jelly_light") { ScreenFrame(darkTheme = false, content = content) }
-    }
-
-    private companion object {
-        /** Tall enough for the longest page at 240dp wide, where the text wraps a lot, so its buttons show. */
-        const val JELLY_STAR_PAGE_HEIGHT = 1700
-
-        /** The greeting is much shorter, so a canvas this tall would leave a void above its buttons. */
-        const val JELLY_STAR_GREETING_HEIGHT = 1250
     }
 }
