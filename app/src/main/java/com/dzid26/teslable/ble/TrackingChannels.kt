@@ -3,6 +3,7 @@ package com.dzid26.teslable.ble
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
@@ -50,16 +51,26 @@ internal object TrackingChannels {
     }
 
     /**
-     * Opens the trip channel's page in system settings, where "Override Do Not Disturb" lets the trip pop-up
-     * through. The channel is created first, so the page exists before the service has ever run.
+     * Opens the Do Not Disturb exceptions page in system settings, where the app can be allowed through, as
+     * Samsung's One UI needs: its channel pages have no "Override Do Not Disturb". Phones without that page get
+     * the trip channel's page, which has the override on stock Android. The channel is created first, so either
+     * page lists it before the service has ever run.
      */
-    fun openTripSettings(context: Context) {
+    fun openDoNotDisturbSettings(context: Context) {
         ensure(context)
-        val intent =
-            Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
-                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                .putExtra(Settings.EXTRA_CHANNEL_ID, TRIP)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
+        // Starting the intent is the check: resolving it first would need a package visibility entry.
+        try {
+            context.startActivity(Intent(ZEN_MODE_PRIORITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (ignored: ActivityNotFoundException) {
+            val channel =
+                Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    .putExtra(Settings.EXTRA_CHANNEL_ID, TRIP)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(channel)
+        }
     }
+
+    /** The system's Do Not Disturb exceptions screen; not a public constant in [Settings]. */
+    private const val ZEN_MODE_PRIORITY_SETTINGS = "android.settings.ZEN_MODE_PRIORITY_SETTINGS"
 }

@@ -155,7 +155,7 @@ private fun PermissionWizardSteps(
             deniedForever = denied && deniedForever,
             onAllow = { onAllow(nextStep.permissions, denied && deniedForever) },
             onDismiss = onDismiss,
-            onHintLink = { TrackingChannels.openTripSettings(context) },
+            onHintLink = { TrackingChannels.openDoNotDisturbSettings(context) },
         )
     }
 }
