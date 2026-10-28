@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.dzid26.teslable.ble.TrackingChannels
 import com.dzid26.teslable.ble.hasBlePermissions
 import com.dzid26.teslable.ble.isLocationEnabled
 import com.dzid26.teslable.ble.missingOnboardingPermissions
@@ -141,6 +142,7 @@ private fun PermissionWizardSteps(
     onAllow: (permissions: List<String>, openSettings: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     val allSteps = permissionSteps(onboardingPermissions())
     val nextStep = nextPermissionStep(allSteps, missing)
     if (nextStep != null) {
@@ -153,6 +155,7 @@ private fun PermissionWizardSteps(
             deniedForever = denied && deniedForever,
             onAllow = { onAllow(nextStep.permissions, denied && deniedForever) },
             onDismiss = onDismiss,
+            onHintLink = { TrackingChannels.openDoNotDisturbSettings(context) },
         )
     }
 }

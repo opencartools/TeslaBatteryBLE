@@ -15,6 +15,9 @@ data class PermissionStep(
     @StringRes val title: Int,
     @StringRes val why: Int,
     val optional: Boolean = false,
+    /** An aside under the explanation with a link to a system settings page, as [hint] and [hintLink]. */
+    @StringRes val hint: Int? = null,
+    @StringRes val hintLink: Int? = null,
 )
 
 private val NEARBY_DEVICES =
@@ -43,6 +46,8 @@ fun permissionSteps(permissions: List<String>): List<PermissionStep> =
                     title = R.string.perm_notifications_title,
                     why = R.string.perm_notifications_why,
                     optional = true,
+                    hint = R.string.perm_notifications_dnd,
+                    hintLink = R.string.perm_notifications_dnd_link,
                 ),
             )
         }
