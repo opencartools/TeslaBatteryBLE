@@ -493,13 +493,15 @@ class CardSnapshots {
 
     @Test
     fun historyCardChargingProjectionRtl() {
-        // The same chart mirrored: the beam and the line must still meet.
+        // The same chart mirrored, on the six hour range with a wide supply swing so the beams are
+        // big enough to see: the beam and the line must still meet.
         snapCard("history-card_charging-projection-rtl") {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                 BatteryHistoryCard(
-                    samples = chargingSamples,
+                    samples = wideBeamSamples,
                     drives = parkedSamples.map { parkedDrive(it) },
                     nowMillis = NOW,
+                    initialRange = HistoryRange.SIX_HOURS,
                 )
             }
         }
@@ -595,7 +597,7 @@ class CardSnapshots {
 
     // Mirrored: the regen bands and the cursor must stay on their readings.
     @Test
-    fun driveCardCursorRtl() = snapDrive("drive-card_cursor-rtl", pricePerKwh = 0.30f, cursorX = 25.0, direction = LayoutDirection.Rtl)
+    fun driveCardCursorRtl() = snapDrive("drive-card_cursor-rtl", pricePerKwh = 0.30f, cursorX = 25.0, rtl = true)
 
     // A pinned scale but no home price: the percent per distance stands in for the cost per distance.
     @Test
@@ -610,18 +612,19 @@ class CardSnapshots {
         pricePerKwh: Float? = null,
         scale: FullRangeScale? = demoTripScale,
         cursorX: Double? = null,
-        direction: LayoutDirection = LayoutDirection.Ltr,
+        // Mirrored, with the regen stretch moved to the start so a mirrored band lands far from where it belongs.
+        rtl: Boolean = false,
     ) = snapCard(name) {
         val cursor = cursorX?.let { remember { CursorPin(restoredX = it) } }
         CompositionLocalProvider(
             LocalPricePerKwh provides pricePerKwh,
             LocalCurrencyCode provides "USD",
             LocalDriveCursor provides cursor,
-            LocalLayoutDirection provides direction,
+            LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
         ) {
             DriveHistoryCard(
                 samples = driveSamples(),
-                drives = driveReadings(),
+                drives = driveReadings(power = if (rtl) regenFirstPower else drivePower),
                 initialWindow = DriveWindow.SINCE_CHARGE,
                 scale = scale,
                 // The rated constant is learnt along with the scale.
@@ -955,6 +958,11 @@ class CardSnapshots {
                     projectionSample(0L, 61, charging = true, ratedMiles = 183f).copy(chargerVoltage = 232),
                 )
 
+        private val wideBeamSamples =
+            chargingSamples.map { sample ->
+                sample.chargerVoltage?.let { sample.copy(chargerVoltage = 232 + (it - 232) * 3) } ?: sample
+            }
+
         private val fullSamples =
             listOf(
                 projectionSample(20 * 60L, 98, charging = false, ratedMiles = 294f),
@@ -1179,17 +1187,21 @@ class CardSnapshots {
             )
         }
 
-        private fun driveReadings(minutesEarlier: Long = 0L) =
-            driveMinutes.mapIndexed { index, minutesAgo ->
-                DriveSample(
-                    timestampMillis = NOW - (minutesAgo + minutesEarlier) * MINUTE + 1_000,
-                    vehicleId = BLE_NAME,
-                    shiftState = driveShifts[index],
-                    speed = null,
-                    power = drivePower[index],
-                    odometerInHundredthsOfAMile = driveOdometers[index],
-                )
-            }
+        private val regenFirstPower = listOf(0, -25, -20, 10, 30, 0, 0)
+
+        private fun driveReadings(
+            minutesEarlier: Long = 0L,
+            power: List<Int> = drivePower,
+        ) = driveMinutes.mapIndexed { index, minutesAgo ->
+            DriveSample(
+                timestampMillis = NOW - (minutesAgo + minutesEarlier) * MINUTE + 1_000,
+                vehicleId = BLE_NAME,
+                shiftState = driveShifts[index],
+                speed = null,
+                power = power[index],
+                odometerInHundredthsOfAMile = driveOdometers[index],
+            )
+        }
 
         // A charge five days before the newest reading, with nothing recorded
         // in between: the stats must name the charge (47%, five days ago) and
