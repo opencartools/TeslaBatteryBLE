@@ -279,6 +279,21 @@ class TripTest {
     }
 
     @Test
+    fun `a route picked and dropped while parked is not a waypoint`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 3f, "Shop", odometer = 1_000),
+                    reading(3, 6f, "Home", odometer = 1_000),
+                    reading(5, 6f, "Home", odometer = 1_002),
+                    reading(8, 3f, "Shop", odometer = 1_002),
+                    reading(12, 0.5f, "Shop", odometer = 1_150),
+                ),
+            )
+        assertEquals(8 * MINUTE, trips.single().startMillis)
+    }
+
+    @Test
     fun `the old destination named once while parked at the waypoint is not the trip resuming`() {
         val trips =
             segmentTrips(

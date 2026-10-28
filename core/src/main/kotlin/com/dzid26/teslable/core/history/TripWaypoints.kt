@@ -7,7 +7,8 @@ package com.dzid26.teslable.core.history
  * ahead the car names it as the destination, and once reached it names the next one again, so a
  * trip with stops arrives as A, B, A, or nested as A, B, C, B, A. A run that names a destination
  * seen before is the end of a waypoint span when the earlier run had not quite reached its own
- * destination (a waypoint dropped before it was reached counts too), the later one drives on or has
+ * destination, every run between reached its own or drove on (a waypoint dropped mid-drive counts, a
+ * route picked and abandoned while parked does not), the later one drives on or has
  * more of the trip after it (not just the old destination named once while parked at the waypoint),
  * and each hand-over is within [ROUTE_FRESH_MILLIS].
  */
@@ -40,6 +41,7 @@ private fun waypointSpanStart(
         chain != null &&
             !chain.first().last().isAtDestination() &&
             resumes &&
+            chain.drop(1).dropLast(1).all { it.drivesOn() || it.asTrip().arrived } &&
             chain.zipWithNext().all { (a, b) -> b.first().observedAtMillis() - a.last().observedAtMillis() <= ROUTE_FRESH_MILLIS }
     return start.takeIf { resumed }
 }
@@ -50,6 +52,8 @@ private fun RouteSample.isAtDestination(): Boolean {
     val minutes = minutesToArrival?.takeIf { it.isFinite() && it >= 0f }
     return (miles != null && miles <= AT_DESTINATION_MILES) || (minutes != null && minutes <= AT_DESTINATION_MINUTES)
 }
+
+private fun List<RouteSample>.asTrip() = Trip(first(), last(), mapNotNull { it.milesToArrival }.maxOrNull())
 
 /** Whether this run, if any, starts within [ROUTE_FRESH_MILLIS] of the end of [previous]. */
 private fun List<RouteSample>?.startsWithin(previous: List<RouteSample>): Boolean =
