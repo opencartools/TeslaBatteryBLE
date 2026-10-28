@@ -8,20 +8,35 @@ package com.dzid26.teslable.core.history
  * destination again, so a trip with stops arrives as A, B, A, or A, B, C, A, or nested as A, B, C, B, A.
  * A real leg to A (one that drove or reached its destination) carries on the first earlier leg to A
  * that had not reached it and ended within [WAYPOINT_STOP_MILLIS], when at least one real stop lies
- * between. Legs that are not real, routes only named while parked, never start or end a stop.
+ * between. Legs that are not real, routes only named while parked, never count as a stop or as the
+ * leg that resumes; one can still be where the trip starts (a route set while parked, then a stop added).
  */
 internal fun List<MutableList<RouteSample>>.withWaypointsMerged(): List<MutableList<RouteSample>> {
     val trips = mutableListOf<Leg>()
     for (leg in map(::Leg)) {
-        val anchor = trips.indexOfFirst { it.isResumedBy(leg) }
-        val stops = if (anchor >= 0) trips.subList(anchor + 1, trips.size) else mutableListOf()
-        if (leg.isReal && stops.any { it.isReal }) {
+        val anchor = trips.firstResumedBy(leg)
+        val stops = anchor?.let { trips.subList(it + 1, trips.size) }?.takeIf { stops -> leg.isReal && stops.any { it.isReal } }
+        if (anchor != null && stops != null) {
             trips[anchor].absorb(stops, leg)
+            stops.clear() // the stops are now part of the trip
         } else {
             trips += leg
         }
     }
     return trips.map { it.readings }
+}
+
+/**
+ * The index of the earliest of these legs that [later] resumes, or null. Only legs that ended within
+ * [WAYPOINT_STOP_MILLIS] can match, so the scan goes back from the newest and stops at the first older one.
+ */
+private fun List<Leg>.firstResumedBy(later: Leg): Int? {
+    var first: Int? = null
+    for (index in indices.reversed()) {
+        if (!this[index].endsWithinStopOf(later)) break
+        if (this[index].isResumedBy(later)) first = index
+    }
+    return first
 }
 
 /** One run of route readings that name the same destination: a whole trip, or one leg of a trip with stops. */
@@ -51,19 +66,18 @@ private class Leg(
     val isReal: Boolean get() = drove || reached
 
     /** Whether [later] names this leg's destination again soon after, with this trip unfinished: the trip carrying on after stops. */
-    fun isResumedBy(later: Leg): Boolean =
-        destination != null &&
-            destination == later.destination &&
-            !reached &&
-            later.readings.first().observedAtMillis() - readings.last().observedAtMillis() <= WAYPOINT_STOP_MILLIS
+    fun isResumedBy(later: Leg): Boolean = destination != null && destination == later.destination && !reached && endsWithinStopOf(later)
 
-    /** Takes in the [stops] between and the [resumed] leg, removing the stops from the list they belong to. */
+    /** Whether [later] starts within [WAYPOINT_STOP_MILLIS] of the end of this leg. */
+    fun endsWithinStopOf(later: Leg): Boolean =
+        later.readings.first().observedAtMillis() - readings.last().observedAtMillis() <= WAYPOINT_STOP_MILLIS
+
+    /** Appends the readings of the [stops] between and of the [resumed] leg. */
     fun absorb(
-        stops: MutableList<Leg>,
+        stops: List<Leg>,
         resumed: Leg,
     ) {
         stops.forEach { readings += it.readings }
-        stops.clear()
         readings += resumed.readings
     }
 }
