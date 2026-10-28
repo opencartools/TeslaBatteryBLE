@@ -73,9 +73,14 @@ class OnboardingSnapshots {
         paparazzi.snapshot(name + "_dark") { ScreenFrame(darkTheme = true, content = content) }
         // The narrow Jelly Star width on a tall canvas, so the whole page and its buttons show.
         paparazzi.unsafeUpdateConfig(
-            deviceConfig = jellyStar,
+            deviceConfig = jellyStar.copy(screenHeight = JELLY_STAR_PAGE_HEIGHT),
             renderingMode = SessionParams.RenderingMode.NORMAL,
         )
         paparazzi.snapshot(name + "_jelly_light") { ScreenFrame(darkTheme = false, content = content) }
+    }
+
+    private companion object {
+        /** Tall enough for the longest page at 240dp wide, where the text wraps a lot, so its buttons show. */
+        const val JELLY_STAR_PAGE_HEIGHT = 1700
     }
 }
