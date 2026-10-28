@@ -120,6 +120,8 @@ internal fun RangeChart(
     // dropped from the trip series only.
     val trips = remember(points) { points.groupBy { it.trip }.values.filter { it.size >= 2 } }
     val regenRuns = remember(points) { regenRuns(points) }
+    // A band spans the gaps between readings, so a single reading has none; its dot marks it.
+    val regenBands = remember(regenRuns) { regenRuns.filter { it.size >= 2 } }
     // One dot per stretch, on its middle reading, so a long regen never buries the orange dots.
     val regenDots = remember(regenRuns) { regenRuns.map { it[it.size / 2] } }
     val unit = LocalDistanceUnit.current
@@ -147,9 +149,9 @@ internal fun RangeChart(
                         itemPlacer = remember { InteriorLabels(HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = false)) },
                     ),
                 decorations =
-                    remember(regenRuns, points, pin, cursor) {
+                    remember(regenBands, points, pin, cursor) {
                         listOf(
-                            RegenBands(regenRuns, chargingChartColor),
+                            RegenBands(regenBands, chargingChartColor),
                             ScrubCursor(pin, cursor, points.map { it.distance to it.value.toDouble() }, driveChartColor),
                         )
                     },
@@ -180,7 +182,7 @@ private fun rangeModel(
 
 /**
  * Green gradient under each stretch of regeneration, filled from the battery curve down to the axis, at its true
- * width. A single reading, or readings at one odometer value, have none and are marked by their dot alone.
+ * width. A single reading has none and is marked by its dot alone.
  */
 private class RegenBands(
     private val runs: List<List<Plotted>>,
