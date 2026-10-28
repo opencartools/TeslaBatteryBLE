@@ -34,6 +34,10 @@ class TripSnapshots {
     @Test
     fun tripCardNavigating() = snapTrip("trip-card_navigating")
 
+    // About a minute into the drive: the arrow sits at the start of the bar, tail on the bar's end.
+    @Test
+    fun tripCardJustStarted() = snapTrip("trip-card_just-started", tripRoute(milesToArrival = 11.1f))
+
     @Test
     fun tripCardTraffic() = snapTrip("trip-card_traffic", tripRoute(trafficDelayMinutes = 2.4f))
 
@@ -59,13 +63,14 @@ class TripSnapshots {
     // From 63% now to 5% on arrival: the bar turns red where the level falls under the reserve.
     private fun tripRoute(
         destination: String? = "Home",
+        milesToArrival: Float = 4.7f,
         trafficDelayMinutes: Float = 0f,
         arrivalPercent: Float = 44f,
     ) = RouteSample(
         NOW,
         BLE_NAME,
         destination,
-        4.7f,
+        milesToArrival,
         12.2f,
         trafficDelayMinutes,
         arrivalPercent,
