@@ -115,47 +115,6 @@ fun segmentTrips(readings: List<RouteSample>): List<Trip> {
 }
 
 /**
- * These runs with every waypoint leg folded into the run it interrupted. While a waypoint is
- * ahead the car names it as the destination, and once reached it names the next one again, so a
- * trip with stops arrives as A, B, A, or nested as A, B, C, B, A. A run that names a destination
- * seen before is the end of a waypoint span when every run between is a leg that reached its
- * destination, the earlier run had not yet, and each hand-over is within [ROUTE_FRESH_MILLIS].
- */
-private fun List<MutableList<RouteSample>>.withWaypointsMerged(): List<MutableList<RouteSample>> {
-    val merged = mutableListOf<MutableList<RouteSample>>()
-    for (run in this) {
-        val start = waypointSpanStart(merged, run)
-        if (start == null) {
-            merged += run
-        } else {
-            val interrupted = merged[start]
-            for (leg in merged.subList(start + 1, merged.size)) interrupted += leg
-            interrupted += run
-            while (merged.size > start + 1) merged.removeAt(merged.size - 1)
-        }
-    }
-    return merged
-}
-
-/** The index of the run [run] resumes after waypoint legs, or null when it begins a trip of its own. */
-private fun waypointSpanStart(
-    runs: List<List<RouteSample>>,
-    run: List<RouteSample>,
-): Int? {
-    val destination = run.first().destination ?: return null
-    val start = runs.indexOfLast { it.last().destination == destination }.takeIf { it in 0 until runs.size - 1 }
-    val chain = start?.let { runs.subList(it, runs.size) + listOf(run) }
-    val resumed =
-        chain != null &&
-            !chain.first().asTrip().arrived &&
-            chain.drop(1).dropLast(1).all { it.asTrip().arrived } &&
-            chain.zipWithNext().all { (a, b) -> b.first().observedAtMillis() - a.last().observedAtMillis() <= ROUTE_FRESH_MILLIS }
-    return start.takeIf { resumed }
-}
-
-private fun List<RouteSample>.asTrip() = Trip(first(), last(), mapNotNull { it.milesToArrival }.maxOrNull())
-
-/**
  * False for a navigation the car sat through without moving (a route left active while parked): the
  * odometer at its first and last readings is the same. A trip without odometer readings counts as moved.
  */
@@ -270,6 +229,7 @@ private const val HUNDREDTHS_PER_MILE = 100f
 /** A navigation that moved the car less than this is not a trip. */
 private const val MIN_TRIP_MILES = 0.1f
 private const val ARRIVED_MINUTES = 3f
+
 private const val SAMPLE_MAX_AGE_MILLIS = 30 * MILLIS_PER_MINUTE
 
 /** A rate over less than this is noise: the efficiency of a few hundred metres means nothing. */

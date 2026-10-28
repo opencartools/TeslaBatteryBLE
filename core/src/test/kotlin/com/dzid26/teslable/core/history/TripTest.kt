@@ -247,6 +247,38 @@ class TripTest {
     }
 
     @Test
+    fun `a waypoint close to the destination is still inside the trip`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 4f, "Work", odometer = 1_000),
+                    reading(4, 1.1f, "Work", minutesLeft = 5.2f, odometer = 1_359),
+                    reading(5, 0.5f, "Post office", odometer = 1_360),
+                    reading(7, 0.02f, "Post office", odometer = 1_410),
+                    reading(8, 0.9f, "Work", odometer = 1_410),
+                    reading(11, 0.02f, "Work", odometer = 1_466),
+                ),
+            )
+        assertEquals(listOf("Work"), trips.map { it.destination })
+    }
+
+    @Test
+    fun `the old destination named once while parked at the waypoint is not the trip resuming`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 8f, "Home", odometer = 1_000),
+                    reading(5, 4f, "Home", odometer = 1_400),
+                    reading(5, 2f, "Lidl", odometer = 1_400),
+                    reading(9, 0.02f, "Lidl", odometer = 1_620),
+                    reading(10, 2.2f, "Home", odometer = 1_620),
+                    reading(11, 2.2f, "Home", odometer = 1_621),
+                ),
+            )
+        assertEquals(listOf("Home", "Lidl"), trips.map { it.destination })
+    }
+
+    @Test
     fun `a trip home then out again within minutes is not a waypoint`() {
         val trips =
             segmentTrips(
