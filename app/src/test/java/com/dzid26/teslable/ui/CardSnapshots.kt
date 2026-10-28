@@ -1154,8 +1154,8 @@ class CardSnapshots {
 
         // A 40-mile drive five hours ago, parked before and after: rated
         // range falls 230 -> 190 mi while the estimate runs a little lower,
-        // with a regenerating read at the start, and two regenerating reads on the way down a hill, the first of
-        // which gains a little.
+        // with a regenerating read at the start, two regenerating reads on the way down a hill, and a small gain in
+        // rated range on the way.
         private val driveMinutes = listOf(300L, 290L, 280L, 270L, 260L, 250L, 240L)
         private val driveOdometers = listOf(1_200_000, 1_200_000, 1_201_200, 1_202_500, 1_203_400, 1_204_000, 1_204_000)
         private val drivePower = listOf(0, -3, 10, -18, -6, 0, 0)
@@ -1188,7 +1188,7 @@ class CardSnapshots {
             )
         }
 
-        private val regenFirstPower = listOf(0, -25, -20, -5, 30, 0, 0)
+        private val regenFirstPower = listOf(0, -25, -20, 10, 30, 0, 0)
 
         private fun driveReadings(
             minutesEarlier: Long = 0L,

@@ -45,7 +45,7 @@ import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
  * One orange line per trip with its gradient and, when any reading was
  * regenerating, a line-less series of those readings as green dots drawn
  * over them, so the colour never depends on the odometer value a point
- * happens to share. A gain in percent while regenerating is the green gradient under the lines.
+ * happens to share. A rise in rated range is the green gradient under the lines.
  */
 @Composable
 private fun rememberDriveLines(
@@ -119,8 +119,8 @@ internal fun RangeChart(
     // A trip of one reading has no line to draw; its point still shows as a regen dot if it regenerates, so it is
     // dropped from the trip series only.
     val trips = remember(points) { points.groupBy { it.trip }.values.filter { it.size >= 2 } }
-    // The gradient marks where the percent rose; a rise between readings at one odometer value has no width.
-    val regenBands = remember(points) { regenGains(points).filter { it.first().distance != it.last().distance } }
+    // The gradient marks where the rated range rose; a rise between readings at one odometer value has no width.
+    val regenBands = remember(points) { rangeGains(points).filter { it.first().distance != it.last().distance } }
     val regenDots = remember(points) { points.filter { it.regenerating } }
     val unit = LocalDistanceUnit.current
     val distanceFormatter = remember(unit) { CartesianValueFormatter { _, value, _ -> formatDistance(value, unit) } }
@@ -179,7 +179,7 @@ private fun rangeModel(
     )
 
 /**
- * Green gradient under each rise of the percent while regenerating, filled from the battery curve down to the
+ * Green gradient under each rise of the rated range, filled from the battery curve down to the
  * axis, at its true width.
  */
 private class RegenBands(

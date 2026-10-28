@@ -9,8 +9,12 @@ internal class Plotted(
     val regenerating: Boolean,
     val trip: Int,
     val timestampMillis: Long,
+    val ratedMiles: Float? = null,
 )
 
-/** The pairs of adjacent readings of one trip where the percent rose and the later one was regenerating. */
-internal fun regenGains(points: List<Plotted>): List<List<Plotted>> =
-    points.zipWithNext().filter { (a, b) -> a.trip == b.trip && b.regenerating && b.value > a.value }.map { it.toList() }
+/** The pairs of adjacent readings of one trip where the rated range rose: energy came in between them. */
+internal fun rangeGains(points: List<Plotted>): List<List<Plotted>> =
+    points
+        .zipWithNext()
+        .filter { (a, b) -> a.trip == b.trip && a.ratedMiles != null && b.ratedMiles != null && b.ratedMiles > a.ratedMiles }
+        .map { it.toList() }

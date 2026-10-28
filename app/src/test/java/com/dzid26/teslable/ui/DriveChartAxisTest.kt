@@ -43,22 +43,22 @@ class DriveChartAxisTest {
     }
 
     @Test
-    fun aGradientMarksOnlyARiseInPercentThatEndsOnARegeneratingReading() {
+    fun aGradientMarksARiseInRatedRangeWithinATrip() {
         fun at(
             i: Int,
-            v: Float,
-            regen: Boolean,
+            miles: Float?,
             trip: Int = 0,
-        ) = Plotted(i * 10.0, v, regenerating = regen, trip = trip, timestampMillis = 0)
+        ) = Plotted(i * 10.0, 60f, regenerating = false, trip = trip, timestampMillis = 0, ratedMiles = miles)
         val points =
             listOf(
-                at(0, 60f, regen = true),
-                at(1, 59f, regen = true), // regenerating but falling
-                at(2, 59.5f, regen = true), // rises
-                at(3, 60f, regen = false), // rises without regen
-                at(4, 59f, regen = true), // falls
-                at(5, 61f, regen = true, trip = 1), // new trip
+                at(0, 200f),
+                at(1, 199f), // falls
+                at(2, 199f), // flat
+                at(3, 199.5f), // rises
+                at(4, null), // no rated range
+                at(5, 205f), // no pair to compare
+                at(6, 210f, trip = 1), // new trip
             )
-        assertEquals(listOf(listOf(points[1], points[2])), regenGains(points))
+        assertEquals(listOf(listOf(points[2], points[3])), rangeGains(points))
     }
 }
