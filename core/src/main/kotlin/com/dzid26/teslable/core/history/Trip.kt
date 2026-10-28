@@ -82,7 +82,8 @@ data class Trip(
 /**
  * The finished trips in [readings], oldest first. A trip is two or more readings of
  * the same destination, each within [ROUTE_FRESH_MILLIS] of the one before; a single
- * reading is a navigation cancelled at once and is left out.
+ * reading is a navigation cancelled at once and is left out. A waypoint leg (the car names the
+ * waypoint, then goes back to the real destination) stays inside the trip it interrupted.
  */
 fun segmentTrips(readings: List<RouteSample>): List<Trip> {
     val runs = mutableListOf<MutableList<RouteSample>>()
@@ -106,6 +107,7 @@ fun segmentTrips(readings: List<RouteSample>): List<Trip> {
         }
     }
     return runs
+        .withWaypointsMerged()
         .filter { it.size >= 2 }
         .map { run ->
             Trip(run.first(), run.last(), run.mapNotNull { it.milesToArrival }.maxOrNull())

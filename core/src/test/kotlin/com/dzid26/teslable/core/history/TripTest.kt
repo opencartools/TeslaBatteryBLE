@@ -202,6 +202,147 @@ class TripTest {
     }
 
     @Test
+    fun `a waypoint leg stays inside the trip it interrupted`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 22f, "Depot", odometer = 231_500),
+                    reading(6, 20f, "Depot", odometer = 231_700),
+                    reading(12, 17.9f, "Depot", odometer = 231_900),
+                    reading(12, 5.7f, "Shop A", odometer = 231_900),
+                    reading(21, 0.02f, "Shop A", odometer = 232_100),
+                    reading(22, 12.5f, "Depot", odometer = 232_100),
+                    reading(30, 12.3f, "Depot", odometer = 232_100),
+                    reading(30, 1.8f, "Shop B", odometer = 232_100),
+                    reading(37, 0.03f, "Shop B", odometer = 232_290),
+                    reading(37, 10.6f, "Depot", odometer = 232_290),
+                    reading(42, 8f, "Depot", odometer = 232_500),
+                    reading(52, 5f, "Depot", odometer = 232_800),
+                    reading(59, 0.02f, "Depot", odometer = 233_360),
+                ),
+            )
+        val trip = trips.single()
+        assertEquals("Depot", trip.destination)
+        assertEquals(18.6f, trip.distanceMiles!!, 0.01f)
+    }
+
+    @Test
+    fun `waypoint legs can nest`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 20f, "A", odometer = 1_000),
+                    reading(5, 15f, "A", odometer = 1_500),
+                    reading(5, 6f, "B", odometer = 1_500),
+                    reading(9, 4f, "B", odometer = 1_700),
+                    reading(9, 3f, "C", odometer = 1_700),
+                    reading(12, 0.1f, "C", odometer = 1_900),
+                    reading(12, 9f, "B", odometer = 1_900),
+                    reading(15, 0.1f, "B", odometer = 2_200),
+                    reading(15, 9f, "A", odometer = 2_200),
+                    reading(25, 0.1f, "A", odometer = 3_000),
+                ),
+            )
+        assertEquals(listOf("A"), trips.map { it.destination })
+    }
+
+    @Test
+    fun `a waypoint close to the destination is still inside the trip`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 4f, "Work", odometer = 1_000),
+                    reading(4, 1.1f, "Work", minutesLeft = 5.2f, odometer = 1_359),
+                    reading(5, 0.5f, "Shop", odometer = 1_360),
+                    reading(7, 0.02f, "Shop", odometer = 1_410),
+                    reading(8, 0.9f, "Work", odometer = 1_410),
+                    reading(11, 0.02f, "Work", odometer = 1_466),
+                ),
+            )
+        assertEquals(listOf("Work"), trips.map { it.destination })
+    }
+
+    @Test
+    fun `a waypoint dropped before it is reached is still inside the trip`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 10f, "Work", odometer = 1_000),
+                    reading(4, 7f, "Work", odometer = 1_300),
+                    reading(5, 3f, "Shop", odometer = 1_300),
+                    reading(8, 2f, "Shop", odometer = 1_400),
+                    reading(9, 5f, "Work", odometer = 1_400),
+                    reading(14, 0.02f, "Work", odometer = 1_900),
+                ),
+            )
+        assertEquals(listOf("Work"), trips.map { it.destination })
+    }
+
+    @Test
+    fun `a stop under half an hour keeps the trip together even without readings during it`() {
+        fun trip(stopMinutes: Long) =
+            segmentTrips(
+                listOf(
+                    reading(0, 10f, "Work", odometer = 1_000),
+                    reading(5, 7f, "Work", odometer = 1_300),
+                    reading(5, 2f, "Shop", odometer = 1_300),
+                    reading(9, 0.02f, "Shop", odometer = 1_500),
+                    reading(9 + stopMinutes, 5f, "Work", odometer = 1_500),
+                    reading(14 + stopMinutes, 0.02f, "Work", odometer = 2_000),
+                ),
+            ).map { it.destination }
+        assertEquals(listOf("Work"), trip(stopMinutes = 25))
+        assertEquals(listOf("Work", "Shop", "Work"), trip(stopMinutes = 40))
+    }
+
+    @Test
+    fun `a route picked and dropped while parked is not a waypoint`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 3f, "Shop", odometer = 1_000),
+                    reading(3, 6f, "Home", odometer = 1_000),
+                    reading(5, 6f, "Home", odometer = 1_002),
+                    reading(8, 3f, "Shop", odometer = 1_002),
+                    reading(12, 0.5f, "Shop", odometer = 1_150),
+                ),
+            )
+        assertEquals(8 * MINUTE, trips.single().startMillis)
+    }
+
+    @Test
+    fun `the old destination named once while parked at the waypoint is not the trip resuming`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 8f, "Home", odometer = 1_000),
+                    reading(5, 4f, "Home", odometer = 1_400),
+                    reading(5, 2f, "Shop", odometer = 1_400),
+                    reading(9, 0.02f, "Shop", odometer = 1_620),
+                    reading(10, 2.2f, "Home", odometer = 1_620),
+                    reading(11, 2.2f, "Home", odometer = 1_621),
+                ),
+            )
+        assertEquals(listOf("Home", "Shop"), trips.map { it.destination })
+    }
+
+    @Test
+    fun `a trip home then out again within minutes is not a waypoint`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 5f, "Home"),
+                    reading(5, 0.1f, "Home"),
+                    reading(8, 3f, "Gym"),
+                    reading(11, 0.1f, "Gym"),
+                    reading(14, 4f, "Home"),
+                    reading(18, 0.1f, "Home"),
+                ),
+            )
+        assertEquals(listOf("Home", "Gym", "Home"), trips.map { it.destination })
+    }
+
+    @Test
     fun `energy rates need a distance worth dividing by`() {
         val short = segmentTrips(listOf(reading(0, 0.4f, minutesLeft = 2f), reading(2, 0f, minutesLeft = 0f))).single()
         val samples = listOf(BatterySample(-5 * MINUTE, 60, null, null, ratedRangeMiles = 180f))
