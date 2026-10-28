@@ -593,33 +593,39 @@ class CardSnapshots {
     @Test
     fun driveCardCursor() = snapDrive("drive-card_cursor", pricePerKwh = 0.30f, cursorX = 25.0)
 
+    // Mirrored: the regen bands and the cursor must stay on their readings.
+    @Test
+    fun driveCardCursorRtl() = snapDrive("drive-card_cursor-rtl", pricePerKwh = 0.30f, cursorX = 25.0, direction = LayoutDirection.Rtl)
+
     // A pinned scale but no home price: the percent per distance stands in for the cost per distance.
     @Test
     fun driveCardUnpriced() = snapDrive("drive-card_unpriced")
 
     // No scale yet: whole-percent steps, so the used figure carries the hint and only the percent rate shows.
     @Test
-    fun driveCardUnlearned() = snapDrive("drive-card_unlearned", scale = null, ratedKwhPerMile = null)
+    fun driveCardUnlearned() = snapDrive("drive-card_unlearned", scale = null)
 
     private fun snapDrive(
         name: String,
         pricePerKwh: Float? = null,
         scale: FullRangeScale? = demoTripScale,
-        ratedKwhPerMile: Float? = 0.25f,
         cursorX: Double? = null,
+        direction: LayoutDirection = LayoutDirection.Ltr,
     ) = snapCard(name) {
         val cursor = cursorX?.let { remember { CursorPin(restoredX = it) } }
         CompositionLocalProvider(
             LocalPricePerKwh provides pricePerKwh,
             LocalCurrencyCode provides "USD",
             LocalDriveCursor provides cursor,
+            LocalLayoutDirection provides direction,
         ) {
             DriveHistoryCard(
                 samples = driveSamples(),
                 drives = driveReadings(),
                 initialWindow = DriveWindow.SINCE_CHARGE,
                 scale = scale,
-                ratedKwhPerMile = ratedKwhPerMile,
+                // The rated constant is learnt along with the scale.
+                ratedKwhPerMile = if (scale != null) 0.25f else null,
             )
         }
     }
