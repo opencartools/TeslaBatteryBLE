@@ -18,6 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
 import app.cash.paparazzi.DeviceConfig
@@ -486,6 +488,20 @@ class CardSnapshots {
                 drives = parkedSamples.map { parkedDrive(it) },
                 nowMillis = NOW,
             )
+        }
+    }
+
+    @Test
+    fun historyCardChargingProjectionRtl() {
+        // The same chart mirrored: the beam and the line must still meet.
+        snapCard("history-card_charging-projection-rtl") {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                BatteryHistoryCard(
+                    samples = chargingSamples,
+                    drives = parkedSamples.map { parkedDrive(it) },
+                    nowMillis = NOW,
+                )
+            }
         }
     }
 
