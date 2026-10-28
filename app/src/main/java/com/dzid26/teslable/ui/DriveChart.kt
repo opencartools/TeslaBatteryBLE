@@ -43,9 +43,9 @@ import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 
 /**
  * One orange line per trip with its gradient and, when any reading was
- * regenerating, a line-less series of one green dot per regen stretch drawn
+ * regenerating, a line-less series of those readings as green dots drawn
  * over them, so the colour never depends on the odometer value a point
- * happens to share. The stretches themselves are the bands under the lines.
+ * happens to share. A gain in percent while regenerating is the green gradient under the lines.
  */
 @Composable
 private fun rememberDriveLines(
@@ -119,12 +119,9 @@ internal fun RangeChart(
     // A trip of one reading has no line to draw; its point still shows as a regen dot if it regenerates, so it is
     // dropped from the trip series only.
     val trips = remember(points) { points.groupBy { it.trip }.values.filter { it.size >= 2 } }
-    val regenRuns = remember(points) { regenRuns(points) }
-    // A band spans the gaps between readings, so a single reading, or readings at one odometer value, have none;
-    // their dot marks them.
-    val regenBands = remember(regenRuns) { regenRuns.filter { it.first().distance != it.last().distance } }
-    // One dot per stretch, on its middle reading, so a long regen never buries the orange dots.
-    val regenDots = remember(regenRuns) { regenRuns.map { it[it.size / 2] } }
+    // The gradient marks where the percent rose; a rise between readings at one odometer value has no width.
+    val regenBands = remember(points) { regenGains(points).filter { it.first().distance != it.last().distance } }
+    val regenDots = remember(points) { points.filter { it.regenerating } }
     val unit = LocalDistanceUnit.current
     val distanceFormatter = remember(unit) { CartesianValueFormatter { _, value, _ -> formatDistance(value, unit) } }
     val yFormatter = remember { CartesianValueFormatter { _, value, _ -> formatWholePercent(value.toFloat()) } }
@@ -182,11 +179,11 @@ private fun rangeModel(
     )
 
 /**
- * Green gradient under each stretch of regeneration, filled from the battery curve down to the axis, at its true
- * width. A stretch with no width has none and is marked by its dot alone.
+ * Green gradient under each rise of the percent while regenerating, filled from the battery curve down to the
+ * axis, at its true width.
  */
 private class RegenBands(
-    private val runs: List<List<Plotted>>,
+    private val gains: List<List<Plotted>>,
     private val color: Color,
 ) : Decoration {
     override fun drawUnderLayers(context: CartesianDrawingContext) {
@@ -203,7 +200,7 @@ private class RegenBands(
                             colors = listOf(top, bottom),
                         )
                 }
-            runs.forEach { run ->
+            gains.forEach { run ->
                 // Left to right on screen, whichever way the layout runs.
                 val edge = run.map { Offset(canvasX(it.distance), canvasY(it.value.toDouble())) }.sortedBy { it.x }
                 val path =

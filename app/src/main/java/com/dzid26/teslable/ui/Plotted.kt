@@ -11,16 +11,6 @@ internal class Plotted(
     val timestampMillis: Long,
 )
 
-/** The stretches of regeneration: each maximal run of regenerating readings of one trip, a single reading included. */
-internal fun regenRuns(points: List<Plotted>): List<List<Plotted>> {
-    val runs = mutableListOf<MutableList<Plotted>>()
-    var previous: Plotted? = null
-    for (point in points) {
-        if (point.regenerating) {
-            val open = previous?.takeIf { it.regenerating && it.trip == point.trip }
-            if (open != null) runs.last() += point else runs += mutableListOf(point)
-        }
-        previous = point
-    }
-    return runs
-}
+/** The pairs of adjacent readings of one trip where the percent rose and the later one was regenerating. */
+internal fun regenGains(points: List<Plotted>): List<List<Plotted>> =
+    points.zipWithNext().filter { (a, b) -> a.trip == b.trip && b.regenerating && b.value > a.value }.map { it.toList() }

@@ -43,22 +43,22 @@ class DriveChartAxisTest {
     }
 
     @Test
-    fun everyRunOfRegeneratingReadingsInOneTripIsAStretchSingleReadingsIncluded() {
+    fun aGradientMarksOnlyARiseInPercentThatEndsOnARegeneratingReading() {
         fun at(
             i: Int,
+            v: Float,
             regen: Boolean,
             trip: Int = 0,
-        ) = Plotted(i * 10.0, 60f, regenerating = regen, trip = trip, timestampMillis = 0)
+        ) = Plotted(i * 10.0, v, regenerating = regen, trip = trip, timestampMillis = 0)
         val points =
             listOf(
-                at(0, regen = true),
-                at(1, regen = true),
-                at(2, regen = false),
-                at(3, regen = true), // alone
-                at(4, regen = false),
-                at(5, regen = true, trip = 0),
-                at(6, regen = true, trip = 1), // a trip boundary ends the run
+                at(0, 60f, regen = true),
+                at(1, 59f, regen = true), // regenerating but falling
+                at(2, 59.5f, regen = true), // rises
+                at(3, 60f, regen = false), // rises without regen
+                at(4, 59f, regen = true), // falls
+                at(5, 61f, regen = true, trip = 1), // new trip
             )
-        assertEquals(listOf(points.subList(0, 2), listOf(points[3]), listOf(points[5]), listOf(points[6])), regenRuns(points))
+        assertEquals(listOf(listOf(points[1], points[2])), regenGains(points))
     }
 }
