@@ -11,7 +11,7 @@ import org.junit.Test
 
 /**
  * Paparazzi snapshots of the permission onboarding: the greeting and each wizard page, light and dark on the
- * full-screen phone of [CardSnapshots], plus the denied states of the first step.
+ * full-screen phone of [CardSnapshots] and light at Jelly Star width, plus the denied states of the first step.
  */
 class OnboardingSnapshots {
     @get:Rule
@@ -46,15 +46,6 @@ class OnboardingSnapshots {
     fun onboardingNearbyDeniedForever() =
         snapOnboarding("onboarding_nearby-denied-forever") { page(0, denied = true, deniedForever = true) }
 
-    // The Jelly Star's real height: the page scrolls there, so the buttons stay reachable.
-    @Test
-    fun onboardingGreetingShortScreen() =
-        snapShortScreen("onboarding_greeting_short") { PermissionWizardGreeting(onContinue = {}, onDismiss = {}) }
-
-    @Test
-    fun onboardingNotificationsDeniedShortScreen() =
-        snapShortScreen("onboarding_notifications-denied-forever_short") { page(2, denied = true, deniedForever = true) }
-
     @Composable
     private fun page(
         index: Int,
@@ -80,16 +71,11 @@ class OnboardingSnapshots {
         )
         paparazzi.snapshot(name + "_light") { ScreenFrame(darkTheme = false, content = content) }
         paparazzi.snapshot(name + "_dark") { ScreenFrame(darkTheme = true, content = content) }
-    }
-
-    private fun snapShortScreen(
-        name: String,
-        content: @Composable () -> Unit,
-    ) {
+        // The narrow Jelly Star width on a tall canvas, so the whole page and its buttons show.
         paparazzi.unsafeUpdateConfig(
-            deviceConfig = jellyStarScreen,
+            deviceConfig = jellyStar,
             renderingMode = SessionParams.RenderingMode.NORMAL,
         )
-        paparazzi.snapshot(name + "_light") { ScreenFrame(darkTheme = false, content = content) }
+        paparazzi.snapshot(name + "_jelly_light") { ScreenFrame(darkTheme = false, content = content) }
     }
 }

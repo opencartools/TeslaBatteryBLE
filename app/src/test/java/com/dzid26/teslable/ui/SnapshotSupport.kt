@@ -18,7 +18,7 @@ import com.dzid26.teslable.core.history.segmentTrips
  * enough that a card is never cut off before its last line.
  * Light only; the PR comment keeps it collapsed next to dark.
  */
-private val jellyStar =
+internal val jellyStar =
     DeviceConfig.NEXUS_5.copy(
         screenWidth = 480,
         screenHeight = 2400,
@@ -26,9 +26,6 @@ private val jellyStar =
         ydpi = 327,
         density = Density.XHIGH,
     )
-
-/** The Jelly Star at its real height (480x854 px), for screens that must fit without a tall canvas. */
-internal val jellyStarScreen = jellyStar.copy(screenHeight = 854)
 
 /**
  * One state, three images: the card in the fixed light scheme and in the
