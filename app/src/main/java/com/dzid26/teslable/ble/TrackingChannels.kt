@@ -3,7 +3,6 @@ package com.dzid26.teslable.ble
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
@@ -16,7 +15,7 @@ internal object TrackingChannels {
     const val TRIP = "trip"
 
     /** "[PR 332] title" in CI (PR) builds so they read apart from the main app; unchanged elsewhere. */
-    private fun withBuildLabel(text: String): String {
+    fun withBuildLabel(text: String): String {
         val label = BuildConfig.BUILD_LABEL
         return if (label.isEmpty()) text else "[$label] $text"
     }
@@ -58,16 +57,19 @@ internal object TrackingChannels {
      */
     fun openDoNotDisturbSettings(context: Context) {
         ensure(context)
-        // Starting the intent is the check: resolving it first would need a package visibility entry.
-        try {
-            context.startActivity(Intent(ZEN_MODE_PRIORITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (ignored: ActivityNotFoundException) {
-            val channel =
+        // Starting the intent is the check: resolving it first would need a package visibility entry. Some ROMs
+        // export the zen page behind a permission, so a SecurityException counts as missing too.
+        val pages =
+            listOf(
+                Intent(ZEN_MODE_PRIORITY_SETTINGS),
                 Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                     .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                    .putExtra(Settings.EXTRA_CHANNEL_ID, TRIP)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(channel)
+                    .putExtra(Settings.EXTRA_CHANNEL_ID, TRIP),
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+            )
+        pages.firstOrNull { page ->
+            runCatching { context.startActivity(page.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
         }
     }
 

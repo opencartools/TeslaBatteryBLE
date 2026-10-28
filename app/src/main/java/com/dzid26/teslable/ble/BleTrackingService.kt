@@ -369,7 +369,7 @@ class BleTrackingService(
             NotificationCompat
                 .Builder(this, if (model.trip != null) TRIP_CHANNEL_ID else CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_tracking)
-                .setContentTitle(withBuildLabel(model.title))
+                .setContentTitle(TrackingChannels.withBuildLabel(model.title))
                 .setContentText(notificationText(model))
                 .setContentIntent(openAppIntent(model.bleName))
                 .setOngoing(true)
@@ -464,12 +464,6 @@ class BleTrackingService(
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-    }
-
-    /** "[PR 332] title" in CI (PR) builds so they read apart from the main app; unchanged elsewhere. */
-    private fun withBuildLabel(text: String): String {
-        val label = BuildConfig.BUILD_LABEL
-        return if (label.isEmpty()) text else "[$label] $text"
     }
 
     private data class NotificationModel(
