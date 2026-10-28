@@ -26,7 +26,8 @@ import kotlin.math.roundToInt
 /**
  * The trip's progress bar: the standard linear progress indicator with the arrow on it, drawn inverted (mirrored, filling
  * the distance still to go) so the part already driven is the dimmed track on the left and the part still to go is in
- * full color on the right. The default stop dot, mirrored, marks the start of the trip on the left.
+ * full color on the right. The default stop dot, mirrored, marks the start of the trip on the left. The arrow is
+ * centered on the boundary between the two, so at the ends it overhangs the bar by half its drawn length.
  */
 @Composable
 internal fun TripBar(
@@ -54,16 +55,11 @@ internal fun TripBar(
         Image(
             painter = tracker,
             contentDescription = null,
-            modifier = Modifier.size(ICON_SIZE).offset(x = (maxWidth - ARROW_LENGTH) * driven - ARROW_INSET),
+            modifier = Modifier.size(ICON_SIZE).offset(x = maxWidth * driven - ICON_SIZE / 2),
         )
     }
 }
 
 private val ICON_SIZE = 24.dp
-
-// The arrow is drawn from 5dp to 19dp of its 24dp box: placing the box by those edges puts the tail on the bar's
-// start at 0% and the tip on its end at 100%, instead of both ends of the bar poking out from behind the box.
-private val ARROW_INSET = 5.dp
-private val ARROW_LENGTH = 14.dp
 private val BAR_HEIGHT = 8.dp
 private const val PERCENT_FULL = 100f
