@@ -54,11 +54,16 @@ internal fun TripBar(
         Image(
             painter = tracker,
             contentDescription = null,
-            modifier = Modifier.size(ICON_SIZE).offset(x = ((maxWidth - ICON_SIZE) * driven)),
+            modifier = Modifier.size(ICON_SIZE).offset(x = (maxWidth - ARROW_LENGTH) * driven - ARROW_INSET),
         )
     }
 }
 
 private val ICON_SIZE = 24.dp
+
+// The arrow is drawn from 5dp to 19dp of its 24dp box: placing the box by those edges puts the tail on the bar's
+// start at 0% and the tip on its end at 100%, instead of both ends of the bar poking out from behind the box.
+private val ARROW_INSET = 5.dp
+private val ARROW_LENGTH = 14.dp
 private val BAR_HEIGHT = 8.dp
 private const val PERCENT_FULL = 100f
