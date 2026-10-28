@@ -193,21 +193,22 @@ internal fun NotificationCompat.Builder.showTrip(
 
 /**
  * The bar: [TRIP_BAR_MAX] units for the whole trip. The part already driven is dimmed on the left and the part still
- * to go is in the accent color on the right; the arrow sits where the car is.
- * Styling by progress is off, or the platform would fade the part still to go.
+ * to go is in the accent color on the right; the arrow sits where the car is, on the boundary between them (see
+ * [drivenUnits]). Styling by progress is off, or the platform would fade the part still to go.
  */
 private fun progressStyle(
     context: Context,
     progress: Int,
 ): NotificationCompat.ProgressStyle {
-    val driven = progress.coerceIn(0, TRIP_BAR_MAX)
+    val percent = progress.coerceIn(0, PERCENT_FULL.toInt())
+    val driven = drivenUnits(percent, context.resources.configuration.screenWidthDp - NOTIFICATION_BAR_INSETS_DP)
     val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
     val dimmed = context.getColor(if (night) android.R.color.system_neutral1_600 else android.R.color.system_neutral1_400)
     val accent = context.getColor(if (night) android.R.color.system_accent1_200 else android.R.color.system_accent1_600)
     val style =
         NotificationCompat
             .ProgressStyle()
-            .setProgress(driven)
+            .setProgress(percent * TRIP_BAR_MAX / PERCENT_FULL.toInt())
             .setStyledByProgress(false)
             .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_driving_tracker))
     if (driven > 0) {
@@ -217,6 +218,23 @@ private fun progressStyle(
         style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(TRIP_BAR_MAX - driven).setColor(accent))
     }
     return style
+}
+
+/**
+ * The driven segment's length in [TRIP_BAR_MAX] units for a trip [percent] done, on a bar [barWidthDp] wide.
+ * The platform's segments span the whole bar, but its tracker icon slides only between the bar's ends, its left edge
+ * going from 0 to the bar width less the icon's own: so the icon's center is the progress point only at 50%, and half
+ * an icon to the right of it at the start (NotificationProgressBar.setTrackerPos). The boundary moves to where the
+ * icon's center lands instead, so the arrow sits on it all along the trip.
+ */
+internal fun drivenUnits(
+    percent: Int,
+    barWidthDp: Int,
+): Int {
+    val done = percent.coerceIn(0, PERCENT_FULL.toInt()) / PERCENT_FULL
+    val iconShare = (TRACKER_WIDTH_DP / barWidthDp.coerceAtLeast(MIN_BAR_WIDTH_DP)).coerceAtMost(1f)
+    val boundary = done + (HALF - done) * iconShare
+    return (boundary * TRIP_BAR_MAX).roundToInt().coerceIn(0, TRIP_BAR_MAX)
 }
 
 private fun SpannableStringBuilder.appendBold(
@@ -280,5 +298,19 @@ private fun String.ellipsize(): String = if (length > MAX_DESTINATION_CHARS) tak
 private const val MAX_DESTINATION_CHARS = 18
 private const val TENTHS = 10f
 private const val PERCENT_FULL = 100f
-private const val TRIP_BAR_MAX = 100
+
+/** Units of the notification's trip bar: fine enough that the boundary can sit under the arrow to well under 1dp. */
+private const val TRIP_BAR_MAX = 1000
+
+/** The platform's tracker icon height (notification_progress_tracker_height); the square arrow icon is as wide. */
+private const val TRACKER_WIDTH_DP = 20f
+
+/**
+ * What the shade takes off the screen width before the bar: the notification's side margins (16dp each), its
+ * content margins (16dp each) and the bar's own margins (2dp each). Close enough on phones; the boundary only moves
+ * by a fraction of the icon width.
+ */
+private const val NOTIFICATION_BAR_INSETS_DP = 68
+private const val MIN_BAR_WIDTH_DP = 100
+private const val HALF = 0.5f
 private const val MILLIS_PER_MINUTE = 60_000L
