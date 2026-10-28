@@ -43,7 +43,7 @@ class DriveChartAxisTest {
     }
 
     @Test
-    fun onlyALoneRegeneratingReadingGetsAGreenDot() {
+    fun everyRunOfRegeneratingReadingsInOneTripIsAStretchSingleReadingsIncluded() {
         fun at(
             i: Int,
             regen: Boolean,
@@ -51,14 +51,14 @@ class DriveChartAxisTest {
         ) = Plotted(i * 10.0, 60f, regenerating = regen, trip = trip, timestampMillis = 0)
         val points =
             listOf(
-                at(0, regen = true), // starts a stretch with the next
+                at(0, regen = true),
                 at(1, regen = true),
                 at(2, regen = false),
                 at(3, regen = true), // alone
                 at(4, regen = false),
-                at(5, regen = true, trip = 0), // next to a regenerating reading of another trip
-                at(6, regen = true, trip = 1),
+                at(5, regen = true, trip = 0),
+                at(6, regen = true, trip = 1), // a trip boundary ends the run
             )
-        assertEquals(listOf(points[3], points[5], points[6]), loneRegenPoints(points))
+        assertEquals(listOf(points.subList(0, 2), listOf(points[3]), listOf(points[5]), listOf(points[6])), regenRuns(points))
     }
 }

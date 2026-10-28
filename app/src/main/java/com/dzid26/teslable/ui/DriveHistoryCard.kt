@@ -42,8 +42,8 @@ import java.util.Locale
 /**
  * Battery percent over distance driven: the driving counterpart of the battery
  * history card, which plots percent over time. Percent is the sub-percent SOC
- * (the rated range over the fitted full range); a stretch of regeneration is a green
- * band, and a lone regenerating reading a green dot. The window is the last 15,
+ * (the rated range over the fitted full range); each stretch of regeneration is a green
+ * band, at least a few dp wide. The window is the last 15,
  * 50 or 150 km (10, 30 or 100 mi) or everything since the last charge. Each trip
  * is its own line, so a charge or a long parked gap never gets a connecting
  * stroke.
@@ -208,7 +208,7 @@ private fun DriveEnergyLine(
 private fun Legend() {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         LegendItem("Battery %", driveChartColor)
-        LegendItem("Regen", chargingChartColor)
+        LegendItem("Regen", chargingChartColor, "▮")
     }
 }
 
@@ -216,9 +216,10 @@ private fun Legend() {
 private fun LegendItem(
     label: String,
     color: Color,
+    swatch: String = "●",
 ) {
     Text(
-        text = "● $label",
+        text = "$swatch $label",
         style = MaterialTheme.typography.labelSmall,
         color = color,
     )

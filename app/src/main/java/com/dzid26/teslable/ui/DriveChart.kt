@@ -42,20 +42,16 @@ import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 
 /**
- * One orange line per trip with its gradient, and, when any regenerating
- * reading stands alone, a line-less series of those points in green drawn over
- * them, so the colour never depends on the odometer value a point happens to
- * share.
+ * One orange line per trip with its gradient. Regeneration is not a series of
+ * its own: it is the green bands drawn under the lines.
  */
 @Composable
 private fun rememberDriveLines(
     tripCount: Int,
-    hasRegen: Boolean,
     yMin: Double,
 ): LineCartesianLayer.LineProvider {
     val lineColor = driveChartColor
     val linePoint = rememberPoint(lineColor)
-    val regenPoint = rememberPoint(chargingChartColor)
     val driveLine =
         LineCartesianLayer.rememberLine(
             fill = remember(lineColor) { LineCartesianLayer.LineFill.single(Fill(lineColor)) },
@@ -68,14 +64,7 @@ private fun rememberDriveLines(
                 },
             pointProvider = remember(linePoint) { LineCartesianLayer.PointProvider.single(linePoint) },
         )
-    val regenLine =
-        LineCartesianLayer.rememberLine(
-            fill = remember { LineCartesianLayer.LineFill.single(Fill(Color.Transparent)) },
-            pointProvider = remember(regenPoint) { LineCartesianLayer.PointProvider.single(regenPoint) },
-        )
-    return remember(tripCount, hasRegen, driveLine, regenLine) {
-        LineCartesianLayer.LineProvider.series(List(tripCount) { driveLine } + if (hasRegen) listOf(regenLine) else emptyList())
-    }
+    return remember(tripCount, driveLine) { LineCartesianLayer.LineProvider.series(List(tripCount) { driveLine }) }
 }
 
 /** Where the drive chart's cursor starts; set by the Paparazzi snapshots, which cannot touch the chart. */
@@ -116,20 +105,9 @@ internal fun RangeChart(
     pin: CursorPin = LocalDriveCursor.current ?: rememberCursorPin(),
 ) {
     val axes = remember(points) { axisSpec(points) }
-    // A trip of one reading has no line to draw; its point still shows as a regen dot if it regenerates, so it is
-    // dropped from the trip series only.
+    // A trip of one reading has no line to draw, so it is dropped from the trip series; a regen band still marks it.
     val trips = remember(points) { points.groupBy { it.trip }.values.filter { it.size >= 2 } }
-    // A stretch of regeneration is drawn as a band, so only a lone regenerating reading, which has no band, gets a
-    // green dot; every other reading stays orange.
-    val regenPoints = remember(points) { loneRegenPoints(points) }
-    // Adjacent regenerating readings of one trip bound a stretch of regeneration.
-    val regenBands =
-        remember(points) {
-            points
-                .zipWithNext()
-                .filter { (a, b) -> a.trip == b.trip && a.regenerating && b.regenerating }
-                .map { (a, b) -> RegenBand(a.distance, a.value, b.distance, b.value) }
-        }
+    val regenRuns = remember(points) { regenRuns(points) }
     val unit = LocalDistanceUnit.current
     val distanceFormatter = remember(unit) { CartesianValueFormatter { _, value, _ -> formatDistance(value, unit) } }
     val yFormatter = remember { CartesianValueFormatter { _, value, _ -> formatWholePercent(value.toFloat()) } }
@@ -140,7 +118,7 @@ internal fun RangeChart(
         val chart =
             rememberCartesianChart(
                 rememberLineCartesianLayer(
-                    lineProvider = rememberDriveLines(trips.size, regenPoints.isNotEmpty(), axes.yMin),
+                    lineProvider = rememberDriveLines(trips.size, axes.yMin),
                     rangeProvider =
                         remember(axes) { axes.rangeProvider() },
                 ),
@@ -155,9 +133,9 @@ internal fun RangeChart(
                         itemPlacer = remember { InteriorLabels(HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = false)) },
                     ),
                 decorations =
-                    remember(regenBands, points, pin, cursor) {
+                    remember(regenRuns, points, pin, cursor) {
                         listOf(
-                            RegenBands(regenBands, chargingChartColor),
+                            RegenBands(regenRuns, chargingChartColor),
                             ScrubCursor(pin, cursor, points.map { it.distance to it.value.toDouble() }, driveChartColor),
                         )
                     },
@@ -166,7 +144,7 @@ internal fun RangeChart(
             )
         CartesianChartHost(
             chart = chart,
-            model = remember(trips, regenPoints) { rangeModel(trips, regenPoints) },
+            model = remember(trips) { rangeModel(trips) },
             modifier = modifier.scrubbing(pin),
             scrollState = rememberVicoScrollState(scrollEnabled = false),
             zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content),
@@ -174,37 +152,26 @@ internal fun RangeChart(
     }
 }
 
-/** One series per trip of the battery percent over distance driven, then, when any, one series of the lone regenerating points. */
-private fun rangeModel(
-    trips: List<List<Plotted>>,
-    regenPoints: List<Plotted>,
-): CartesianChartModel =
+/** One series per trip of the battery percent over distance driven. */
+private fun rangeModel(trips: List<List<Plotted>>): CartesianChartModel =
     CartesianChartModel(
         LineCartesianLayerModel.build {
             trips.forEach { trip -> series(x = trip.map { it.distance }, y = trip.map { it.value }) }
-            if (regenPoints.isNotEmpty()) series(x = regenPoints.map { it.distance }, y = regenPoints.map { it.value })
         },
     )
 
-/** A stretch of regeneration: two adjacent regenerating readings and the plotted value at each. */
-private class RegenBand(
-    val fromDistance: Double,
-    val fromValue: Float,
-    val toDistance: Double,
-    val toValue: Float,
-)
-
-/** Green gradient between adjacent regenerating readings, filled from the battery curve down to the axis. */
+/**
+ * Green gradient under each stretch of regeneration, filled from the battery curve down to the axis. A stretch
+ * narrower than [MIN_REGEN_WIDTH] (a single reading, or readings at one odometer value) is widened around its
+ * centre so it never vanishes on a wide window.
+ */
 private class RegenBands(
-    private val bands: List<RegenBand>,
+    private val runs: List<List<Plotted>>,
     private val color: Color,
 ) : Decoration {
     override fun drawUnderLayers(context: CartesianDrawingContext) {
         with(context) {
-            fun xOf(distance: Double): Float = canvasX(distance)
-
-            fun yOf(value: Float): Float = canvasY(value.toDouble())
-
+            val minWidth = MIN_REGEN_WIDTH.pixels
             // Hoisted: inside Paint().apply, `color` would resolve to Paint.color.
             val top = color.copy(alpha = REGEN_TOP_ALPHA)
             val bottom = color.copy(alpha = REGEN_BOTTOM_ALPHA)
@@ -217,13 +184,25 @@ private class RegenBands(
                             colors = listOf(top, bottom),
                         )
                 }
-            bands.forEach { band ->
+            runs.forEach { run ->
+                // Left to right on screen, whichever way the layout runs.
+                val edge = run.map { Offset(canvasX(it.distance), canvasY(it.value.toDouble())) }.sortedBy { it.x }.toMutableList()
+                val first = edge.first()
+                val last = edge.last()
+                val shortfall = minWidth - (last.x - first.x)
+                if (shortfall > 0f) {
+                    // A single reading is both ends, so the widened copies are made before either is stored.
+                    val widenedFirst = first.copy(x = first.x - shortfall / 2)
+                    val widenedLast = last.copy(x = last.x + shortfall / 2)
+                    if (edge.size == 1) edge.add(widenedLast)
+                    edge[0] = widenedFirst
+                    edge[edge.lastIndex] = widenedLast
+                }
                 val path =
                     Path().apply {
-                        moveTo(xOf(band.fromDistance), layerBounds.bottom)
-                        lineTo(xOf(band.fromDistance), yOf(band.fromValue))
-                        lineTo(xOf(band.toDistance), yOf(band.toValue))
-                        lineTo(xOf(band.toDistance), layerBounds.bottom)
+                        moveTo(edge.first().x, layerBounds.bottom)
+                        edge.forEach { lineTo(it.x, it.y) }
+                        lineTo(edge.last().x, layerBounds.bottom)
                         close()
                     }
                 canvas.drawPath(path, paint)
@@ -247,6 +226,8 @@ internal val driveChartColor = Color(DRIVE_ORANGE_ARGB)
 
 private const val REGEN_TOP_ALPHA = 0.45f
 private const val REGEN_BOTTOM_ALPHA = 0.05f
+
+private val MIN_REGEN_WIDTH = 4.dp
 
 /**
  * The canvas x of a data x on the first layer, for decorations that draw between data points. Vico
