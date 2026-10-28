@@ -6,10 +6,10 @@ package com.dzid26.teslable.core.history
  * These runs with every waypoint leg folded into the run it interrupted. While a waypoint is
  * ahead the car names it as the destination, and once reached it names the next one again, so a
  * trip with stops arrives as A, B, A, or nested as A, B, C, B, A. A run that names a destination
- * seen before is the end of a waypoint span when every run between is a leg that reached its
- * destination, the earlier run had not quite reached its own, the later one drives on or has more
- * of the trip after it (not just the old destination named once while parked at the waypoint), and
- * each hand-over is within [ROUTE_FRESH_MILLIS].
+ * seen before is the end of a waypoint span when the earlier run had not quite reached its own
+ * destination (a waypoint dropped before it was reached counts too), the later one drives on or has
+ * more of the trip after it (not just the old destination named once while parked at the waypoint),
+ * and each hand-over is within [ROUTE_FRESH_MILLIS].
  */
 internal fun List<MutableList<RouteSample>>.withWaypointsMerged(): List<MutableList<RouteSample>> {
     val merged = mutableListOf<MutableList<RouteSample>>()
@@ -40,7 +40,6 @@ private fun waypointSpanStart(
         chain != null &&
             !chain.first().last().isAtDestination() &&
             resumes &&
-            chain.drop(1).dropLast(1).all { it.asTrip().arrived } &&
             chain.zipWithNext().all { (a, b) -> b.first().observedAtMillis() - a.last().observedAtMillis() <= ROUTE_FRESH_MILLIS }
     return start.takeIf { resumed }
 }
@@ -62,8 +61,6 @@ private fun List<RouteSample>.drivesOn(): Boolean {
     val end = last().odometerInHundredthsOfAMile
     return start == null || end == null || (end - start) / HUNDREDTHS_PER_MILE >= MIN_RESUMED_MILES
 }
-
-private fun List<RouteSample>.asTrip() = Trip(first(), last(), mapNotNull { it.milesToArrival }.maxOrNull())
 
 private const val HUNDREDTHS_PER_MILE = 100f
 

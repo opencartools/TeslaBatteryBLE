@@ -206,23 +206,23 @@ class TripTest {
         val trips =
             segmentTrips(
                 listOf(
-                    reading(0, 22f, "CUF Tejo", odometer = 231_500),
-                    reading(6, 20f, "CUF Tejo", odometer = 231_700),
-                    reading(12, 17.9f, "CUF Tejo", odometer = 231_900),
-                    reading(12, 5.7f, "Farmacia", odometer = 231_900),
-                    reading(21, 0.02f, "Farmacia", odometer = 232_100),
-                    reading(22, 12.5f, "CUF Tejo", odometer = 232_100),
-                    reading(30, 12.3f, "CUF Tejo", odometer = 232_100),
-                    reading(30, 1.8f, "Flor da Mata", odometer = 232_100),
-                    reading(37, 0.03f, "Flor da Mata", odometer = 232_290),
-                    reading(37, 10.6f, "CUF Tejo", odometer = 232_290),
-                    reading(42, 8f, "CUF Tejo", odometer = 232_500),
-                    reading(52, 5f, "CUF Tejo", odometer = 232_800),
-                    reading(59, 0.02f, "CUF Tejo", odometer = 233_360),
+                    reading(0, 22f, "Depot", odometer = 231_500),
+                    reading(6, 20f, "Depot", odometer = 231_700),
+                    reading(12, 17.9f, "Depot", odometer = 231_900),
+                    reading(12, 5.7f, "Shop A", odometer = 231_900),
+                    reading(21, 0.02f, "Shop A", odometer = 232_100),
+                    reading(22, 12.5f, "Depot", odometer = 232_100),
+                    reading(30, 12.3f, "Depot", odometer = 232_100),
+                    reading(30, 1.8f, "Shop B", odometer = 232_100),
+                    reading(37, 0.03f, "Shop B", odometer = 232_290),
+                    reading(37, 10.6f, "Depot", odometer = 232_290),
+                    reading(42, 8f, "Depot", odometer = 232_500),
+                    reading(52, 5f, "Depot", odometer = 232_800),
+                    reading(59, 0.02f, "Depot", odometer = 233_360),
                 ),
             )
         val trip = trips.single()
-        assertEquals("CUF Tejo", trip.destination)
+        assertEquals("Depot", trip.destination)
         assertEquals(18.6f, trip.distanceMiles!!, 0.01f)
     }
 
@@ -253,10 +253,26 @@ class TripTest {
                 listOf(
                     reading(0, 4f, "Work", odometer = 1_000),
                     reading(4, 1.1f, "Work", minutesLeft = 5.2f, odometer = 1_359),
-                    reading(5, 0.5f, "Post office", odometer = 1_360),
-                    reading(7, 0.02f, "Post office", odometer = 1_410),
+                    reading(5, 0.5f, "Shop", odometer = 1_360),
+                    reading(7, 0.02f, "Shop", odometer = 1_410),
                     reading(8, 0.9f, "Work", odometer = 1_410),
                     reading(11, 0.02f, "Work", odometer = 1_466),
+                ),
+            )
+        assertEquals(listOf("Work"), trips.map { it.destination })
+    }
+
+    @Test
+    fun `a waypoint dropped before it is reached is still inside the trip`() {
+        val trips =
+            segmentTrips(
+                listOf(
+                    reading(0, 10f, "Work", odometer = 1_000),
+                    reading(4, 7f, "Work", odometer = 1_300),
+                    reading(5, 3f, "Shop", odometer = 1_300),
+                    reading(8, 2f, "Shop", odometer = 1_400),
+                    reading(9, 5f, "Work", odometer = 1_400),
+                    reading(14, 0.02f, "Work", odometer = 1_900),
                 ),
             )
         assertEquals(listOf("Work"), trips.map { it.destination })
@@ -269,13 +285,13 @@ class TripTest {
                 listOf(
                     reading(0, 8f, "Home", odometer = 1_000),
                     reading(5, 4f, "Home", odometer = 1_400),
-                    reading(5, 2f, "Lidl", odometer = 1_400),
-                    reading(9, 0.02f, "Lidl", odometer = 1_620),
+                    reading(5, 2f, "Shop", odometer = 1_400),
+                    reading(9, 0.02f, "Shop", odometer = 1_620),
                     reading(10, 2.2f, "Home", odometer = 1_620),
                     reading(11, 2.2f, "Home", odometer = 1_621),
                 ),
             )
-        assertEquals(listOf("Home", "Lidl"), trips.map { it.destination })
+        assertEquals(listOf("Home", "Shop"), trips.map { it.destination })
     }
 
     @Test
