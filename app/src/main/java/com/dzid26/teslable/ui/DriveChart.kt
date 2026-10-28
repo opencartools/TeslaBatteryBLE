@@ -42,16 +42,20 @@ import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 
 /**
- * One orange line per trip with its gradient. Regeneration is not a series of
- * its own: it is the green bands drawn under the lines.
+ * One orange line per trip with its gradient and, when any reading was
+ * regenerating, a line-less series of one green dot per regen stretch drawn
+ * over them, so the colour never depends on the odometer value a point
+ * happens to share. The stretches themselves are the bands under the lines.
  */
 @Composable
 private fun rememberDriveLines(
     tripCount: Int,
+    hasRegen: Boolean,
     yMin: Double,
 ): LineCartesianLayer.LineProvider {
     val lineColor = driveChartColor
     val linePoint = rememberPoint(lineColor)
+    val regenPoint = rememberPoint(chargingChartColor)
     val driveLine =
         LineCartesianLayer.rememberLine(
             fill = remember(lineColor) { LineCartesianLayer.LineFill.single(Fill(lineColor)) },
@@ -64,7 +68,14 @@ private fun rememberDriveLines(
                 },
             pointProvider = remember(linePoint) { LineCartesianLayer.PointProvider.single(linePoint) },
         )
-    return remember(tripCount, driveLine) { LineCartesianLayer.LineProvider.series(List(tripCount) { driveLine }) }
+    val regenLine =
+        LineCartesianLayer.rememberLine(
+            fill = remember { LineCartesianLayer.LineFill.single(Fill(Color.Transparent)) },
+            pointProvider = remember(regenPoint) { LineCartesianLayer.PointProvider.single(regenPoint) },
+        )
+    return remember(tripCount, hasRegen, driveLine, regenLine) {
+        LineCartesianLayer.LineProvider.series(List(tripCount) { driveLine } + if (hasRegen) listOf(regenLine) else emptyList())
+    }
 }
 
 /** Where the drive chart's cursor starts; set by the Paparazzi snapshots, which cannot touch the chart. */
@@ -105,9 +116,12 @@ internal fun RangeChart(
     pin: CursorPin = LocalDriveCursor.current ?: rememberCursorPin(),
 ) {
     val axes = remember(points) { axisSpec(points) }
-    // A trip of one reading has no line to draw, so it is dropped from the trip series; a regen band still marks it.
+    // A trip of one reading has no line to draw; its point still shows as a regen dot if it regenerates, so it is
+    // dropped from the trip series only.
     val trips = remember(points) { points.groupBy { it.trip }.values.filter { it.size >= 2 } }
     val regenRuns = remember(points) { regenRuns(points) }
+    // One dot per stretch, on its middle reading, so a long regen never buries the orange dots.
+    val regenDots = remember(regenRuns) { regenRuns.map { it[it.size / 2] } }
     val unit = LocalDistanceUnit.current
     val distanceFormatter = remember(unit) { CartesianValueFormatter { _, value, _ -> formatDistance(value, unit) } }
     val yFormatter = remember { CartesianValueFormatter { _, value, _ -> formatWholePercent(value.toFloat()) } }
@@ -118,7 +132,7 @@ internal fun RangeChart(
         val chart =
             rememberCartesianChart(
                 rememberLineCartesianLayer(
-                    lineProvider = rememberDriveLines(trips.size, axes.yMin),
+                    lineProvider = rememberDriveLines(trips.size, regenDots.isNotEmpty(), axes.yMin),
                     rangeProvider =
                         remember(axes) { axes.rangeProvider() },
                 ),
@@ -144,7 +158,7 @@ internal fun RangeChart(
             )
         CartesianChartHost(
             chart = chart,
-            model = remember(trips) { rangeModel(trips) },
+            model = remember(trips, regenDots) { rangeModel(trips, regenDots) },
             modifier = modifier.scrubbing(pin),
             scrollState = rememberVicoScrollState(scrollEnabled = false),
             zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content),
@@ -152,11 +166,15 @@ internal fun RangeChart(
     }
 }
 
-/** One series per trip of the battery percent over distance driven. */
-private fun rangeModel(trips: List<List<Plotted>>): CartesianChartModel =
+/** One series per trip of the battery percent over distance driven, then, when any, one series of the regen dots. */
+private fun rangeModel(
+    trips: List<List<Plotted>>,
+    regenDots: List<Plotted>,
+): CartesianChartModel =
     CartesianChartModel(
         LineCartesianLayerModel.build {
             trips.forEach { trip -> series(x = trip.map { it.distance }, y = trip.map { it.value }) }
+            if (regenDots.isNotEmpty()) series(x = regenDots.map { it.distance }, y = regenDots.map { it.value })
         },
     )
 
