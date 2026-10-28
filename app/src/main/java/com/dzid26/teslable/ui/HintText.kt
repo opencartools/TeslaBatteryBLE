@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 import com.dzid26.teslable.core.history.DischargeProjection
@@ -132,12 +133,15 @@ internal fun ParkedProjectionLine(
 ) {
     val rates = parkedRates(projection, androidx.compose.ui.text.intl.Locale.current.platformLocale)
     val beam = projection.beam?.takeIf { (low, high) -> low.roundToInt() != high.roundToInt() }
+    // Figures like "57–59%" start with a digit: without a strong character the RTL layout would
+    // set them right to left and scramble them. Fall back to LTR instead of to the layout.
+    val style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.ContentOrLtr)
     val horizon = parkedHorizon(projection.horizonMillis)
     val horizonText = stringResource(if (horizon.days) R.string.history_days else R.string.history_hours, horizon.amount)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = stringResource(R.string.history_parked_projected),
-            style = MaterialTheme.typography.bodySmall,
+            style = style,
             color = color,
         )
         if (beam != null) {
@@ -145,17 +149,18 @@ internal fun ParkedProjectionLine(
                 text = stringResource(R.string.history_parked_range, beam.first.roundToInt(), beam.second.roundToInt()),
                 hint = stringResource(R.string.history_parked_range_hint),
                 color = color,
+                style = style,
             )
         } else {
             Text(
                 text = stringResource(R.string.history_parked_value, projection.projectedPercent),
-                style = MaterialTheme.typography.bodySmall,
+                style = style,
                 color = color,
             )
         }
         Text(
             text = stringResource(R.string.history_parked_in, horizonText),
-            style = MaterialTheme.typography.bodySmall,
+            style = style,
             color = color,
         )
         HintText(
@@ -171,6 +176,7 @@ internal fun ParkedProjectionLine(
                     if (rates.asleep) R.string.history_parked_rate_hint_asleep else R.string.history_parked_rate_hint_mixed,
                 ),
             color = color,
+            style = style,
         )
     }
 }

@@ -245,9 +245,11 @@ internal val driveChartColor = Color(DRIVE_ORANGE_ARGB)
 private const val REGEN_TOP_ALPHA = 0.45f
 private const val REGEN_BOTTOM_ALPHA = 0.05f
 
-/** The canvas x of a data x on the first layer, for decorations that draw between data points. */
-internal fun CartesianDrawingContext.canvasX(x: Double): Float =
-    layerBounds.left + layerDimensions.startPadding - scroll + layerDimensions.xSpacing * ((x - ranges.minX) / ranges.xStep).toFloat()
+/**
+ * The canvas x of a data x on the first layer, for decorations that draw between data points. Vico
+ * lays the layer out from the right edge in a right-to-left layout, so the offset runs from there.
+ */
+internal fun CartesianDrawingContext.canvasX(x: Double): Float = layerStartEdge() + layoutDirectionMultiplier * layerOffset(x)
 
 /** The canvas y of a data y on the first layer's y range. */
 internal fun CartesianDrawingContext.canvasY(y: Double): Float {
@@ -257,4 +259,10 @@ internal fun CartesianDrawingContext.canvasY(y: Double): Float {
 
 /** The data x on the first layer at a canvas x: the inverse of [canvasX]. */
 internal fun CartesianDrawingContext.dataX(canvasX: Float): Double =
-    ranges.minX + (canvasX - (layerBounds.left + layerDimensions.startPadding - scroll)) / layerDimensions.xSpacing * ranges.xStep
+    ranges.minX + (layoutDirectionMultiplier * (canvasX - layerStartEdge()) - (layerDimensions.startPadding - scroll)) /
+        layerDimensions.xSpacing * ranges.xStep
+
+private fun CartesianDrawingContext.layerStartEdge(): Float = if (isLtr) layerBounds.left else layerBounds.right
+
+private fun CartesianDrawingContext.layerOffset(x: Double): Float =
+    layerDimensions.startPadding - scroll + layerDimensions.xSpacing * ((x - ranges.minX) / ranges.xStep).toFloat()

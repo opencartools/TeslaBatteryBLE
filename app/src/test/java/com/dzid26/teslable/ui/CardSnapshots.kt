@@ -18,6 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
 import app.cash.paparazzi.DeviceConfig
@@ -490,6 +492,22 @@ class CardSnapshots {
     }
 
     @Test
+    fun historyCardChargingProjectionRtl() {
+        // The same chart mirrored, on the six hour range with a wide supply swing so the beams are
+        // big enough to see: the beam and the line must still meet.
+        snapCard("history-card_charging-projection-rtl") {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                BatteryHistoryCard(
+                    samples = wideBeamSamples,
+                    drives = parkedSamples.map { parkedDrive(it) },
+                    nowMillis = NOW,
+                    initialRange = HistoryRange.SIX_HOURS,
+                )
+            }
+        }
+    }
+
+    @Test
     fun historyCardParkedDrainRange() {
         // A slow parked drain (about 1.6 %/day) read on the rated range: a fitted scale turns
         // the level steps into sub-percent readings, so the line is smooth and the beam is thin.
@@ -577,33 +595,40 @@ class CardSnapshots {
     @Test
     fun driveCardCursor() = snapDrive("drive-card_cursor", pricePerKwh = 0.30f, cursorX = 25.0)
 
+    // Mirrored: the regen bands and the cursor must stay on their readings.
+    @Test
+    fun driveCardCursorRtl() = snapDrive("drive-card_cursor-rtl", pricePerKwh = 0.30f, cursorX = 25.0, rtl = true)
+
     // A pinned scale but no home price: the percent per distance stands in for the cost per distance.
     @Test
     fun driveCardUnpriced() = snapDrive("drive-card_unpriced")
 
     // No scale yet: whole-percent steps, so the used figure carries the hint and only the percent rate shows.
     @Test
-    fun driveCardUnlearned() = snapDrive("drive-card_unlearned", scale = null, ratedKwhPerMile = null)
+    fun driveCardUnlearned() = snapDrive("drive-card_unlearned", scale = null)
 
     private fun snapDrive(
         name: String,
         pricePerKwh: Float? = null,
         scale: FullRangeScale? = demoTripScale,
-        ratedKwhPerMile: Float? = 0.25f,
         cursorX: Double? = null,
+        // Mirrored, with the regen stretch moved to the start so a mirrored band lands far from where it belongs.
+        rtl: Boolean = false,
     ) = snapCard(name) {
         val cursor = cursorX?.let { remember { CursorPin(restoredX = it) } }
         CompositionLocalProvider(
             LocalPricePerKwh provides pricePerKwh,
             LocalCurrencyCode provides "USD",
             LocalDriveCursor provides cursor,
+            LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
         ) {
             DriveHistoryCard(
                 samples = driveSamples(),
-                drives = driveReadings(),
+                drives = driveReadings(power = if (rtl) regenFirstPower else drivePower),
                 initialWindow = DriveWindow.SINCE_CHARGE,
                 scale = scale,
-                ratedKwhPerMile = ratedKwhPerMile,
+                // The rated constant is learnt along with the scale.
+                ratedKwhPerMile = if (scale != null) 0.25f else null,
             )
         }
     }
@@ -933,6 +958,11 @@ class CardSnapshots {
                     projectionSample(0L, 61, charging = true, ratedMiles = 183f).copy(chargerVoltage = 232),
                 )
 
+        private val wideBeamSamples =
+            chargingSamples.map { sample ->
+                sample.chargerVoltage?.let { sample.copy(chargerVoltage = 232 + (it - 232) * 3) } ?: sample
+            }
+
         private val fullSamples =
             listOf(
                 projectionSample(20 * 60L, 98, charging = false, ratedMiles = 294f),
@@ -1157,17 +1187,21 @@ class CardSnapshots {
             )
         }
 
-        private fun driveReadings(minutesEarlier: Long = 0L) =
-            driveMinutes.mapIndexed { index, minutesAgo ->
-                DriveSample(
-                    timestampMillis = NOW - (minutesAgo + minutesEarlier) * MINUTE + 1_000,
-                    vehicleId = BLE_NAME,
-                    shiftState = driveShifts[index],
-                    speed = null,
-                    power = drivePower[index],
-                    odometerInHundredthsOfAMile = driveOdometers[index],
-                )
-            }
+        private val regenFirstPower = listOf(0, -25, -20, 10, 30, 0, 0)
+
+        private fun driveReadings(
+            minutesEarlier: Long = 0L,
+            power: List<Int> = drivePower,
+        ) = driveMinutes.mapIndexed { index, minutesAgo ->
+            DriveSample(
+                timestampMillis = NOW - (minutesAgo + minutesEarlier) * MINUTE + 1_000,
+                vehicleId = BLE_NAME,
+                shiftState = driveShifts[index],
+                speed = null,
+                power = power[index],
+                odometerInHundredthsOfAMile = driveOdometers[index],
+            )
+        }
 
         // A charge five days before the newest reading, with nothing recorded
         // in between: the stats must name the charge (47%, five days ago) and
