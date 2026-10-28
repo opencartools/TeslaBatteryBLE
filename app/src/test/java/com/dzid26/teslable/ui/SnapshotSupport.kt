@@ -27,6 +27,9 @@ private val jellyStar =
         density = Density.XHIGH,
     )
 
+/** The Jelly Star at its real height (480x854 px), for screens that must fit without a tall canvas. */
+internal val jellyStarScreen = jellyStar.copy(screenHeight = 854)
+
 /**
  * One state, three images: the card in the fixed light scheme and in the
  * fixed dark scheme, plus a narrow Jelly Star render in light, all

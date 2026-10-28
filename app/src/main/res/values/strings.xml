@@ -51,7 +51,7 @@
     <string name="settings_price_per_kwh">Price per kWh (%1$s)</string>
     <string name="settings_version">TeslaBatteryBLE version: %1$s</string>
     <string name="perm_nearby_title">Allow nearby devices</string>
-    <string name="perm_nearby_why">Lets the app find your Tesla over Bluetooth and open the encrypted link to read its battery state. This is Android\'s "Nearby devices" permission; it does not use your location.</string>
+    <string name="perm_nearby_why">Lets the app find your Tesla over Bluetooth and open the encrypted link to read its battery state. This is Android\'s \"Nearby devices\" permission; it does not use your location.</string>
     <string name="perm_location_title">Allow location access</string>
     <string name="perm_location_why">Android 11 and older only allow Bluetooth scanning with location permission. The app never reads your location, and nothing leaves the phone.</string>
     <string name="perm_notifications_dnd">If you use Do Not Disturb while driving, add this app to its exceptions so trip notifications still pop up.</string>
