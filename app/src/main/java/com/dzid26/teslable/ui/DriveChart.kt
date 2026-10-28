@@ -179,9 +179,8 @@ private fun rangeModel(
     )
 
 /**
- * Green gradient under each stretch of regeneration, filled from the battery curve down to the axis. A stretch
- * narrower than [MIN_REGEN_WIDTH] (a single reading, or readings at one odometer value) is widened around its
- * centre so it never vanishes on a wide window.
+ * Green gradient under each stretch of regeneration, filled from the battery curve down to the axis, at its true
+ * width. A single reading, or readings at one odometer value, have none and are marked by their dot alone.
  */
 private class RegenBands(
     private val runs: List<List<Plotted>>,
@@ -189,7 +188,6 @@ private class RegenBands(
 ) : Decoration {
     override fun drawUnderLayers(context: CartesianDrawingContext) {
         with(context) {
-            val minWidth = MIN_REGEN_WIDTH.pixels
             // Hoisted: inside Paint().apply, `color` would resolve to Paint.color.
             val top = color.copy(alpha = REGEN_TOP_ALPHA)
             val bottom = color.copy(alpha = REGEN_BOTTOM_ALPHA)
@@ -204,18 +202,7 @@ private class RegenBands(
                 }
             runs.forEach { run ->
                 // Left to right on screen, whichever way the layout runs.
-                val edge = run.map { Offset(canvasX(it.distance), canvasY(it.value.toDouble())) }.sortedBy { it.x }.toMutableList()
-                val first = edge.first()
-                val last = edge.last()
-                val shortfall = minWidth - (last.x - first.x)
-                if (shortfall > 0f) {
-                    // A single reading is both ends, so the widened copies are made before either is stored.
-                    val widenedFirst = first.copy(x = first.x - shortfall / 2)
-                    val widenedLast = last.copy(x = last.x + shortfall / 2)
-                    if (edge.size == 1) edge.add(widenedLast)
-                    edge[0] = widenedFirst
-                    edge[edge.lastIndex] = widenedLast
-                }
+                val edge = run.map { Offset(canvasX(it.distance), canvasY(it.value.toDouble())) }.sortedBy { it.x }
                 val path =
                     Path().apply {
                         moveTo(edge.first().x, layerBounds.bottom)
@@ -244,8 +231,6 @@ internal val driveChartColor = Color(DRIVE_ORANGE_ARGB)
 
 private const val REGEN_TOP_ALPHA = 0.45f
 private const val REGEN_BOTTOM_ALPHA = 0.05f
-
-private val MIN_REGEN_WIDTH = 4.dp
 
 /**
  * The canvas x of a data x on the first layer, for decorations that draw between data points. Vico
