@@ -10,3 +10,11 @@ internal class Plotted(
     val trip: Int,
     val timestampMillis: Long,
 )
+
+/** The regenerating points with no regenerating neighbour in their trip, so no band covers them. */
+internal fun loneRegenPoints(points: List<Plotted>): List<Plotted> =
+    points.filterIndexed { i, point ->
+        point.regenerating &&
+            points.getOrNull(i - 1)?.let { it.trip == point.trip && it.regenerating } != true &&
+            points.getOrNull(i + 1)?.let { it.trip == point.trip && it.regenerating } != true
+    }

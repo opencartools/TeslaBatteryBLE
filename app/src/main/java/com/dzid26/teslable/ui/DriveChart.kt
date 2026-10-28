@@ -42,9 +42,10 @@ import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 
 /**
- * One orange line per trip with its gradient, and, when any reading was
- * regenerating, a line-less series of those points in green drawn over them,
- * so the colour never depends on the odometer value a point happens to share.
+ * One orange line per trip with its gradient, and, when any regenerating
+ * reading stands alone, a line-less series of those points in green drawn over
+ * them, so the colour never depends on the odometer value a point happens to
+ * share.
  */
 @Composable
 private fun rememberDriveLines(
@@ -115,10 +116,12 @@ internal fun RangeChart(
     pin: CursorPin = LocalDriveCursor.current ?: rememberCursorPin(),
 ) {
     val axes = remember(points) { axisSpec(points) }
-    // A trip of one reading has no line to draw; its point still shows as a
-    // regen point, so it is dropped from the trip series only.
+    // A trip of one reading has no line to draw; its point still shows as a regen dot if it regenerates, so it is
+    // dropped from the trip series only.
     val trips = remember(points) { points.groupBy { it.trip }.values.filter { it.size >= 2 } }
-    val regenPoints = remember(points) { points.filter { it.regenerating } }
+    // A stretch of regeneration is drawn as a band, so only a lone regenerating reading, which has no band, gets a
+    // green dot; every other reading stays orange.
+    val regenPoints = remember(points) { loneRegenPoints(points) }
     // Adjacent regenerating readings of one trip bound a stretch of regeneration.
     val regenBands =
         remember(points) {
@@ -171,7 +174,7 @@ internal fun RangeChart(
     }
 }
 
-/** One series per trip of the battery percent over distance driven, then, when any, one series of the regenerating points. */
+/** One series per trip of the battery percent over distance driven, then, when any, one series of the lone regenerating points. */
 private fun rangeModel(
     trips: List<List<Plotted>>,
     regenPoints: List<Plotted>,

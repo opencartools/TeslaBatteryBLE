@@ -41,4 +41,24 @@ class DriveChartAxisTest {
     fun cursorTextJoinsPercentDistanceAndTime() {
         assertEquals("71.4% · 12.3mi · Oct 26 14:05", driveCursorText(71.4f, "12.3mi", "Oct 26 14:05"))
     }
+
+    @Test
+    fun onlyALoneRegeneratingReadingGetsAGreenDot() {
+        fun at(
+            i: Int,
+            regen: Boolean,
+            trip: Int = 0,
+        ) = Plotted(i * 10.0, 60f, regenerating = regen, trip = trip, timestampMillis = 0)
+        val points =
+            listOf(
+                at(0, regen = true), // starts a stretch with the next
+                at(1, regen = true),
+                at(2, regen = false),
+                at(3, regen = true), // alone
+                at(4, regen = false),
+                at(5, regen = true, trip = 0), // next to a regenerating reading of another trip
+                at(6, regen = true, trip = 1),
+            )
+        assertEquals(listOf(points[3], points[5], points[6]), loneRegenPoints(points))
+    }
 }
