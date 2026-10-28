@@ -28,7 +28,10 @@ class OnboardingSnapshots {
         )
 
     @Test
-    fun onboardingGreeting() = snapOnboarding("onboarding_greeting") { PermissionWizardGreeting(onContinue = {}, onDismiss = {}) }
+    fun onboardingGreeting() =
+        snapOnboarding("onboarding_greeting", jellyStarHeight = JELLY_STAR_GREETING_HEIGHT) {
+            PermissionWizardGreeting(onContinue = {}, onDismiss = {})
+        }
 
     @Test
     fun onboardingNearby() = snapOnboarding("onboarding_nearby") { page(0) }
@@ -63,6 +66,7 @@ class OnboardingSnapshots {
 
     private fun snapOnboarding(
         name: String,
+        jellyStarHeight: Int = JELLY_STAR_PAGE_HEIGHT,
         content: @Composable () -> Unit,
     ) {
         paparazzi.unsafeUpdateConfig(
@@ -73,7 +77,7 @@ class OnboardingSnapshots {
         paparazzi.snapshot(name + "_dark") { ScreenFrame(darkTheme = true, content = content) }
         // The narrow Jelly Star width on a tall canvas, so the whole page and its buttons show.
         paparazzi.unsafeUpdateConfig(
-            deviceConfig = jellyStar.copy(screenHeight = JELLY_STAR_PAGE_HEIGHT),
+            deviceConfig = jellyStar.copy(screenHeight = jellyStarHeight),
             renderingMode = SessionParams.RenderingMode.NORMAL,
         )
         paparazzi.snapshot(name + "_jelly_light") { ScreenFrame(darkTheme = false, content = content) }
@@ -82,5 +86,8 @@ class OnboardingSnapshots {
     private companion object {
         /** Tall enough for the longest page at 240dp wide, where the text wraps a lot, so its buttons show. */
         const val JELLY_STAR_PAGE_HEIGHT = 1700
+
+        /** The greeting is much shorter, so a canvas this tall would leave a void above its buttons. */
+        const val JELLY_STAR_GREETING_HEIGHT = 1250
     }
 }
