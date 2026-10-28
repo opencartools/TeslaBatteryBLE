@@ -18,6 +18,7 @@ import com.dzid26.teslable.core.health.tripEstimate
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.RouteSample
+import com.dzid26.teslable.core.history.TRIP_END_GAP_MILLIS
 import com.dzid26.teslable.core.history.activeRoute
 import com.dzid26.teslable.core.history.compactDuration
 import com.dzid26.teslable.core.history.trafficMinutes
@@ -82,8 +83,6 @@ internal class TripAlerts {
         return !sameTrip
     }
 }
-
-private const val TRIP_END_GAP_MILLIS = 2 * 60_000L
 
 /** The route-independent inputs of [tripEstimate] for one car, fitted from its history. */
 internal data class TripInputs(

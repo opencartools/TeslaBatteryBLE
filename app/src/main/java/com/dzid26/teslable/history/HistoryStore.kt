@@ -333,12 +333,16 @@ class HistoryStore internal constructor(
                     routeReadings[vehicleId] = readings
                     _trips.value = _trips.value + (vehicleId to segmentTrips(readings).takeLast(MAX_TRIPS))
                 }
-                // A reply without a route ends the trip: the card never outlives the navigation.
+                // A reply without a route ends the trip, but the last route stays for [TRIP_END_GAP_MILLIS] more
+                // (see activeRoute), stamped with when the car stopped reporting it.
+                val previous = _latestRoutes.value[vehicleId]
+                val phoneNow = deviceTimestamp.toEpochMilli()
                 _latestRoutes.value =
-                    if (route != null) {
-                        _latestRoutes.value + (vehicleId to route.continuing(_latestRoutes.value[vehicleId]))
-                    } else {
-                        _latestRoutes.value - vehicleId
+                    when {
+                        // A reading that follows within the gap resumes the same trip; after it, a new one starts.
+                        route != null -> _latestRoutes.value + (vehicleId to route.continuing(previous?.takeIf { it.isHeldAt(phoneNow) }))
+                        previous == null || previous.endedAtMillis != null -> _latestRoutes.value
+                        else -> _latestRoutes.value + (vehicleId to previous.copy(endedAtMillis = phoneNow))
                     }
             }
         }
