@@ -211,7 +211,7 @@ private class ReadingDots(
 ) : Decoration {
     override fun drawOverLayers(context: CartesianDrawingContext) {
         with(context) {
-            val radius = DOT_SIZE.pixels / 2
+            val radius = CHART_DOT_SIZE.pixels / 2
             // Hoisted: inside Paint().apply, `color` would resolve to Paint.color.
             val normal = color
             val regen = regenColor
@@ -231,13 +231,14 @@ private class ReadingDots(
 @Composable
 internal fun rememberPoint(
     color: Color,
-    size: Dp = 5.dp,
+    size: Dp = CHART_DOT_SIZE,
 ): LineCartesianLayer.Point {
     val component = rememberShapeComponent(fill = Fill(color), shape = CircleShape)
     return remember(component) { LineCartesianLayer.Point(component, size = size) }
 }
 
-private val DOT_SIZE = 5.dp
+/** The size of every dot on the history and drive charts. */
+internal val CHART_DOT_SIZE = 5.dp
 
 private const val DRIVE_ORANGE_ARGB = 0xFFF28C28
 
