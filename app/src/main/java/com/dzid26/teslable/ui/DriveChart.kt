@@ -39,35 +39,19 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
 import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
-import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 
 /**
- * One orange line per trip with its gradient. Each point is orange, or green when that reading was regenerating, so
- * the dots keep their time order along the line instead of one colour covering the other. A regenerating reading that
- * held the rated range is the green gradient under the lines.
+ * One plain orange line per trip with its gradient. The readings are drawn on top of it by [ReadingDots], so a
+ * regenerating reading is green in its own time order. A regenerating reading that held the rated range is the
+ * green gradient under the lines.
  */
 @Composable
 private fun rememberDriveLines(
-    regenKeys: Set<Pair<Double, Double>>,
     tripCount: Int,
     yMin: Double,
 ): LineCartesianLayer.LineProvider {
     val lineColor = driveChartColor
-    val linePoint = rememberPoint(lineColor)
-    val regenPoint = rememberPoint(chargingChartColor)
-    val pointProvider =
-        remember(linePoint, regenPoint, regenKeys) {
-            object : LineCartesianLayer.PointProvider {
-                override fun getPoint(
-                    entry: LineCartesianLayerModel.Entry,
-                    seriesIndex: Int,
-                    extraStore: ExtraStore,
-                ) = if ((entry.x to entry.y) in regenKeys) regenPoint else linePoint
-
-                override fun getLargestPoint(extraStore: ExtraStore) = linePoint
-            }
-        }
     val driveLine =
         LineCartesianLayer.rememberLine(
             fill = remember(lineColor) { LineCartesianLayer.LineFill.single(Fill(lineColor)) },
@@ -78,7 +62,7 @@ private fun rememberDriveLines(
                         splitY = { yMin },
                     )
                 },
-            pointProvider = pointProvider,
+            pointProvider = null,
         )
     return remember(tripCount, driveLine) { LineCartesianLayer.LineProvider.series(List(tripCount) { driveLine }) }
 }
@@ -125,7 +109,6 @@ internal fun RangeChart(
     // The gradient marks a regen reading with no drop in rated range from the previous or to the next reading;
     // at one odometer value it has no width.
     val regenBands = remember(points) { regenHolds(points).filter { it.first().distance != it.last().distance } }
-    val regenKeys = remember(points) { points.filter { it.regenerating }.mapTo(HashSet()) { it.distance to it.value.toDouble() } }
     val unit = LocalDistanceUnit.current
     val distanceFormatter = remember(unit) { CartesianValueFormatter { _, value, _ -> formatDistance(value, unit) } }
     val yFormatter = remember { CartesianValueFormatter { _, value, _ -> formatWholePercent(value.toFloat()) } }
@@ -136,7 +119,7 @@ internal fun RangeChart(
         val chart =
             rememberCartesianChart(
                 rememberLineCartesianLayer(
-                    lineProvider = rememberDriveLines(regenKeys, trips.size, axes.yMin),
+                    lineProvider = rememberDriveLines(trips.size, axes.yMin),
                     rangeProvider =
                         remember(axes) { axes.rangeProvider() },
                 ),
@@ -154,6 +137,7 @@ internal fun RangeChart(
                     remember(regenBands, points, pin, cursor) {
                         listOf(
                             RegenBands(regenBands, chargingChartColor),
+                            ReadingDots(points, driveChartColor, chargingChartColor),
                             ScrubCursor(pin, cursor, points.map { it.distance to it.value.toDouble() }, driveChartColor),
                         )
                     },
@@ -216,6 +200,29 @@ private class RegenBands(
     }
 }
 
+/**
+ * Every reading as a dot in time order, green when it was regenerating and orange otherwise. Drawn from the readings
+ * themselves rather than by looking their position up, so two readings at one spot can never swap colours.
+ */
+private class ReadingDots(
+    private val points: List<Plotted>,
+    private val color: Color,
+    private val regenColor: Color,
+) : Decoration {
+    override fun drawOverLayers(context: CartesianDrawingContext) {
+        with(context) {
+            val radius = DOT_SIZE.pixels / 2
+            points.forEach {
+                canvas.drawCircle(
+                    Offset(canvasX(it.distance), canvasY(it.value.toDouble())),
+                    radius,
+                    Paint().apply { this.color = if (it.regenerating) regenColor else color },
+                )
+            }
+        }
+    }
+}
+
 @Composable
 internal fun rememberPoint(
     color: Color,
@@ -224,6 +231,8 @@ internal fun rememberPoint(
     val component = rememberShapeComponent(fill = Fill(color), shape = CircleShape)
     return remember(component) { LineCartesianLayer.Point(component, size = size) }
 }
+
+private val DOT_SIZE = 5.dp
 
 private const val DRIVE_ORANGE_ARGB = 0xFFF28C28
 
