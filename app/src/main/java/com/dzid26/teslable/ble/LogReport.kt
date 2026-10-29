@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 
 /** The shared log text: the phone and permission state first, then the app log, oldest line first. */
 fun formatLogReport(
@@ -33,7 +34,7 @@ fun deviceReportHeader(context: Context): List<String> {
         "App: ${context.packageName} ${appVersion ?: "unknown"}",
         "Phone: ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
         "Bluetooth: ${if (bluetooth?.isEnabled == true) "on" else "off or unavailable"}",
-        "System location: ${if (location?.isLocationEnabled == true) "on" else "off"}",
+        "System location: ${if (location?.let(LocationManagerCompat::isLocationEnabled) == true) "on" else "off"}",
     ) + reportedPermissions().map { "${it.substringAfterLast('.')}: ${grantedLabel(context, it)}" }
 }
 
