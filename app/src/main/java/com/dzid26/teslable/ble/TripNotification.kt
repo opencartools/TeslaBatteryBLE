@@ -193,8 +193,9 @@ internal fun NotificationCompat.Builder.showTrip(
 
 /**
  * The bar: [TRIP_BAR_MAX] units for the whole trip. The part already driven is dimmed on the left and the part still
- * to go is in the accent color on the right; the arrow sits where the car is.
- * Styling by progress is off, or the platform would fade the part still to go.
+ * to go is in the accent color on the right; the arrow sits where the car is. Its icon has no margin left of the tail
+ * (see ic_driving_tracker_notification), so at the start no accent shows left of it. Styling by progress is off, or
+ * the platform would fade the part still to go.
  */
 private fun progressStyle(
     context: Context,
@@ -209,7 +210,7 @@ private fun progressStyle(
             .ProgressStyle()
             .setProgress(driven)
             .setStyledByProgress(false)
-            .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_driving_tracker))
+            .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_driving_tracker_notification))
     if (driven > 0) {
         style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(driven).setColor(dimmed))
     }

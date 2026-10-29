@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- The notification's trip bar arrow: ic_driving_tracker drawn 3.5dp toward the start (left, right in RTL), so its outlined tail touches the box's left edge. The platform can't place the tracker past the bar's start, so at 0% the box sits flush with it, and the arrow's own margin would show the to-go color left of the tail. The size stays 24dp, so the arrow is not squashed. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:drawable="@drawable/ic_driving_tracker"
+        android:start="-3.5dp"
+        android:end="3.5dp" />
+</layer-list>
