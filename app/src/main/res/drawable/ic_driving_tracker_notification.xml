@@ -1,25 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- The notification's trip bar arrow: ic_driving_tracker moved left until its outlined tail touches the box's left edge. The platform can't place the tracker past the bar's start, so at 0% the box sits flush with it, and the arrow's own margin would show the to-go color left of the tail. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24"
-    android:autoMirrored="true">
-    <group android:translateX="-3.5">
-        <group
-            android:pivotX="12"
-            android:pivotY="12"
-            android:rotation="90">
-            <path
-                android:fillColor="#FFFFFFFF"
-                android:pathData="M12,5L6.5,18.29l0.71,0.71L12,17l4.79,2 0.71,-0.71z"
-                android:strokeColor="#FFFFFFFF"
-                android:strokeLineJoin="round"
-                android:strokeWidth="3" />
-            <path
-                android:fillColor="#FFE31937"
-                android:pathData="M12,5L6.5,18.29l0.71,0.71L12,17l4.79,2 0.71,-0.71z" />
-        </group>
-    </group>
-</vector>
+<!-- The notification's trip bar arrow: ic_driving_tracker drawn 3.5dp toward the start (left, right in RTL), so its outlined tail touches the box's left edge. The platform can't place the tracker past the bar's start, so at 0% the box sits flush with it, and the arrow's own margin would show the to-go color left of the tail. The size stays 24dp, so the arrow is not squashed. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:drawable="@drawable/ic_driving_tracker"
+        android:start="-3.5dp"
+        android:end="3.5dp" />
+</layer-list>
