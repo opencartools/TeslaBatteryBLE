@@ -41,4 +41,30 @@ class DriveChartAxisTest {
     fun cursorTextJoinsPercentDistanceAndTime() {
         assertEquals("71.4% · 12.3mi · Oct 26 14:05", driveCursorText(71.4f, "12.3mi", "Oct 26 14:05"))
     }
+
+    @Test
+    fun aGradientMarksARegeneratingReadingThatHeldTheRatedRange() {
+        fun at(
+            i: Int,
+            miles: Float?,
+            regen: Boolean = true,
+            trip: Int = 0,
+        ) = Plotted(i * 10.0, 60f, regenerating = regen, trip = trip, timestampMillis = 0, ratedMiles = miles)
+        val points =
+            listOf(
+                at(0, 200f),
+                at(1, 199f), // drops
+                at(2, 199f), // holds
+                at(3, 199.5f), // rises
+                at(4, 199.5f, regen = false), // held, one end regenerates
+                at(5, 199.5f), // held, one end regenerates
+                at(6, null), // no rated range
+                at(7, 205f),
+                at(8, 205f, trip = 1), // new trip
+            )
+        assertEquals(
+            listOf(listOf(points[1], points[2]), listOf(points[2], points[3]), listOf(points[3], points[4]), listOf(points[4], points[5])),
+            regenHolds(points),
+        )
+    }
 }

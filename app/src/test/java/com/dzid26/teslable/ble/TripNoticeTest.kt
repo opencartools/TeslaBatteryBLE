@@ -60,12 +60,10 @@ class TripNoticeTest {
     }
 
     @Test
-    fun `the driven segment ends under the tracker icon's center, not at the raw progress`() {
-        // A 344dp bar and a 20dp icon: the icon's left edge slides over 324dp, so its center is 10dp in at the start.
-        assertEquals(29, drivenUnits(percent = 0, barWidthDp = 344))
-        assertEquals(500, drivenUnits(percent = 50, barWidthDp = 344))
-        assertEquals(971, drivenUnits(percent = 100, barWidthDp = 344))
-        // At 3%, the icon's center is at 0.03 * 324 + 10 = 19.7dp of 344dp.
-        assertEquals(57, drivenUnits(percent = 3, barWidthDp = 344))
+    fun `the notification bar always has a driven sliver, so no to-go color shows left of the arrow`() {
+        assertEquals(1, drivenUnits(0))
+        assertEquals(30, drivenUnits(3))
+        assertEquals(500, drivenUnits(50))
+        assertEquals(1000, drivenUnits(100))
     }
 }

@@ -42,10 +42,11 @@ import java.util.Locale
 /**
  * Battery percent over distance driven: the driving counterpart of the battery
  * history card, which plots percent over time. Percent is the sub-percent SOC
- * (the rated range over the fitted full range); points where the car was
- * regenerating are green. The window is the last 15, 50 or 150 km (10, 30 or
- * 100 mi) or everything since the last charge. Each trip is its own line, so a
- * charge or a long parked gap never gets a connecting stroke.
+ * (the rated range over the fitted full range); each regenerating reading is a green
+ * dot, and one that held the rated range (not lower than the reading before or after) is a green gradient. The window is the last 15,
+ * 50 or 150 km (10, 30 or 100 mi) or everything since the last charge. Each trip
+ * is its own line, so a charge or a long parked gap never gets a connecting
+ * stroke.
  */
 @Composable
 internal fun DriveHistoryCard(
@@ -75,6 +76,7 @@ internal fun DriveHistoryCard(
                             it.regenerating,
                             it.trip,
                             it.timestampMillis,
+                            it.ratedMiles,
                         )
                     },
                 used = points.totalDrop { it.socPercent },
