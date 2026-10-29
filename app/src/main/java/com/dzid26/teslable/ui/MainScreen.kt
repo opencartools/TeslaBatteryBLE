@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -670,12 +671,16 @@ internal fun LogCard(
                             .heightIn(max = maxContentHeight)
                             .verticalScroll(logScroll),
                 ) {
-                    log.takeLast(100).forEach { line ->
-                        Text(
-                            text = line.message,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                        )
+                    SelectionContainer {
+                        Column {
+                            log.takeLast(100).forEach { line ->
+                                Text(
+                                    text = line.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+                        }
                     }
                 }
             }
