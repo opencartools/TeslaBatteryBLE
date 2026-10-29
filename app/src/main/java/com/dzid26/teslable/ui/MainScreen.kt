@@ -37,6 +37,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -47,6 +48,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -628,31 +630,16 @@ internal fun LogCard(
     log: List<LogEntry>,
     maxContentHeight: Dp = 200.dp,
 ) {
-    val context = LocalContext.current
-    val chooserTitle = stringResource(R.string.log_share_chooser)
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(stringResource(R.string.log_title), style = MaterialTheme.typography.titleSmall)
-                TextButton(
-                    enabled = log.isNotEmpty(),
-                    onClick = {
-                        val text = formatLogReport(deviceReportHeader(context), log, logTimeFormatter())
-                        val send =
-                            Intent(Intent.ACTION_SEND)
-                                .setType("text/plain")
-                                .putExtra(Intent.EXTRA_TEXT, text)
-                        context.startActivity(Intent.createChooser(send, chooserTitle))
-                    },
-                ) {
-                    Text(stringResource(R.string.log_share))
-                }
+                ShareLogButton(log)
             }
-            Spacer(Modifier.height(4.dp))
             if (log.isEmpty()) {
                 Text(
                     text = stringResource(R.string.log_empty),
@@ -684,6 +671,27 @@ internal fun LogCard(
                     }
                 }
             }
+        }
+    }
+}
+
+/** Compact: the default 48dp touch target would leave a band of space around the card's title. */
+@Composable
+private fun ShareLogButton(log: List<LogEntry>) {
+    val context = LocalContext.current
+    val chooserTitle = stringResource(R.string.log_share_chooser)
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        TextButton(
+            enabled = log.isNotEmpty(),
+            contentPadding = PaddingValues(horizontal = 8.dp),
+            modifier = Modifier.height(28.dp),
+            onClick = {
+                val text = formatLogReport(deviceReportHeader(context), log, logTimeFormatter())
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+                context.startActivity(Intent.createChooser(send, chooserTitle))
+            },
+        ) {
+            Text(stringResource(R.string.log_share))
         }
     }
 }
