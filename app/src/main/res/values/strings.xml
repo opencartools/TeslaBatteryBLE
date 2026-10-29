@@ -89,6 +89,8 @@
     <string name="main_title">Cars</string>
     <string name="log_title">Log</string>
     <string name="log_empty">No activity yet.</string>
+    <string name="log_share">Share</string>
+    <string name="log_share_chooser">Share log</string>
     <string name="enable_toggle">Enable</string>
     <string name="car_edit_title">Edit car</string>
     <string name="car_range_hint">Rated range in miles when the car was new; it sets the baseline for state of health.</string>

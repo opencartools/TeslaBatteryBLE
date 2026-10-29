@@ -41,6 +41,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -55,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -78,6 +80,8 @@ import com.dzid26.teslable.ble.ageLabel
 import com.dzid26.teslable.ble.batteryPercent
 import com.dzid26.teslable.ble.connectionDisplay
 import com.dzid26.teslable.ble.connectionLabel
+import com.dzid26.teslable.ble.deviceReportHeader
+import com.dzid26.teslable.ble.formatLogReport
 import com.dzid26.teslable.ble.spinnerHoldMs
 import com.dzid26.teslable.ble.stalenessTickDelayMs
 import com.dzid26.teslable.core.history.BatterySample
@@ -622,9 +626,30 @@ private fun LogCard(
     log: List<LogEntry>,
     maxContentHeight: Dp = 200.dp,
 ) {
+    val context = LocalContext.current
+    val chooserTitle = stringResource(R.string.log_share_chooser)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
-            Text(stringResource(R.string.log_title), style = MaterialTheme.typography.titleSmall)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.log_title), style = MaterialTheme.typography.titleSmall)
+                TextButton(
+                    enabled = log.isNotEmpty(),
+                    onClick = {
+                        val text = formatLogReport(deviceReportHeader(context), log)
+                        val send =
+                            Intent(Intent.ACTION_SEND)
+                                .setType("text/plain")
+                                .putExtra(Intent.EXTRA_TEXT, text)
+                        context.startActivity(Intent.createChooser(send, chooserTitle))
+                    },
+                ) {
+                    Text(stringResource(R.string.log_share))
+                }
+            }
             Spacer(Modifier.height(4.dp))
             if (log.isEmpty()) {
                 Text(
