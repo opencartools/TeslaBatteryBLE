@@ -58,12 +58,4 @@ class TripNoticeTest {
         assertEquals(50, tripNotice(half, inputs)!!.progressPercent)
         assertNull(tripNotice(route(), inputs)!!.progressPercent)
     }
-
-    @Test
-    fun `the notification bar always has a driven sliver, so no to-go color shows left of the arrow`() {
-        assertEquals(1, drivenUnits(0))
-        assertEquals(30, drivenUnits(3))
-        assertEquals(500, drivenUnits(50))
-        assertEquals(1000, drivenUnits(100))
-    }
 }

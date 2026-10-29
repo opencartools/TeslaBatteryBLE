@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- The arrow on the trip bar, in the shape and red of Tesla's navigation arrow with its white outline. The outline is in viewport units, so it scales with the icon. The card draws it as is, the notification's progress style uses it as the tracker icon. -->
+<!-- The arrow on the trip bar, in the shape and red of Tesla's navigation arrow with its white outline. The outline is in viewport units, so it scales with the icon. The card draws it as is; the notification uses ic_driving_tracker_notification, the same arrow moved flush left. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

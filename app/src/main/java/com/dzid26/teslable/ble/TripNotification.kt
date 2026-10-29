@@ -193,15 +193,15 @@ internal fun NotificationCompat.Builder.showTrip(
 
 /**
  * The bar: [TRIP_BAR_MAX] units for the whole trip. The part already driven is dimmed on the left and the part still
- * to go is in the accent color on the right; the arrow sits where the car is, on the boundary between them (the
- * platform centers the tracker on the boundary when the progress equals it). Styling by progress is off, or the
- * platform would fade the part still to go.
+ * to go is in the accent color on the right; the arrow sits where the car is. Its icon has no margin left of the tail
+ * (see ic_driving_tracker_notification), so at the start no accent shows left of it. Styling by progress is off, or
+ * the platform would fade the part still to go.
  */
 private fun progressStyle(
     context: Context,
     progress: Int,
 ): NotificationCompat.ProgressStyle {
-    val driven = drivenUnits(progress)
+    val driven = progress.coerceIn(0, TRIP_BAR_MAX)
     val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
     val dimmed = context.getColor(if (night) android.R.color.system_neutral1_600 else android.R.color.system_neutral1_400)
     val accent = context.getColor(if (night) android.R.color.system_accent1_200 else android.R.color.system_accent1_600)
@@ -210,21 +210,15 @@ private fun progressStyle(
             .ProgressStyle()
             .setProgress(driven)
             .setStyledByProgress(false)
-            .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_driving_tracker))
-    style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(driven).setColor(dimmed))
+            .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_driving_tracker_notification))
+    if (driven > 0) {
+        style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(driven).setColor(dimmed))
+    }
     if (driven < TRIP_BAR_MAX) {
         style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(TRIP_BAR_MAX - driven).setColor(accent))
     }
     return style
 }
-
-/**
- * The driven segment for a trip [percent] done, in [TRIP_BAR_MAX] units: never empty. The platform's tracker can't
- * go past the bar's ends, so at the start its center sits half an icon in, and the first segment is stretched out to
- * the bar's left end under it. With nothing driven that first segment is the part still to go, which then shows in
- * the accent color left of the arrow's tail; a sliver driven keeps the bar dimmed there, as it is later in the trip.
- */
-internal fun drivenUnits(percent: Int): Int = (percent * TRIP_BAR_MAX / PERCENT_FULL.toInt()).coerceIn(1, TRIP_BAR_MAX)
 
 private fun SpannableStringBuilder.appendBold(
     label: String,
@@ -287,7 +281,5 @@ private fun String.ellipsize(): String = if (length > MAX_DESTINATION_CHARS) tak
 private const val MAX_DESTINATION_CHARS = 18
 private const val TENTHS = 10f
 private const val PERCENT_FULL = 100f
-
-/** Units of the notification's trip bar: fine, so the never-empty driven sliver at the start stays thin. */
-private const val TRIP_BAR_MAX = 1000
+private const val TRIP_BAR_MAX = 100
 private const val MILLIS_PER_MINUTE = 60_000L
