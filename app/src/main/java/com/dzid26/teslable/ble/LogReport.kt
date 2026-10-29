@@ -9,20 +9,34 @@ import android.location.LocationManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
+import java.text.DateFormat
+import java.util.Date
 
-/** The shared log text: the phone and permission state first, then the app log, oldest line first. */
+/**
+ * The shared log text: the phone and permission state first, then the app log, oldest line first,
+ * each line led by its time ([formatTime]) when it has one. Some lines already name their car.
+ */
 fun formatLogReport(
     header: List<String>,
     log: List<LogEntry>,
+    formatTime: (Long) -> String,
 ): String =
     buildString {
         header.forEach { appendLine(it) }
         appendLine()
         log.forEach { entry ->
-            entry.vehicleId?.let { append(it).append(": ") }
+            if (entry.timeMillis > 0) append(formatTime(entry.timeMillis)).append(' ')
+            val prefix = entry.vehicleId?.let { "$it: " }
+            if (prefix != null && !entry.message.startsWith(prefix)) append(prefix)
             appendLine(entry.message)
         }
     }
+
+/** Time of day with seconds in the phone's locale, for the lines of the shared log. */
+fun logTimeFormatter(): (Long) -> String {
+    val format = DateFormat.getTimeInstance(DateFormat.MEDIUM)
+    return { format.format(Date(it)) }
+}
 
 /** What a bug report about scanning or connecting needs to know about the phone. */
 fun deviceReportHeader(context: Context): List<String> {

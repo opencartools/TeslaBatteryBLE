@@ -82,6 +82,7 @@ import com.dzid26.teslable.ble.connectionDisplay
 import com.dzid26.teslable.ble.connectionLabel
 import com.dzid26.teslable.ble.deviceReportHeader
 import com.dzid26.teslable.ble.formatLogReport
+import com.dzid26.teslable.ble.logTimeFormatter
 import com.dzid26.teslable.ble.spinnerHoldMs
 import com.dzid26.teslable.ble.stalenessTickDelayMs
 import com.dzid26.teslable.core.history.BatterySample
@@ -622,7 +623,7 @@ internal fun VehicleCard(
 
 /** The app-wide log; every line is tagged with the car it came from. */
 @Composable
-private fun LogCard(
+internal fun LogCard(
     log: List<LogEntry>,
     maxContentHeight: Dp = 200.dp,
 ) {
@@ -639,7 +640,7 @@ private fun LogCard(
                 TextButton(
                     enabled = log.isNotEmpty(),
                     onClick = {
-                        val text = formatLogReport(deviceReportHeader(context), log)
+                        val text = formatLogReport(deviceReportHeader(context), log, logTimeFormatter())
                         val send =
                             Intent(Intent.ACTION_SEND)
                                 .setType("text/plain")

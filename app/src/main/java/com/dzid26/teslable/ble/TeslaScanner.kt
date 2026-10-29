@@ -19,6 +19,7 @@ class TeslaScanner(
     private val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
     private val found = LinkedHashMap<String, TeslaAdvert>()
     private var scanning = false
+    private var filtered = false
     private var advertsSeen = 0
     private var advertsNamed = 0
 
@@ -90,6 +91,7 @@ class TeslaScanner(
                 .ifEmpty { null }
         scanner.startScan(filters, settings, callback)
         scanning = true
+        filtered = filters != null
         onLog(
             if (filters == null) {
                 "Scanning for Tesla advertisements (name pattern S<hex>C)"
@@ -106,7 +108,9 @@ class TeslaScanner(
         if (scanning) {
             scanning = false
             // Zero here means the phone delivered nothing; named but unmatched means we dropped them.
-            onLog("Scan ended: $advertsSeen advertisements seen, $advertsNamed with a name, ${found.size} Tesla")
+            // A filtered scan only reports the paired cars, so zero there says little about the radio.
+            val scope = if (filtered) " (filtered to the paired cars)" else ""
+            onLog("Scan ended$scope: $advertsSeen advertisements seen, $advertsNamed with a name, ${found.size} Tesla")
         }
     }
 }

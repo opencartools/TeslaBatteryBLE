@@ -81,10 +81,11 @@ data class BleUiState(
     val bluetoothOn: Boolean = true,
 )
 
-/** One log line, tagged with the car it came from (null for app-wide lines). */
+/** One log line, tagged with the car it came from (null for app-wide lines) and when it was written. */
 data class LogEntry(
     val vehicleId: String?,
     val message: String,
+    val timeMillis: Long = 0L,
 )
 
 /** The live connection for the selected car, if it has one. */
