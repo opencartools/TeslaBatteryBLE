@@ -23,8 +23,6 @@ data class DrivePoint(
      * them.
      */
     val trip: Int,
-    /** The rated range in miles at the point; null when the reading carried none. */
-    val ratedMiles: Float? = null,
 )
 
 /**
@@ -92,7 +90,6 @@ fun drivePoints(
             socPercent = sample.soc(scale),
             regenerating = reading.inGear && (reading.power ?: 0) < 0,
             trip = trips[index],
-            ratedMiles = sample.ratedRangeMiles,
         )
     }
 }
