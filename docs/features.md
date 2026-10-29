@@ -43,7 +43,8 @@ What the app does today, in detail. The short version is in the [README](../READ
 - **Location and tire pressure log** — while the car is driving each read that follows new odometer distance (at least every 5 minutes) also asks for its position (coordinates,
   heading, elevation), and every 10 minutes for its tire pressures. The replies are kept raw on the phone only,
   with no screen showing them yet.
-- **Export logs** — a button in Settings that saves the raw history (what the car sent and what the app did, as a zip with a manifest) to a file you pick, in the background with progress. It works on any build; see docs/reference/log-pull.md for the format. The zip holds locations and drive details.
+- **Export records** — a button in Settings that saves the raw history (what the car sent and what the app did, as a zip with a manifest) to a file you pick, in the background with progress. It works on any build; see docs/reference/log-pull.md for the format. The zip holds locations and drive details.
+- **Share log** — a button on the log card sends the app log as text (the last 200 lines, each with its time), led by the phone model, Android version, permission, Bluetooth and system location state. The log also ends each scan with how many advertisements the phone delivered (and says when the scan was filtered to the paired cars), to tell "nothing received" from "received but not a Tesla".
 - **Local activity log** — the commands the app sends to the car (and why) and whether the screen was on and the
   app in the foreground are kept on the phone only, so a wake or a read in the car's own history can be told
   apart from yours

@@ -779,7 +779,7 @@ class TeslaBleController(
         vehicleId: String?,
         message: String,
     ) {
-        _state.update { it.copy(log = (it.log + LogEntry(vehicleId, message)).takeLast(LOG_MAX_LINES)) }
+        _state.update { it.copy(log = (it.log + LogEntry(vehicleId, message, System.currentTimeMillis())).takeLast(LOG_MAX_LINES)) }
     }
 
     // ------------------------------------------------------------- per-vehicle link

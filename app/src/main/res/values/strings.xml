@@ -16,7 +16,7 @@
     <string name="settings_backup_schedule">Android decides when to back up (usually daily, while idle and charging). Check or trigger one in system Settings \u2192 Backup. Android restores it during phone setup, a device transfer, or an app install when automatic restore is on; otherwise restore it manually or re-pair.</string>
     <string name="settings_energy_cost">Home charging</string>
     <string name="settings_energy_cost_hint">Your home electricity price. It shows what a charge session cost beside the car\'s charge details; leave it empty to hide that. A new price applies from the start of the latest charge.</string>
-    <string name="settings_export_button">Export logs</string>
+    <string name="settings_export_button">Export records</string>
     <plurals name="settings_export_done">
         <item quantity="one">Exported %1$s record.</item>
         <item quantity="other">Exported %1$s records.</item>
@@ -25,7 +25,7 @@
     <string name="settings_export_failed_leftover">Export failed. A partial file may remain; delete it.</string>
     <string name="settings_export_hint">Saves the raw history, what the car sent and what the app did, as a zip you choose the place for, for example to attach to a bug report. It holds locations and drive details. It stays on the phone until you share it.</string>
     <string name="settings_export_running">Exporting\u2026</string>
-    <string name="settings_export_title">Logs</string>
+    <string name="settings_export_title">Records</string>
     <string name="settings_pairing">Pairing</string>
     <string name="settings_no_keys">No vehicle keys stored</string>
     <string name="settings_pairing_hint">Each car has its own key, and pairing always enrolls a freshly generated one. Clearing the cache forgets cached key slots and sessions so the pairing flow can be tested again; stored keys are kept, and a car that still has its key is marked paired by the next whitelist check.</string>
@@ -89,6 +89,8 @@
     <string name="main_title">Cars</string>
     <string name="log_title">Log</string>
     <string name="log_empty">No activity yet.</string>
+    <string name="log_share">Share</string>
+    <string name="log_share_chooser">Share log</string>
     <string name="enable_toggle">Enable</string>
     <string name="car_edit_title">Edit car</string>
     <string name="car_range_hint">Rated range in miles when the car was new; it sets the baseline for state of health.</string>

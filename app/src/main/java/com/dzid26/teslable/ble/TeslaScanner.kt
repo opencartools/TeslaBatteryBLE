@@ -18,6 +18,10 @@ class TeslaScanner(
     private val appContext = context.applicationContext
     private val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
     private val found = LinkedHashMap<String, TeslaAdvert>()
+    private var scanning = false
+    private var filtered = false
+    private var advertsSeen = 0
+    private var advertsNamed = 0
 
     private val callback =
         object : ScanCallback() {
@@ -26,7 +30,9 @@ class TeslaScanner(
                 callbackType: Int,
                 result: ScanResult,
             ) {
+                advertsSeen++
                 val name = result.scanRecord?.deviceName ?: result.device.name
+                if (name != null) advertsNamed++
                 if (name == null || !TeslaNames.isTeslaBleName(name)) {
                     return
                 }
@@ -40,6 +46,7 @@ class TeslaScanner(
             }
 
             override fun onScanFailed(errorCode: Int) {
+                scanning = false
                 onLog("Scan failed with error $errorCode")
             }
         }
@@ -70,6 +77,8 @@ class TeslaScanner(
             return
         }
         found.clear()
+        advertsSeen = 0
+        advertsNamed = 0
         onDevices(emptyList())
         val settings =
             ScanSettings
@@ -81,6 +90,8 @@ class TeslaScanner(
                 .map { ScanFilter.Builder().setDeviceName(it).build() }
                 .ifEmpty { null }
         scanner.startScan(filters, settings, callback)
+        scanning = true
+        filtered = filters != null
         onLog(
             if (filters == null) {
                 "Scanning for Tesla advertisements (name pattern S<hex>C)"
@@ -94,5 +105,12 @@ class TeslaScanner(
     fun stop() {
         if (!hasBlePermissions(appContext)) return
         adapter?.bluetoothLeScanner?.stopScan(callback)
+        if (scanning) {
+            scanning = false
+            // Zero here means the phone delivered nothing; named but unmatched means we dropped them.
+            // A filtered scan only reports the paired cars, so zero there says little about the radio.
+            val scope = if (filtered) " (filtered to the paired cars)" else ""
+            onLog("Scan ended$scope: $advertsSeen advertisements seen, $advertsNamed with a name, ${found.size} Tesla")
+        }
     }
 }

@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -36,15 +37,18 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -78,6 +83,9 @@ import com.dzid26.teslable.ble.ageLabel
 import com.dzid26.teslable.ble.batteryPercent
 import com.dzid26.teslable.ble.connectionDisplay
 import com.dzid26.teslable.ble.connectionLabel
+import com.dzid26.teslable.ble.deviceReportHeader
+import com.dzid26.teslable.ble.formatLogReport
+import com.dzid26.teslable.ble.logTimeFormatter
 import com.dzid26.teslable.ble.spinnerHoldMs
 import com.dzid26.teslable.ble.stalenessTickDelayMs
 import com.dzid26.teslable.core.history.BatterySample
@@ -618,14 +626,20 @@ internal fun VehicleCard(
 
 /** The app-wide log; every line is tagged with the car it came from. */
 @Composable
-private fun LogCard(
+internal fun LogCard(
     log: List<LogEntry>,
     maxContentHeight: Dp = 200.dp,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
-            Text(stringResource(R.string.log_title), style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.log_title), style = MaterialTheme.typography.titleSmall)
+                ShareLogButton(log)
+            }
             if (log.isEmpty()) {
                 Text(
                     text = stringResource(R.string.log_empty),
@@ -644,15 +658,40 @@ private fun LogCard(
                             .heightIn(max = maxContentHeight)
                             .verticalScroll(logScroll),
                 ) {
-                    log.takeLast(100).forEach { line ->
-                        Text(
-                            text = line.message,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                        )
+                    SelectionContainer {
+                        Column {
+                            log.takeLast(100).forEach { line ->
+                                Text(
+                                    text = line.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+/** Compact: the default 48dp touch target would leave a band of space around the card's title. */
+@Composable
+private fun ShareLogButton(log: List<LogEntry>) {
+    val context = LocalContext.current
+    val chooserTitle = stringResource(R.string.log_share_chooser)
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        TextButton(
+            enabled = log.isNotEmpty(),
+            contentPadding = PaddingValues(horizontal = 8.dp),
+            modifier = Modifier.height(28.dp),
+            onClick = {
+                val text = formatLogReport(deviceReportHeader(context), log, logTimeFormatter())
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+                context.startActivity(Intent.createChooser(send, chooserTitle))
+            },
+        ) {
+            Text(stringResource(R.string.log_share))
         }
     }
 }
