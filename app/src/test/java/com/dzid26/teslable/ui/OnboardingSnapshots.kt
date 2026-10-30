@@ -22,7 +22,6 @@ class OnboardingSnapshots {
             listOf(
                 Manifest.permission.BLUETOOTH_SCAN,
                 Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.POST_NOTIFICATIONS,
             ),
         )
@@ -39,10 +38,7 @@ class OnboardingSnapshots {
     fun onboardingNearby() = snapOnboarding("onboarding_nearby", jellyStarHeight = 1500) { page(0) }
 
     @Test
-    fun onboardingLocation() = snapOnboarding("onboarding_location", jellyStarHeight = 1450) { page(1) }
-
-    @Test
-    fun onboardingNotifications() = snapOnboarding("onboarding_notifications", jellyStarHeight = 1700) { page(2) }
+    fun onboardingNotifications() = snapOnboarding("onboarding_notifications", jellyStarHeight = 1700) { page(1) }
 
     @Test
     fun onboardingNearbyDenied() = snapOnboarding("onboarding_nearby-denied", jellyStarHeight = 1600) { page(0, denied = true) }

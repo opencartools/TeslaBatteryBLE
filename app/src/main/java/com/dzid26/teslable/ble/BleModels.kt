@@ -79,6 +79,8 @@ data class BleUiState(
     val log: List<LogEntry> = emptyList(),
     /** The phone's Bluetooth switch; while off no link can come up, so cars read "Bluetooth off". */
     val bluetoothOn: Boolean = true,
+    /** A scan is needed but location access is missing; the cars list asks for it. */
+    val locationNeeded: Boolean = false,
 )
 
 /** One log line, tagged with the car it came from (null for app-wide lines) and when it was written. */

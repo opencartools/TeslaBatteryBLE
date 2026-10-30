@@ -642,6 +642,7 @@ class CardSnapshots {
                 permissionsGranted = true,
                 locationServicesEnabled = true,
                 onRequestPermissions = {},
+                onRequestLocation = {},
                 onToggleScan = {},
                 onToggleTracking = {},
                 onOpen = { _, _ -> },

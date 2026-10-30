@@ -11,8 +11,21 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 /**
- * Android 12+ scans with BLUETOOTH_SCAN (declared neverForLocation), so only
- * Android 11 and older still need location, and there it must be fine location.
+ * Fine and coarse location together: Android 12+ ignores a request for fine
+ * location that leaves out coarse, so a lone fine request shows no dialog at
+ * all. Fine is what scanning needs; coarse is granted with it.
+ *
+ * Location is not part of onboarding: connecting to a car at its stored
+ * address needs no scan, so it is asked when a scan needs it (a pull to scan,
+ * the first run, or a reconnect that has to rediscover the car).
+ */
+val LOCATION_PERMISSIONS: List<String> =
+    listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+
+/**
+ * What the app cannot run without: Android 12+ delivers a scan or a connection
+ * only with the nearby-devices pair. Location is deliberately not here; see
+ * [LOCATION_PERMISSIONS].
  */
 fun requiredBlePermissions(sdk: Int = Build.VERSION.SDK_INT): List<String> =
     if (sdk >= Build.VERSION_CODES.S) {
@@ -21,7 +34,7 @@ fun requiredBlePermissions(sdk: Int = Build.VERSION.SDK_INT): List<String> =
             Manifest.permission.BLUETOOTH_CONNECT,
         )
     } else {
-        listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        emptyList()
     }
 
 /**
@@ -48,11 +61,18 @@ fun missingBlePermissions(context: Context): List<String> =
 
 fun hasBlePermissions(context: Context): Boolean = missingBlePermissions(context).isEmpty()
 
+fun hasLocationPermission(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+/** False once Android stopped showing the location dialog (denied with "don't ask again"): only app settings can grant it. */
+fun canAskLocationAgain(context: Context): Boolean {
+    val activity = context as? Activity ?: return true
+    return ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_FINE_LOCATION)
+}
+
 fun isLocationEnabled(context: Context): Boolean {
     val locationManager = context.getSystemService(LocationManager::class.java)
     return when {
-        // Android 12+ scans without location, so the location switch is irrelevant.
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> true
         locationManager == null -> false
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> locationManager.isLocationEnabled
         // LocationManager.isLocationEnabled requires API 28; on older versions

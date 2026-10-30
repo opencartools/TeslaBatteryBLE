@@ -245,6 +245,7 @@ class TeslaBleController(
 
     fun startScan() {
         if (!_state.value.trackingEnabled) return
+        if (!_state.scanAllowed(appContext)) return
         // Additive scan: keep the current connections and look for more cars.
         links.values.forEach {
             it.reconnectAttempts = 0
@@ -256,6 +257,7 @@ class TeslaBleController(
                 scanning = true,
                 discovering = false,
                 explicitScan = true,
+                locationNeeded = false,
             )
         }
         startScanner()
@@ -346,6 +348,10 @@ class TeslaBleController(
     fun ensureConnected(bluetoothJustOn: Boolean = false) {
         if (!_state.value.trackingEnabled) return
         if (!hasBlePermissions(appContext)) return
+        if (hasLocationPermission(appContext) && _state.value.locationNeeded) {
+            _state.update { it.copy(locationNeeded = false) }
+            startDiscovery()
+        }
         if (bluetoothJustOn) links.values.filter { it.phase != ConnectionPhase.READY }.forEach { it.retryNow() }
         if (_state.value.scanning) return
         val ordered = orderedVehicles()
@@ -622,7 +628,8 @@ class TeslaBleController(
         if (!_state.value.trackingEnabled) return
         if (_state.value.scanning || _state.value.discovering) return
         if (!hasBlePermissions(appContext)) return
-        _state.update { it.copy(discovering = true, explicitScan = false) }
+        if (!_state.scanAllowed(appContext)) return
+        _state.update { it.copy(discovering = true, explicitScan = false, locationNeeded = false) }
         handler.removeCallbacks(stopDiscovery)
         handler.postDelayed(stopDiscovery, DISCOVERY_TIMEOUT_MS)
         startScanner(background = true)
@@ -1761,4 +1768,14 @@ class TeslaBleController(
                 ConnectionPhase.READY,
             )
     }
+}
+
+/**
+ * Location gates every scan (Android withholds beacon-style advertisements without it), but not a
+ * connection to a stored address. A refused scan remembers why, so the cars list can ask.
+ */
+private fun MutableStateFlow<BleUiState>.scanAllowed(context: Context): Boolean {
+    if (hasLocationPermission(context)) return true
+    update { it.copy(locationNeeded = true) }
+    return false
 }

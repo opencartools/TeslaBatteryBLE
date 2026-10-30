@@ -104,6 +104,7 @@ fun MainScreen(
     permissionsGranted: Boolean,
     locationServicesEnabled: Boolean,
     onRequestPermissions: () -> Unit,
+    onRequestLocation: () -> Unit,
     onToggleScan: () -> Unit,
     onToggleTracking: (Boolean) -> Unit,
     onOpenVehicle: (String) -> Unit,
@@ -184,6 +185,7 @@ fun MainScreen(
             permissionsGranted = permissionsGranted,
             locationServicesEnabled = locationServicesEnabled,
             onRequestPermissions = onRequestPermissions,
+            onRequestLocation = onRequestLocation,
             onToggleScan = onToggleScan,
             onToggleTracking = onToggleTracking,
             onOpen = { name, rowAddress ->
@@ -286,6 +288,7 @@ internal fun ConnectionsScreen(
     permissionsGranted: Boolean,
     locationServicesEnabled: Boolean,
     onRequestPermissions: () -> Unit,
+    onRequestLocation: () -> Unit,
     onToggleScan: () -> Unit,
     onToggleTracking: (Boolean) -> Unit,
     onOpen: (String, String) -> Unit,
@@ -297,10 +300,13 @@ internal fun ConnectionsScreen(
     nowMillis: Long? = null,
 ) {
     val rows = vehicleRows(state, history)
-    // A fresh install has nothing to show, so start the scan it would ask for;
-    // the global Enable toggle still gates it.
-    LaunchedEffect(Unit) {
-        if (rows.isEmpty() && permissionsGranted && state.trackingEnabled) {
+    // A fresh install has nothing to show, so start the scan it would ask for once
+    // permissions are in; the global Enable toggle still gates it.
+    var autoScanStarted by rememberSaveable { mutableStateOf(false) }
+    val wantsFirstScan = rows.isEmpty() && permissionsGranted && state.trackingEnabled
+    LaunchedEffect(wantsFirstScan) {
+        if (wantsFirstScan && !autoScanStarted) {
+            autoScanStarted = true
             onToggleScan()
         }
     }
@@ -363,7 +369,13 @@ internal fun ConnectionsScreen(
                 // room in landscape; its content scrolls internally.
                 val logMaxHeight = (maxHeight * LOG_HEIGHT_FRACTION).coerceAtLeast(96.dp)
                 Column(modifier = Modifier.fillMaxSize()) {
-                    SetupBanners(permissionsGranted, state.bluetoothOn, locationServicesEnabled, onRequestPermissions)
+                    SetupBanners(
+                        state = state,
+                        permissionsGranted = permissionsGranted,
+                        locationServicesEnabled = locationServicesEnabled,
+                        onRequestPermissions = onRequestPermissions,
+                        onRequestLocation = onRequestLocation,
+                    )
 
                     val connectedCount = state.connections.values.count { it.phase == ConnectionPhase.READY }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -456,12 +468,22 @@ private fun VehicleList(
 
 /** What stops scans from finding cars, above the list. Bluetooth can go off at any time, so it is not part of the wizard. */
 @Composable
-private fun SetupBanners(
+internal fun SetupBanners(
+    state: BleUiState,
     permissionsGranted: Boolean,
-    bluetoothOn: Boolean,
     locationServicesEnabled: Boolean,
     onRequestPermissions: () -> Unit,
+    onRequestLocation: () -> Unit,
 ) {
+    if (permissionsGranted && state.locationNeeded) {
+        PermissionCard(
+            title = stringResource(R.string.perm_location_title),
+            body = stringResource(R.string.perm_location_why),
+            button = stringResource(R.string.main_location_needed_button),
+            onClick = onRequestLocation,
+        )
+        Spacer(Modifier.height(8.dp))
+    }
     if (!permissionsGranted) {
         PermissionCard(
             title = stringResource(R.string.main_permission_title),
@@ -470,7 +492,7 @@ private fun SetupBanners(
             onClick = onRequestPermissions,
         )
         Spacer(Modifier.height(8.dp))
-    } else if (!bluetoothOn) {
+    } else if (!state.bluetoothOn) {
         BluetoothOffCard()
         Spacer(Modifier.height(8.dp))
     }
