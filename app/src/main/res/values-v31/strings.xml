@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<resources>
+    <!-- Android 12+ lets the user pick Approximate, which does not let a scan through. -->
+    <string name="perm_location_why">Android only lets apps scan iBeacon-style Bluetooth devices with location permission. Choose Precise and allow it once here: the app never reads your location, and nothing leaves the phone.</string>
+</resources>

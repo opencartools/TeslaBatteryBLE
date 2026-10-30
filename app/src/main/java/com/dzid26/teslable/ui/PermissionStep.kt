@@ -30,15 +30,6 @@ fun permissionSteps(permissions: List<String>): List<PermissionStep> =
         if (nearby.isNotEmpty()) {
             add(PermissionStep(nearby, R.string.perm_nearby_title, R.string.perm_nearby_why))
         }
-        if (Manifest.permission.ACCESS_FINE_LOCATION in permissions) {
-            add(
-                PermissionStep(
-                    permissions = listOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                    title = R.string.perm_location_title,
-                    why = R.string.perm_location_why,
-                ),
-            )
-        }
         if (Manifest.permission.POST_NOTIFICATIONS in permissions) {
             add(
                 PermissionStep(
