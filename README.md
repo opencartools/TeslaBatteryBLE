@@ -10,8 +10,8 @@ Android app that tracks Tesla battery statistics directly over Bluetooth LE
 
 TeslaBatteryBLE talks to a Tesla over Bluetooth LE using an enrolled vehicle key —
 the same local protocol Tesla's [`vehicle-command`](https://github.com/teslamotors/vehicle-command)
-uses. No Tesla account, no virtual-key cloud registration, no telemetry. Install the
-app, pair a key with an NFC card tap on the console, and read the car directly.
+uses. Install the
+app, pair a key with an NFC card tap on the console, and read over the BLE directly.
 
 ## Screenshots
 
