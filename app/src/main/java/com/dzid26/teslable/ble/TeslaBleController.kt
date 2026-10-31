@@ -657,7 +657,8 @@ class TeslaBleController(
         rememberVehicle(connection.name, address, connection.gattDeviceName)
     }
 
-    private fun rememberVehicle(
+    /** Stores a car by its advertised name so later opens and scans find it; the UI logs the chooser's result. */
+    internal fun rememberVehicle(
         name: String,
         address: String,
         gattName: String?,
@@ -778,7 +779,7 @@ class TeslaBleController(
         if (state == ConnectionEvent.State.DISCONNECTED) link.commands.logUnanswered(linkEnded = true)
     }
 
-    private fun log(message: String) {
+    internal fun log(message: String) {
         appendLog(null, message)
     }
 

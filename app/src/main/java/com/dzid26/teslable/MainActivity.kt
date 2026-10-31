@@ -28,6 +28,7 @@ import com.dzid26.teslable.ble.BleControllerHolder
 import com.dzid26.teslable.ble.BleTrackingService
 import com.dzid26.teslable.ble.PairingKeyStore
 import com.dzid26.teslable.ble.TeslaBleController
+import com.dzid26.teslable.ble.hasCompanionChooser
 import com.dzid26.teslable.ble.hasLocationPermission
 import com.dzid26.teslable.ble.shouldTrack
 import com.dzid26.teslable.core.history.AppState
@@ -37,6 +38,7 @@ import com.dzid26.teslable.ui.MainScreen
 import com.dzid26.teslable.ui.PermissionWizardHost
 import com.dzid26.teslable.ui.SettingsScreen
 import com.dzid26.teslable.ui.TeslaBleTheme
+import com.dzid26.teslable.ui.rememberCompanionScan
 
 class MainActivity : ComponentActivity() {
     private lateinit var controller: TeslaBleController
@@ -127,6 +129,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // The system's companion-device chooser finds a car without location permission;
+                // it is the fallback once Android will not show the location dialog again.
+                val companionScan = rememberCompanionScan(controller)
+
                 PermissionWizardHost(
                     refreshKey = resumeCounter,
                     onGranted = { controller.ensureConnected() },
@@ -154,13 +160,16 @@ class MainActivity : ComponentActivity() {
                                     permissionsGranted = permissionsGranted,
                                     locationServicesEnabled = locationEnabled,
                                     onRequestPermissions = requestPermissions,
-                                    onRequestLocation = { requestLocation { controller.ensureConnected() } },
+                                    onRequestLocation = { requestLocation(null) { controller.ensureConnected() } },
                                     onToggleScan = {
                                         when {
                                             state.scanning -> controller.stopScan()
                                             !permissionsGranted -> requestPermissions()
                                             hasLocationPermission(context) -> controller.startScan()
-                                            else -> requestLocation { controller.startScan() }
+                                            else ->
+                                                requestLocation(if (hasCompanionChooser(context)) companionScan else null) {
+                                                    controller.startScan()
+                                                }
                                         }
                                     },
                                     onToggleTracking = controller::setTrackingEnabled,

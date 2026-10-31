@@ -41,6 +41,10 @@ SOC. No cloud. Kotlin + Compose with a Kotlin protocol core; no FFI.
   without a scan, so location is asked when a scan needs it (the first run, a
   pull to scan, or a reconnect that must rediscover a car at a new address),
   and the cars list shows a card when discovery is blocked.
+  When Android will not show the location dialog again, a scan opens the system
+  companion-device chooser instead (no location permission; Location Services
+  still on), which adds the car once. It creates an OS association per car and
+  does not help rediscovery after an address rotation, which still needs a scan.
 - Default pairing role: CHARGING_MANAGER. Driver/owner only by explicit opt-in.
 - Polling: VCSEC ~10s (safe while asleep); Infotainment charge state only while
   the car is awake, ~10s while charging. Never wake the car to read SOC.

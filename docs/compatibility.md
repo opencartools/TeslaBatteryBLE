@@ -9,7 +9,7 @@ real hardware is marked "not verified" rather than assumed.
 | --- | --- |
 | Android version | 8.1+ (API 27) |
 | Radio | Bluetooth LE |
-| Permissions | Bluetooth scan/connect (Nearby devices); location when a scan needs it, since Android withholds beacon-style advertisements without it (device location is never read or stored); notifications; foreground service |
+| Permissions | Bluetooth scan/connect (Nearby devices); location when a scan needs it, since Android withholds beacon-style advertisements without it (device location is never read or stored); on phones that support it, the system companion-device chooser can add a car when location is denied for good; notifications; foreground service |
 
 ## Vehicles
 
