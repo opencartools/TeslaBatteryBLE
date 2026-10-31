@@ -19,8 +19,17 @@ class DebugSwitches(
         get() = BuildConfig.DEBUG && prefs.getBoolean(KEY_AUTO_CONNECT, false)
         set(value) = prefs.edit().putBoolean(KEY_AUTO_CONNECT, value).apply()
 
+    /**
+     * Add the simulated car from the debug source set next to the real ones. A build made with
+     * `-PdemoCar=true` starts it on; the switch keeps the choice for the next launch.
+     */
+    var demoCar: Boolean
+        get() = if (BuildConfig.DEBUG) prefs.getBoolean(KEY_DEMO_CAR, BuildConfig.DEMO_CAR) else BuildConfig.DEMO_CAR
+        set(value) = prefs.edit().putBoolean(KEY_DEMO_CAR, value).apply()
+
     private companion object {
         const val PREFS = "teslable_debug"
         const val KEY_AUTO_CONNECT = "auto_connect"
+        const val KEY_DEMO_CAR = "demo_car"
     }
 }

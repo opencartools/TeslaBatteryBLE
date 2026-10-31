@@ -52,6 +52,7 @@ import com.dzid26.teslable.R
 import com.dzid26.teslable.UnitPreference
 import com.dzid26.teslable.UnitStore
 import com.dzid26.teslable.ble.DebugSwitches
+import com.dzid26.teslable.ble.DemoMode
 import com.dzid26.teslable.ble.PairingKeyStore
 import com.dzid26.teslable.ble.Vehicle
 import com.dzid26.teslable.core.units.EfficiencyUnit
@@ -346,6 +347,7 @@ private fun DebugCard() {
     val context = LocalContext.current
     val switches = remember { DebugSwitches(context) }
     var autoConnect by remember { mutableStateOf(switches.autoConnect) }
+    var demoCar by remember { mutableStateOf(switches.demoCar) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(text = "Debug", style = MaterialTheme.typography.titleMedium)
@@ -368,6 +370,28 @@ private fun DebugCard() {
             Spacer(Modifier.height(8.dp))
             Text(
                 text = "Takes effect on the next connection. Needs the car's BLE address to stay stable between visits.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = stringResource(R.string.settings_debug_demo_car),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(12.dp))
+                Switch(
+                    checked = demoCar,
+                    onCheckedChange = {
+                        demoCar = it
+                        DemoMode.setEnabled(context, it)
+                    },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.settings_debug_demo_car_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
