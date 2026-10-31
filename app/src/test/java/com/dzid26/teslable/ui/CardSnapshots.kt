@@ -641,6 +641,7 @@ class CardSnapshots {
                 history = DemoScreenFixtures.history(NOW),
                 permissionsGranted = true,
                 locationServicesEnabled = true,
+                locationNeeded = false,
                 onRequestPermissions = {},
                 onRequestLocation = {},
                 onToggleScan = {},

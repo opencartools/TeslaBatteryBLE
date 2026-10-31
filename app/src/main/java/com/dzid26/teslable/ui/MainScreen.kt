@@ -103,6 +103,7 @@ fun MainScreen(
     history: HistorySamples,
     permissionsGranted: Boolean,
     locationServicesEnabled: Boolean,
+    locationNeeded: Boolean,
     onRequestPermissions: () -> Unit,
     onRequestLocation: () -> Unit,
     onToggleScan: () -> Unit,
@@ -184,6 +185,7 @@ fun MainScreen(
             history = history.battery,
             permissionsGranted = permissionsGranted,
             locationServicesEnabled = locationServicesEnabled,
+            locationNeeded = locationNeeded,
             onRequestPermissions = onRequestPermissions,
             onRequestLocation = onRequestLocation,
             onToggleScan = onToggleScan,
@@ -287,6 +289,7 @@ internal fun ConnectionsScreen(
     history: List<BatterySample>,
     permissionsGranted: Boolean,
     locationServicesEnabled: Boolean,
+    locationNeeded: Boolean,
     onRequestPermissions: () -> Unit,
     onRequestLocation: () -> Unit,
     onToggleScan: () -> Unit,
@@ -370,9 +373,7 @@ internal fun ConnectionsScreen(
                 val logMaxHeight = (maxHeight * LOG_HEIGHT_FRACTION).coerceAtLeast(96.dp)
                 Column(modifier = Modifier.fillMaxSize()) {
                     SetupBanners(
-                        state = state,
-                        permissionsGranted = permissionsGranted,
-                        locationServicesEnabled = locationServicesEnabled,
+                        state = SetupBannerState(permissionsGranted, state.bluetoothOn, locationServicesEnabled, locationNeeded),
                         onRequestPermissions = onRequestPermissions,
                         onRequestLocation = onRequestLocation,
                     )
@@ -466,16 +467,22 @@ private fun VehicleList(
     }
 }
 
+/** What the banners above the cars list need to know. */
+internal data class SetupBannerState(
+    val permissionsGranted: Boolean,
+    val bluetoothOn: Boolean,
+    val locationServicesEnabled: Boolean,
+    val locationNeeded: Boolean,
+)
+
 /** What stops scans from finding cars, above the list. Bluetooth can go off at any time, so it is not part of the wizard. */
 @Composable
 internal fun SetupBanners(
-    state: BleUiState,
-    permissionsGranted: Boolean,
-    locationServicesEnabled: Boolean,
+    state: SetupBannerState,
     onRequestPermissions: () -> Unit,
     onRequestLocation: () -> Unit,
 ) {
-    if (permissionsGranted && state.locationNeeded) {
+    if (state.permissionsGranted && state.locationNeeded) {
         PermissionCard(
             title = stringResource(R.string.perm_location_title),
             body = stringResource(R.string.perm_location_why),
@@ -484,7 +491,7 @@ internal fun SetupBanners(
         )
         Spacer(Modifier.height(8.dp))
     }
-    if (!permissionsGranted) {
+    if (!state.permissionsGranted) {
         PermissionCard(
             title = stringResource(R.string.main_permission_title),
             body = stringResource(R.string.main_permission_body),
@@ -496,7 +503,7 @@ internal fun SetupBanners(
         BluetoothOffCard()
         Spacer(Modifier.height(8.dp))
     }
-    if (!locationServicesEnabled) {
+    if (!state.locationServicesEnabled) {
         Text(
             text = stringResource(R.string.main_location_off),
             color = MaterialTheme.colorScheme.error,

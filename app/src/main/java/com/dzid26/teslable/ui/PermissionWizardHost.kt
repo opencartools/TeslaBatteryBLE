@@ -42,7 +42,7 @@ internal fun PermissionWizardHost(
         permissionsGranted: Boolean,
         locationServicesEnabled: Boolean,
         requestPermissions: () -> Unit,
-        requestLocation: (onGranted: () -> Unit) -> Unit,
+        requestLocation: (onDeniedForever: (() -> Unit)?, onGranted: () -> Unit) -> Unit,
     ) -> Unit,
 ) {
     val context = LocalContext.current
@@ -190,37 +190,47 @@ private fun rememberLocationRequest(
     refreshKey: Int,
     appSettingsIntent: Intent,
     onStateChanged: () -> Unit,
-): (onGranted: () -> Unit) -> Unit {
+): (onDeniedForever: (() -> Unit)?, onGranted: () -> Unit) -> Unit {
     val context = LocalContext.current
-    var asked by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var pendingFallback by remember { mutableStateOf<(() -> Unit)?>(null) }
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             onStateChanged()
-            pending?.invoke()
+            val action = pending
+            val fallback = pendingFallback
             pending = null
+            pendingFallback = null
+            when {
+                hasLocationPermission(context) -> action?.invoke()
+                action == null -> Unit
+                // No dialog appeared, or the user chose "don't ask again": Android will not ask again.
+                !canAskLocationAgain(context) ->
+                    if (fallback != null) {
+                        fallback()
+                    } else {
+                        pending = action
+                        context.startActivity(appSettingsIntent)
+                    }
+                else -> action()
+            }
         }
     LaunchedEffect(refreshKey) {
         onStateChanged()
         val action = pending
-        if (action != null) {
+        if (action != null && hasLocationPermission(context)) {
             pending = null
             action()
         }
     }
-    return { action ->
-        when {
-            hasLocationPermission(context) -> action()
-            // Once Android stopped showing the dialog, only app settings can grant it.
-            asked && !canAskLocationAgain(context) -> {
-                pending = action
-                context.startActivity(appSettingsIntent)
-            }
-            else -> {
-                asked = true
-                pending = action
-                launcher.launch(LOCATION_PERMISSIONS.toTypedArray())
-            }
+    return { onDeniedForever, action ->
+        if (hasLocationPermission(context)) {
+            action()
+        } else {
+            // Always try the dialog: Android shows it again after the user resets the permission.
+            pending = action
+            pendingFallback = onDeniedForever
+            launcher.launch(LOCATION_PERMISSIONS.toTypedArray())
         }
     }
 }

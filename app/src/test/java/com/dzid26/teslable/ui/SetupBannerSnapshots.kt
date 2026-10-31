@@ -3,7 +3,6 @@
 package com.dzid26.teslable.ui
 
 import app.cash.paparazzi.Paparazzi
-import com.dzid26.teslable.ble.BleUiState
 import org.junit.Rule
 import org.junit.Test
 
@@ -17,9 +16,13 @@ class SetupBannerSnapshots {
     fun locationNeeded() =
         paparazzi.snapCard("setup-banner_location-needed") {
             SetupBanners(
-                state = BleUiState(locationNeeded = true),
-                permissionsGranted = true,
-                locationServicesEnabled = true,
+                state =
+                    SetupBannerState(
+                        permissionsGranted = true,
+                        bluetoothOn = true,
+                        locationServicesEnabled = true,
+                        locationNeeded = true,
+                    ),
                 onRequestPermissions = {},
                 onRequestLocation = {},
             )
