@@ -42,7 +42,7 @@ internal fun PermissionWizardHost(
         permissionsGranted: Boolean,
         locationServicesEnabled: Boolean,
         requestPermissions: () -> Unit,
-        requestLocation: (onGranted: () -> Unit) -> Unit,
+        requestLocation: (onDeniedForever: (() -> Unit)?, onGranted: () -> Unit) -> Unit,
     ) -> Unit,
 ) {
     val context = LocalContext.current
@@ -190,7 +190,7 @@ private fun rememberLocationRequest(
     refreshKey: Int,
     appSettingsIntent: Intent,
     onStateChanged: () -> Unit,
-): (onGranted: () -> Unit) -> Unit {
+): (onDeniedForever: (() -> Unit)?, onGranted: () -> Unit) -> Unit {
     val context = LocalContext.current
     var asked by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -208,14 +208,17 @@ private fun rememberLocationRequest(
             action()
         }
     }
-    return { action ->
+    return { onDeniedForever, action ->
         when {
             hasLocationPermission(context) -> action()
-            // Once Android stopped showing the dialog, only app settings can grant it.
-            asked && !canAskLocationAgain(context) -> {
-                pending = action
-                context.startActivity(appSettingsIntent)
-            }
+            // Android will not show the dialog again: use the caller's fallback, or app settings.
+            asked && !canAskLocationAgain(context) ->
+                if (onDeniedForever != null) {
+                    onDeniedForever()
+                } else {
+                    pending = action
+                    context.startActivity(appSettingsIntent)
+                }
             else -> {
                 asked = true
                 pending = action

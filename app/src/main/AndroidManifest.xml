@@ -5,6 +5,10 @@
     <uses-feature
         android:name="android.hardware.bluetooth_le"
         android:required="true" />
+    <!-- The system chooser that finds a car without location access, where the phone has it. -->
+    <uses-feature
+        android:name="android.hardware.companion_device_setup"
+        android:required="false" />
 
     <uses-permission
         android:name="android.permission.BLUETOOTH"
