@@ -11,12 +11,12 @@ name: PR paparazzi comment
 # checks out or runs pull request code, and treats the artifact as untrusted
 # input. The upload token comes from the `release` environment. The shots are
 # hosted as user attachments, so neither the PR nor the releases carry image
-# assets. The comment links the direct APK from the rolling PR builds release,
-# always (the asset starts working once that commit is built), plus the Android
-# CI run for the same commit as a fallback: the release keeps only the latest
-# build of each open PR, so the run's artifact is how to reach an earlier
-# commit's APK. Previous rounds' comments are minimized as outdated, so only
-# the newest diff stays expanded.
+# assets. The comment links three APK sources, written once: the direct asset
+# for this commit (it starts working when the commit is built), the PR builds
+# release (the latest build of each open PR), and the Android CI run for the
+# same commit, whose artifact reaches an earlier commit's APK after the release
+# replaced it. Previous rounds' comments are minimized as outdated, so only the
+# newest diff stays expanded.
 on:
   workflow_run:
     workflows: ["PR paparazzi"]
@@ -240,11 +240,11 @@ jobs:
             echo "COMMENT_EOF"
           } >> "$GITHUB_OUTPUT"
 
-      # The direct release link is always present, even before the asset
-      # exists: the filename is <pr><sha7>, so it starts working once this
-      # commit is built. The release keeps only the latest build of each open
-      # PR, which is why the Android CI run for the same commit is linked too:
-      # its artifact is the way back to an earlier commit's APK.
+      # Three links, written once: the direct asset for this commit (present
+      # even before it exists, because the filename is <pr><sha7>); the release,
+      # which carries the latest build of every open PR; and the Android CI run
+      # for the same commit, whose artifact reaches an earlier commit's APK
+      # after the release replaced it.
       - name: Find the debug APK
         id: apk
         continue-on-error: true
@@ -255,11 +255,12 @@ jobs:
         run: |
           set -euo pipefail
           runs_url="https://github.com/$GITHUB_REPOSITORY/actions/runs"
+          release_url="https://github.com/$GITHUB_REPOSITORY/releases/tag/pr-builds"
           direct="https://github.com/$GITHUB_REPOSITORY/releases/download/pr-builds/TeslaBatteryBLE-pr${PR}-${HEAD_SHA:0:7}.apk"
-          line="Debug APK: [PR APK]($direct) (no sign-in)"
+          line="Debug APK: [PR APK]($direct) (no sign-in) or the [PR builds release]($release_url) (latest build per PR)"
           if [[ ! "$HEAD_SHA" =~ ^[0-9a-f]{40}$ || ! "$PR" =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::warning::unexpected ids; posting with the release link only"
-            line="Debug APK: [PR builds](https://github.com/$GITHUB_REPOSITORY/releases/tag/pr-builds) (no sign-in)"
+            line="Debug APK: [PR builds release]($release_url) (no sign-in)"
           elif ! run="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=1" \
               --jq '.workflow_runs[0] // empty | "\(.id) \(.status) \(.conclusion // "none")"')"; then
             echo "::warning::could not look up the Android CI run; posting without the CI fallback"
