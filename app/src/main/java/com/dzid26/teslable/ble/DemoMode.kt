@@ -15,6 +15,7 @@ object DemoMode {
     const val DEMO_ADDRESS = "AA:BB:CC:DD:EE:01"
     const val DEMO_TITLE = "Demo Tesla"
     const val OTHER_ADDRESS = "AA:BB:CC:DD:EE:02"
+    const val OTHER_TITLE = "Demo Tesla 2"
 
     /** Set by the debug application; null in release builds. */
     @Volatile

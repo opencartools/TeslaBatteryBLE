@@ -67,7 +67,7 @@ class FakeTeslaTransport(
         handler.postDelayed({
             listener.onServices(emptyList())
             listener.onMtu(115)
-            listener.onGattDeviceName(DemoMode.DEMO_TITLE)
+            listener.onGattDeviceName(if (address.equals(DemoMode.OTHER_ADDRESS, true)) DemoMode.OTHER_TITLE else DemoMode.DEMO_TITLE)
         }, 320)
         handler.postDelayed({
             listener.onPhase(ConnectionPhase.READY)

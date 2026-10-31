@@ -110,10 +110,17 @@ class TeslaBleController(
     private var uiVisible = false
     private var lastVisibilityEvent: AppState.Event? = null
 
+    /** The latest adverts from each source, merged so a real callback cannot hide the demo rows between ticks. */
+    private var realAdverts: List<TeslaAdvert> = emptyList()
+    private var demoAdverts: List<TeslaAdvert> = emptyList()
+
     private val scanner =
         TeslaScanner(
             context = appContext,
-            onDevices = ::onDevicesFound,
+            onDevices = { adverts ->
+                realAdverts = adverts
+                onDevicesFound(realAdverts + demoAdverts)
+            },
             onLog = ::log,
         )
 
@@ -134,7 +141,8 @@ class TeslaBleController(
     private val demoScan =
         object : Runnable {
             override fun run() {
-                onDevicesFound(demoCar()?.adverts() ?: emptyList())
+                demoAdverts = demoCar()?.adverts() ?: emptyList()
+                onDevicesFound(realAdverts + demoAdverts)
                 if (_state.value.scanning || _state.value.discovering) {
                     handler.postDelayed(this, DEMO_SCAN_MS)
                 }
@@ -704,6 +712,7 @@ class TeslaBleController(
                 }
             } else {
                 handler.removeCallbacks(demoScan)
+                demoAdverts = emptyList()
                 closeLinks()
                 remove()
             }
