@@ -164,15 +164,17 @@ fun MainScreen(
             historyLoaded = history.loaded,
             onBack = { viewingBleName = null },
             onEdit = { vinTarget = bleName },
-            onPair = { onPairKey(address) },
+            onPair = { if (address.isNotEmpty()) onPairKey(address) },
             onRefresh = {
-                // One pull does the right thing for the current state: reconnect,
-                // wake the car, or read the battery.
-                val connection = state.connections[address]
-                when {
-                    connection?.phase != ConnectionPhase.READY -> onOpenVehicle(address)
-                    connection.status?.asleep != false -> onWake(null)
-                    else -> onReadSoc()
+                if (address.isNotEmpty()) {
+                    // One pull does the right thing for the current state: reconnect,
+                    // wake the car, or read the battery.
+                    val connection = state.connections[address]
+                    when {
+                        connection?.phase != ConnectionPhase.READY -> onOpenVehicle(address)
+                        connection.status?.asleep != false -> onWake(null)
+                        else -> onReadSoc()
+                    }
                 }
             },
             onOpenSettings = onOpenSettings,
@@ -189,10 +191,11 @@ fun MainScreen(
             onToggleScan = onToggleScan,
             onToggleTracking = onToggleTracking,
             onOpen = { name, rowAddress ->
-                if (permissionsGranted && rowAddress.isNotEmpty()) {
+                if (permissionsGranted) {
+                    // A car without a stored address still opens, showing its data; only a scan can reconnect it.
                     viewingBleName = name
-                    onOpenVehicle(rowAddress)
-                } else if (!permissionsGranted) {
+                    if (rowAddress.isNotEmpty()) onOpenVehicle(rowAddress)
+                } else {
                     // Connecting without permissions would crash on Android 12+.
                     onRequestPermissions()
                 }
