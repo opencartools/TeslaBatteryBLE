@@ -302,21 +302,17 @@ class TeslaBleController(
     }
 
     /**
-     * Forgets the cached pairing state (key slots and sessions) so the pairing
-     * flow can be exercised again. The stored key is kept, and the car still
-     * has it in its whitelist, so the next whitelist check may mark the car
-     * paired again.
+     * Forgets each car's cached Bluetooth address and pairing slots, so the next scan finds the
+     * cars again at their current addresses. Cars, stored keys and history are kept.
      */
-    fun clearPairingCache() {
-        vehicles.values.forEach { vehicle ->
-            if (vehicle.keySlot != null) {
-                vehicles[vehicle.bleName] = vehicle.copy(keySlot = null)
-            }
-        }
+    fun clearCarCache() {
+        links.values.forEach { it.close() }
+        links.clear()
+        vehicles.keys.forEach { name -> vehicles[name] = vehicles.getValue(name).copy(address = "", keySlot = null) }
         vehicleStore.save(vehicles.values)
         publishVehicles()
-        links.values.forEach { it.clearCachedPairing() }
-        log("Pairing cache cleared; the stored key is kept")
+        _state.update { it.copy(devices = emptyList(), connections = emptyMap()) }
+        log("Car cache cleared; the next scan finds the cars again")
     }
 
     private fun openVehicle(

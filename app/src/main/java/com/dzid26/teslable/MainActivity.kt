@@ -136,7 +136,7 @@ class MainActivity : ComponentActivity() {
                             SettingsScreen(
                                 keyStore = remember { PairingKeyStore(context) },
                                 vehicles = state.vehicles,
-                                onClearPairingCache = controller::clearPairingCache,
+                                onClearCarCache = controller::clearCarCache,
                                 logExportStatus = logExportStatus,
                                 onExportLogs = controller.logExport::start,
                                 onOpenAbout = { screen = AppScreen.ABOUT },

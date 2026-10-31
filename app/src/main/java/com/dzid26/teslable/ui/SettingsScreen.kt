@@ -66,7 +66,7 @@ import kotlinx.coroutines.withContext
 fun SettingsScreen(
     keyStore: PairingKeyStore,
     vehicles: List<Vehicle>,
-    onClearPairingCache: () -> Unit,
+    onClearCarCache: () -> Unit,
     logExportStatus: LogExportStatus,
     onExportLogs: (Uri) -> Unit,
     onOpenAbout: () -> Unit,
@@ -187,10 +187,10 @@ fun SettingsScreen(
     }
 
     if (showClearCacheDialog) {
-        ClearPairingCacheDialog(
+        ClearCarCacheDialog(
             onConfirm = {
                 showClearCacheDialog = false
-                onClearPairingCache()
+                onClearCarCache()
             },
             onDismiss = { showClearCacheDialog = false },
         )
@@ -519,7 +519,7 @@ private fun DisableBackupDialog(
 }
 
 @Composable
-private fun ClearPairingCacheDialog(
+private fun ClearCarCacheDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {

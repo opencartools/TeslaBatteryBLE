@@ -28,8 +28,8 @@
     <string name="settings_export_title">Records</string>
     <string name="settings_pairing">Pairing</string>
     <string name="settings_no_keys">No vehicle keys stored</string>
-    <string name="settings_pairing_hint">Each car has its own key, and pairing always enrolls a freshly generated one. Clearing the cache forgets cached key slots and sessions so the pairing flow can be tested again; stored keys are kept, and a car that still has its key is marked paired by the next whitelist check.</string>
-    <string name="settings_clear_cache_button">Clear pairing cache</string>
+    <string name="settings_pairing_hint">Each car has its own key, and pairing always enrolls a freshly generated one. Clearing the cache forgets each car\'s cached Bluetooth address and pairing slots, so the next scan finds the cars again; stored keys and history are kept.</string>
+    <string name="settings_clear_cache_button">Clear car cache</string>
     <string name="settings_about">About</string>
     <string name="settings_about_more">More...</string>
     <string name="settings_enable_backup_title">Include vehicle keys in Android backup?</string>
@@ -38,8 +38,8 @@
     <string name="settings_disable_backup_title">Stop backing up vehicle keys?</string>
     <string name="settings_disable_backup_body">New backups can\'t restore the keys on another phone, but usable copies already in Android backup may remain until they are replaced.</string>
     <string name="settings_disable_backup_confirm">Stop backup</string>
-    <string name="settings_clear_cache_title">Clear pairing cache?</string>
-    <string name="settings_clear_cache_body">The app forgets the cached key slots and sessions so the pairing flow can be tested again. The stored key is kept and pairing again reuses it. If the car still has the key in its whitelist, the next whitelist check may mark it paired again.</string>
+    <string name="settings_clear_cache_title">Clear car cache?</string>
+    <string name="settings_clear_cache_body">The app forgets each car\'s cached Bluetooth address and pairing slots, so the next scan finds the cars again at their current addresses. The cars, their stored keys and their history stay.</string>
     <string name="settings_clear_cache_confirm">Clear cache</string>
     <string name="action_back">Back</string>
     <string name="action_cancel">Cancel</string>
