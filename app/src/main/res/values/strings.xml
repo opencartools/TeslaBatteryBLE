@@ -112,6 +112,7 @@
     <string name="main_bluetooth_off_title">Bluetooth is off</string>
     <string name="main_bluetooth_off_body">Turn it on to find your car. The app reconnects by itself.</string>
     <string name="main_bluetooth_off_button">Turn on Bluetooth</string>
+    <string name="main_location_fallback_toast">Android will not ask for location again; using the system chooser to find the car</string>
     <string name="main_location_needed_button">Allow location</string>
     <string name="main_location_off">Location services are off. BLE scans return no results until it is enabled.</string>
     <string name="main_car_summary">%1$d car(s), %2$d connected</string>

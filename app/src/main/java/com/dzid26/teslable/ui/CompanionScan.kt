@@ -2,11 +2,13 @@
 package com.dzid26.teslable.ui
 
 import android.app.Activity
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.dzid26.teslable.R
 import com.dzid26.teslable.ble.TeslaBleController
 import com.dzid26.teslable.ble.companionCar
 import com.dzid26.teslable.ble.requestCompanionCar
@@ -34,6 +36,7 @@ internal fun rememberCompanionScan(
             }
         }
     return {
+        Toast.makeText(context, R.string.main_location_fallback_toast, Toast.LENGTH_LONG).show()
         requestCompanionCar(
             context,
             onChooser = { sender -> launcher.launch(IntentSenderRequest.Builder(sender).build()) },
