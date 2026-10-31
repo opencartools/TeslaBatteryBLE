@@ -206,11 +206,6 @@ class TeslaBleController(
             _state.update { it.copy(trackingEnabled = false) }
         }
         DemoMode.onEnabledChanged = demoCars::onChanged
-        // A build-time demo car keeps its old path (the advert row, then a tap); a remembered switch choice can
-        // reconnect it like any other car, next to the real ones.
-        if (DemoMode.isEnabledAtRuntime()) {
-            demoCars.add()
-        }
         publishVehicles()
         val saved = prefs.getString(KEY_SELECTED_VEHICLE, null)
         if (saved != null && vehicles.containsKey(saved)) {
@@ -696,43 +691,22 @@ class TeslaBleController(
     }
 
     /**
-     * The debug switch changed. The simulated car is additive: adding it starts the fake adverts next to the real
-     * scan, and dropping it closes only its link, so the owner's real cars keep theirs.
+     * The debug switch changed. The fake adverts only join a scan already in progress; a new demo car is
+     * discovered by scanning, like a real one. Dropping it closes only its link, so real cars keep theirs.
      */
     private inner class DemoCars {
         fun onChanged(enabled: Boolean) {
             log("Demo car ${if (enabled) "on" else "off"}")
             if (enabled) {
-                add()
-                if (_state.value.trackingEnabled) startDiscovery()
-                handler.removeCallbacks(demoScan)
-                handler.post(demoScan)
+                if (_state.value.scanning || _state.value.discovering) {
+                    handler.removeCallbacks(demoScan)
+                    handler.post(demoScan)
+                }
             } else {
                 handler.removeCallbacks(demoScan)
                 closeLinks()
                 remove()
             }
-        }
-
-        /** The simulated car is a normal car from here, so it connects alongside the real ones. */
-        fun add() {
-            val name = name() ?: return
-            val existing = vehicles[name]
-            if (existing == null) {
-                vehicles[name] =
-                    Vehicle(
-                        bleName = name,
-                        address = DemoMode.DEMO_ADDRESS,
-                        gattName = DemoMode.DEMO_TITLE,
-                        vin = DemoMode.DEMO_VIN,
-                        lastSeenMillis = System.currentTimeMillis(),
-                    )
-                vehicleStore.save(vehicles.values)
-            } else if (existing.vin == null) {
-                vehicles[name] = existing.copy(vin = DemoMode.DEMO_VIN)
-                vehicleStore.save(vehicles.values)
-            }
-            publishVehicles()
         }
 
         private fun closeLinks() {

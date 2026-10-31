@@ -27,10 +27,6 @@ class DebugSwitches(
         get() = if (BuildConfig.DEBUG) prefs.getBoolean(KEY_DEMO_CAR, BuildConfig.DEMO_CAR) else BuildConfig.DEMO_CAR
         set(value) = prefs.edit().putBoolean(KEY_DEMO_CAR, value).apply()
 
-    /** True once the debug switch stored a choice; a build-time `-PdemoCar=true` default is not one. */
-    val hasDemoCarChoice: Boolean
-        get() = BuildConfig.DEBUG && prefs.contains(KEY_DEMO_CAR)
-
     private companion object {
         const val PREFS = "teslable_debug"
         const val KEY_AUTO_CONNECT = "auto_connect"
