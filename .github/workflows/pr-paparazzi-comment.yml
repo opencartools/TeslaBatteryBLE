@@ -11,14 +11,14 @@ name: PR paparazzi comment
 # checks out or runs pull request code, and treats the artifact as untrusted
 # input. The upload token comes from the `release` environment. The shots are
 # hosted as user attachments, so neither the PR nor the releases carry image
-# assets. The comment also links the debug APK that Android CI built for the
-# same commit, when there is one. Previous rounds' comments are minimized as
-# outdated, so only the newest diff stays expanded. Android CI usually
-# finishes after the render, so when it completes the `apk-link` job rewrites
-# the APK line of that commit's comment in place (an edit sends no email).
+# assets. The comment links the rolling PR builds release, which carries the
+# latest debug APK of every open PR as a direct download, so a reviewer can
+# install the PR without a GitHub login or unzipping a CI artifact. Previous
+# rounds' comments are minimized as outdated, so only the newest diff stays
+# expanded.
 on:
   workflow_run:
-    workflows: ["PR paparazzi", "Android CI"]
+    workflows: ["PR paparazzi"]
     types: [completed]
 
 permissions:
@@ -239,54 +239,13 @@ jobs:
             echo "COMMENT_EOF"
           } >> "$GITHUB_OUTPUT"
 
-      # Link the debug APK that Android CI built for the same commit. The run is
-      # looked up by the event's head SHA, never by artifact content. The line
-      # is optional: no run, a failed run or a lookup error leaves it out.
-      - name: Find the debug APK
-        id: apk
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          set -euo pipefail
-          runs_url="https://github.com/$GITHUB_REPOSITORY/actions/runs"
-          line=""
-          if [[ ! "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::warning::unexpected head SHA; posting without the APK line"
-          elif ! run="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=1" \
-              --jq '.workflow_runs[0] // empty | "\(.id) \(.status) \(.conclusion // "none")"')"; then
-            echo "::warning::could not look up the Android CI run; posting without the APK line"
-          elif [ -z "$run" ]; then
-            echo "No Android CI run for this commit; posting without the APK line."
-          else
-            read -r run_id status conclusion <<< "$run"
-            if [[ ! "$run_id" =~ ^[0-9]+$ ]]; then
-              echo "::warning::unexpected Android CI run id; posting without the APK line"
-            elif [ "$status" != completed ]; then
-              line="Debug APK: still building in [Android CI]($runs_url/$run_id) (GitHub sign-in needed)"
-            elif [ "$conclusion" = success ]; then
-              artifact_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" \
-                --jq '[.artifacts[] | select(.name == "teslable-debug-apk" and (.expired | not))] | sort_by(.created_at) | last | .id // empty')" ||
-                artifact_id=""
-              if [[ "$artifact_id" =~ ^[0-9]+$ ]]; then
-                line="Debug APK: [zip from Android CI]($runs_url/$run_id/artifacts/$artifact_id) (GitHub sign-in needed)"
-              else
-                echo "Android CI run $run_id has no debug APK artifact; posting without the APK line."
-              fi
-            else
-              echo "Android CI run $run_id concluded $conclusion; posting without the APK line."
-            fi
-          fi
-          echo "line=$line" >> "$GITHUB_OUTPUT"
-
       - name: Comment on the pull request
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
           message: |
             ${{ steps.shots.outputs.message }}
 
-            ${{ steps.apk.outputs.line }}
+            Debug APK: [PR builds](https://github.com/${{ github.repository }}/releases/tag/pr-builds) (direct download, no GitHub sign-in)
           comment-tag: pr-paparazzi-${{ steps.meta.outputs.short }}
           pr-number: ${{ steps.meta.outputs.pr }}
           github-token: ${{ github.token }}
@@ -308,46 +267,3 @@ jobs:
             gh api graphql -f query="$query" -f id="$node" --jq '.data.minimizeComment.minimizedComment.isMinimized' > /dev/null ||
               echo "::warning::could not minimize a superseded snapshots comment"
           done <<< "$nodes"
-
-  # Android CI finished: swap the "still building" APK line of this commit's
-  # snapshots comment for the zip link. Only that line of the bot's own comment
-  # changes; no PR code or artifact content is read. No comment yet (the render
-  # has not finished or the PR is a draft) leaves nothing to do, because the
-  # comment job looks the APK up itself when it posts.
-  apk-link:
-    name: Link the debug APK
-    if: >-
-      github.event.workflow_run.name == 'Android CI' &&
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success'
-    permissions:
-      actions: read        # find the debug APK artifact
-      pull-requests: write # edit the comment
-    runs-on: ubuntu-latest
-    steps:
-      - name: Update the APK line
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          PR: ${{ github.event.workflow_run.pull_requests[0].number }}
-        run: |
-          set -euo pipefail
-          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ && "$RUN_ID" =~ ^[0-9]+$ && "$PR" =~ ^[1-9][0-9]{0,9}$ ]] || {
-            echo "::notice::no pull request number or unexpected ids; nothing to update"; exit 0; }
-          pr_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .head.sha)"
-          [ "$pr_head" = "$HEAD_SHA" ] || { echo "PR #$PR moved on; nothing to update"; exit 0; }
-          artifact_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" \
-            --jq '[.artifacts[] | select(.name == "teslable-debug-apk" and (.expired | not))] | sort_by(.created_at) | last | .id // empty')"
-          [[ "$artifact_id" =~ ^[0-9]+$ ]] || { echo "no debug APK artifact"; exit 0; }
-          line="Debug APK: [zip from Android CI](https://github.com/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts/$artifact_id) (GitHub sign-in needed)"
-          tag="pr-paparazzi-${HEAD_SHA:0:7}"
-          id="$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments?per_page=100" --paginate \
-            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- pr-paparazzi -->")) and (.body | contains("'"$tag"'")))] | last // empty | .id | tostring' | tail -n 1)"
-          [ -n "$id" ] || { echo "no snapshots comment for $tag yet"; exit 0; }
-          old="$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$id" --jq .body)"
-          new="$(printf '%s\n' "$old" | sed -E "s|^Debug APK: .*\$|$line|")"
-          if [ "$new" = "$old" ]; then
-            new="$(printf '%s\n\n%s' "$old" "$line")"
-          fi
-          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$new" > /dev/null
