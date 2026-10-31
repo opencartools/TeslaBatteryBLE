@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable
 
+// Throwaway change: triggers the PR snapshot comment so its APK links can be checked.
+
 import android.Manifest
 import android.content.Context
 import android.content.Intent
