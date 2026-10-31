@@ -45,9 +45,11 @@ release_id() {
   local id
   id="$(find_release_id)"
   if [ -z "$id" ]; then
-    gh api --method POST "repos/$REPO/releases" \
+    if ! created="$(gh api --method POST "repos/$REPO/releases" \
       -f tag_name="$TAG" -f name="$TITLE" -f target_commitish=main \
-      -F prerelease=true -f body="$BODY" > /dev/null 2>&1 || true
+      -F prerelease=true -f body="$BODY" 2>&1)"; then
+      echo "creating the '$TITLE' release failed: $created" >&2
+    fi
     id="$(find_release_id)"
   fi
   [ -n "$id" ] || { echo "could not find or create the '$TITLE' release" >&2; return 1; }
