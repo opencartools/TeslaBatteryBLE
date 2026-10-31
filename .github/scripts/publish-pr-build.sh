@@ -38,18 +38,18 @@ find_release_id() {
     --jq ".[] | select(.name == \"$TITLE\" and (.draft | not)) | .id" | sed -n 1p
 }
 
-# Print the release id, creating the release on first use. Two PR runs can get
-# here at once; the loser sees the tag already exists, so it looks the release
-# up again instead of failing.
+# Print the release id, creating the release on first use. The POST response
+# carries the id: a releases list fetched right after creation can still omit
+# the new release, and a concurrent run may have created the tag first.
 release_id() {
   local id
   id="$(find_release_id)"
   if [ -z "$id" ]; then
-    if ! created="$(gh api --method POST "repos/$REPO/releases" \
+    id="$(gh api --method POST "repos/$REPO/releases" \
       -f tag_name="$TAG" -f name="$TITLE" -f target_commitish=main \
-      -F prerelease=true -f body="$BODY" 2>&1)"; then
-      echo "creating the '$TITLE' release failed: $created" >&2
-    fi
+      -F prerelease=true -f body="$BODY" --jq .id 2>/dev/null || true)"
+  fi
+  if [ -z "$id" ]; then
     id="$(find_release_id)"
   fi
   [ -n "$id" ] || { echo "could not find or create the '$TITLE' release" >&2; return 1; }
