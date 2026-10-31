@@ -245,7 +245,7 @@ class TeslaBleController(
 
     fun startScan() {
         if (!_state.value.trackingEnabled) return
-        if (!_state.scanAllowed(appContext)) return
+        if (!_state.scanAllowed(appContext, ::log)) return
         // Additive scan: keep the current connections and look for more cars.
         links.values.forEach {
             it.reconnectAttempts = 0
@@ -628,7 +628,7 @@ class TeslaBleController(
         if (!_state.value.trackingEnabled) return
         if (_state.value.scanning || _state.value.discovering) return
         if (!hasBlePermissions(appContext)) return
-        if (!_state.scanAllowed(appContext)) return
+        if (!_state.scanAllowed(appContext, ::log)) return
         _state.update { it.copy(discovering = true, explicitScan = false, locationNeeded = false) }
         handler.removeCallbacks(stopDiscovery)
         handler.postDelayed(stopDiscovery, DISCOVERY_TIMEOUT_MS)
@@ -1772,10 +1772,17 @@ class TeslaBleController(
 
 /**
  * Location gates every scan (Android withholds beacon-style advertisements without it), but not a
- * connection to a stored address. A refused scan remembers why, so the cars list can ask.
+ * connection to a stored address. A refused scan remembers why, so the cars list can ask, and says
+ * so once in the log a shared log can explain a car that never shows up.
  */
-private fun MutableStateFlow<BleUiState>.scanAllowed(context: Context): Boolean {
+private fun MutableStateFlow<BleUiState>.scanAllowed(
+    context: Context,
+    log: (String) -> Unit,
+): Boolean {
     if (hasLocationPermission(context)) return true
-    update { it.copy(locationNeeded = true) }
+    if (!value.locationNeeded) {
+        update { it.copy(locationNeeded = true) }
+        log("Scan blocked: location access is missing")
+    }
     return false
 }
