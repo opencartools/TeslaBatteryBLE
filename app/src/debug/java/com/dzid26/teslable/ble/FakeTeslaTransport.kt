@@ -15,13 +15,17 @@ import kotlin.random.Random
  */
 class FakeTeslaTransport(
     context: Context,
+    address: String,
     private val listener: TeslaTransport.Listener,
 ) : TeslaTransport {
     private val handler = Handler(Looper.getMainLooper())
-    private val vin: String = DemoMode.DEMO_VIN
+    private val other = address.equals(DemoMode.OTHER_ADDRESS, true)
+    private val vin: String = if (other) DemoMode.OTHER_VIN else DemoMode.DEMO_VIN
     private val protocol =
         FakeCarProtocol(vin).apply {
-            setEnrolledKey(PairingKeyStore(context).load(TeslaNames.bleName(vin))?.publicKeyRaw)
+            // Each simulated car has its own key; sharing the first car's key made the second demo fail its
+            // VCSEC session, so its notification could not offer Wake.
+            setEnrolledKey(PairingKeyStore(context).load(if (other) DemoMode.OTHER_NAME else TeslaNames.bleName(vin))?.publicKeyRaw)
         }
 
     private var connected = false

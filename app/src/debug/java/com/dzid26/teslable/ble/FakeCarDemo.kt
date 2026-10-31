@@ -13,7 +13,7 @@ class FakeCarDemo(
     override fun createTransport(
         address: String,
         listener: TeslaTransport.Listener,
-    ): TeslaTransport = FakeTeslaTransport(context, listener)
+    ): TeslaTransport = FakeTeslaTransport(context, address, listener)
 
     override fun adverts(): List<TeslaAdvert> =
         listOf(
@@ -23,13 +23,9 @@ class FakeCarDemo(
                 rssi = -60 + Random.nextInt(-3, 4),
             ),
             TeslaAdvert(
-                name = OTHER_NAME,
+                name = DemoMode.OTHER_NAME,
                 address = DemoMode.OTHER_ADDRESS,
                 rssi = -78 + Random.nextInt(-3, 4),
             ),
         )
-
-    private companion object {
-        const val OTHER_NAME = "S1a2b3c4d5e6f7080C"
-    }
 }

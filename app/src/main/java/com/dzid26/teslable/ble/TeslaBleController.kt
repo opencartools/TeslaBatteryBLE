@@ -672,14 +672,7 @@ class TeslaBleController(
     ) {
         if (!TeslaNames.isTeslaBleName(name)) return
         val existing = vehicles[name]
-        val demoVin =
-            if (DemoMode.isEnabled() &&
-                name == runCatching { TeslaNames.bleName(DemoMode.DEMO_VIN) }.getOrNull()
-            ) {
-                DemoMode.DEMO_VIN
-            } else {
-                null
-            }
+        val demoVin = DemoMode.vinFor(name, address)
         val updated =
             (existing ?: Vehicle(bleName = name, address = address)).copy(
                 address = address,
