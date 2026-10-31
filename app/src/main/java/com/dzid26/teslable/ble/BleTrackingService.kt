@@ -359,6 +359,8 @@ class BleTrackingService(
     /**
      * [alert] makes the post a heads-up (a new trip); every other post is silent and alerts only once.
      * Trips use the high-importance [TRIP_CHANNEL_ID] so the heads-up can show; it makes no sound.
+     * A trip post is never marked silent: on a grouped notification, silent becomes GROUP_ALERT_SUMMARY, and
+     * SystemUI treats that as suppressive group alert behavior and dismisses the heads-up on the next update.
      */
     private fun buildNotification(
         model: NotificationModel,
@@ -378,7 +380,9 @@ class BleTrackingService(
                 .setCategory(NotificationCompat.CATEGORY_STATUS)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setGroup(GROUP_KEY)
-        if (!alert) {
+        // OnlyAlertOnce already keeps later trip posts quiet; marking them silent would make SystemUI drop the
+        // trip's heads-up as soon as the next RSSI or progress update arrives (suppressive group alert behavior).
+        if (!alert && model.trip == null) {
             builder.setSilent(true)
         }
         // One UI ignores setColor, so a CI (PR) build says what it is in text and by icon shape.
