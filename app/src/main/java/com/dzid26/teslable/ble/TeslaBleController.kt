@@ -110,10 +110,17 @@ class TeslaBleController(
     private var uiVisible = false
     private var lastVisibilityEvent: AppState.Event? = null
 
+    /** The latest adverts from each source, merged so a real callback cannot hide the demo rows between ticks. */
+    private var realAdverts: List<TeslaAdvert> = emptyList()
+    private var demoAdverts: List<TeslaAdvert> = emptyList()
+
     private val scanner =
         TeslaScanner(
             context = appContext,
-            onDevices = ::onDevicesFound,
+            onDevices = { adverts ->
+                realAdverts = adverts
+                onDevicesFound(realAdverts + demoAdverts)
+            },
             onLog = ::log,
         )
 
@@ -123,14 +130,19 @@ class TeslaBleController(
         address: String,
         listener: TeslaTransport.Listener,
     ): TeslaTransport =
-        demoCar()?.createTransport(address, listener)
+        demoCar()
+            ?.takeIf { DemoMode.isDemoAddress(address) }
+            ?.createTransport(address, listener)
             ?: TeslaGattClient(appContext, listener, autoConnect = DebugSwitches(appContext).autoConnect)
 
-    /** Fake adverts in demo mode; the real BLE scanner otherwise. */
+    private val demoCars = DemoCars()
+
+    /** Fake adverts next to the real scan while the demo switch is on. */
     private val demoScan =
         object : Runnable {
             override fun run() {
-                onDevicesFound(demoCar()?.adverts() ?: emptyList())
+                demoAdverts = demoCar()?.adverts() ?: emptyList()
+                onDevicesFound(realAdverts + demoAdverts)
                 if (_state.value.scanning || _state.value.discovering) {
                     handler.postDelayed(this, DEMO_SCAN_MS)
                 }
@@ -201,13 +213,7 @@ class TeslaBleController(
         if (!prefs.getBoolean(KEY_TRACKING_ENABLED, true)) {
             _state.update { it.copy(trackingEnabled = false) }
         }
-        if (DemoMode.isEnabled()) {
-            // The simulated car carries a fixed demo VIN; give it a home once.
-            val demoName = runCatching { TeslaNames.bleName(DemoMode.DEMO_VIN) }.getOrNull()
-            if (demoName != null && vehicles[demoName]?.vin == null) {
-                updateVehicle(demoName) { it.copy(vin = DemoMode.DEMO_VIN) }
-            }
-        }
+        DemoMode.onEnabledChanged = demoCars::onChanged
         publishVehicles()
         val saved = prefs.getString(KEY_SELECTED_VEHICLE, null)
         if (saved != null && vehicles.containsKey(saved)) {
@@ -608,10 +614,12 @@ class TeslaBleController(
      * find cars it has never seen.
      */
     private fun startScanner(background: Boolean = false) {
-        if (demoCar() != null) {
+        // The demo adverts run alongside the real scan, so the fake car can join a real one.
+        if (DemoMode.isEnabled()) {
             handler.removeCallbacks(demoScan)
             handler.post(demoScan)
-        } else if (background && vehicles.isNotEmpty()) {
+        }
+        if (background && vehicles.isNotEmpty()) {
             scanner.start(deviceNames = vehicles.keys.toList(), lowPower = true)
         } else {
             scanner.start(lowPower = background)
@@ -688,6 +696,54 @@ class TeslaBleController(
         vehicleStore.save(vehicles.values)
         publishVehicles()
         if (changed) log("${nameFor(address)}: remembered for reconnect")
+    }
+
+    /**
+     * The debug switch changed. The fake adverts only join a scan already in progress; a new demo car is
+     * discovered by scanning, like a real one. Dropping it closes only its link, so real cars keep theirs.
+     */
+    private inner class DemoCars {
+        fun onChanged(enabled: Boolean) {
+            log("Demo car ${if (enabled) "on" else "off"}")
+            if (enabled) {
+                if (_state.value.scanning || _state.value.discovering) {
+                    handler.removeCallbacks(demoScan)
+                    handler.post(demoScan)
+                }
+            } else {
+                handler.removeCallbacks(demoScan)
+                demoAdverts = emptyList()
+                closeLinks()
+                remove()
+            }
+        }
+
+        private fun closeLinks() {
+            links.values
+                .filter { DemoMode.isDemoAddress(it.address) }
+                .forEach { links.remove(it.bleName)?.close() }
+            val name = name()
+            _state.update { state ->
+                state.copy(
+                    connections = state.connections.filterKeys { !DemoMode.isDemoAddress(it) },
+                    devices = state.devices.filterNot { DemoMode.isDemoAddress(it.address) || it.name == name },
+                )
+            }
+        }
+
+        private fun remove() {
+            val name = name() ?: return
+            vehicles.remove(name)
+            vehicleStore.save(vehicles.values)
+            if (selectedBleName == name) {
+                val next = orderedVehicles().firstOrNull()?.bleName
+                selectedBleName = next
+                _state.update { it.copy(selectedBleName = next) }
+            }
+            publishVehicles()
+        }
+
+        private fun name(): String? = runCatching { TeslaNames.bleName(DemoMode.DEMO_VIN) }.getOrNull()
     }
 
     private fun selectedLink(): VehicleLink? = selectedBleName?.let(links::get)
