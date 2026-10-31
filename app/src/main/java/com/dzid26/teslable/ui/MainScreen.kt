@@ -189,10 +189,10 @@ fun MainScreen(
             onToggleScan = onToggleScan,
             onToggleTracking = onToggleTracking,
             onOpen = { name, rowAddress ->
-                if (permissionsGranted) {
+                if (permissionsGranted && rowAddress.isNotEmpty()) {
                     viewingBleName = name
                     onOpenVehicle(rowAddress)
-                } else {
+                } else if (!permissionsGranted) {
                     // Connecting without permissions would crash on Android 12+.
                     onRequestPermissions()
                 }

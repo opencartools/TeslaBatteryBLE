@@ -100,7 +100,6 @@ fun SettingsScreen(
         }
     var showEnableDialog by remember { mutableStateOf(false) }
     var showDisableDialog by remember { mutableStateOf(false) }
-    var showClearCacheDialog by remember { mutableStateOf(false) }
 
     // Re-saving every key is Keystore work, so it runs off the main thread;
     // the switch then shows the mode that was actually stored.
@@ -150,10 +149,7 @@ fun SettingsScreen(
             Spacer(Modifier.height(16.dp))
             EnergyPriceCard(priceStore = priceStore)
             Spacer(Modifier.height(16.dp))
-            PairingCard(
-                keys = vehicleKeys,
-                onClearCache = { showClearCacheDialog = true },
-            )
+            PairingCard(keys = vehicleKeys)
             Spacer(Modifier.height(16.dp))
             ExportLogsCard(status = logExportStatus, onExport = onExportLogs)
             Spacer(Modifier.height(16.dp))
@@ -161,7 +157,7 @@ fun SettingsScreen(
             // Debug builds only, and not in the Paparazzi renders, which feed the release screenshots.
             if (BuildConfig.DEBUG && !LocalInspectionMode.current) {
                 Spacer(Modifier.height(16.dp))
-                DebugCard()
+                DebugCard(onClearCache = onClearCarCache)
             }
         }
     }
@@ -183,16 +179,6 @@ fun SettingsScreen(
                 changeBackup(false)
             },
             onDismiss = { showDisableDialog = false },
-        )
-    }
-
-    if (showClearCacheDialog) {
-        ClearCarCacheDialog(
-            onConfirm = {
-                showClearCacheDialog = false
-                onClearCarCache()
-            },
-            onDismiss = { showClearCacheDialog = false },
         )
     }
 }
@@ -343,7 +329,7 @@ private fun EnergyPriceCard(priceStore: EnergyPriceStore) {
 }
 
 @Composable
-private fun DebugCard() {
+private fun DebugCard(onClearCache: () -> Unit) {
     val context = LocalContext.current
     val switches = remember { DebugSwitches(context) }
     var autoConnect by remember { mutableStateOf(switches.autoConnect) }
@@ -395,15 +381,37 @@ private fun DebugCard() {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(16.dp))
+            DebugClearCache(onClearCache)
         }
     }
 }
 
 @Composable
-private fun PairingCard(
-    keys: List<Pair<String, String>>,
-    onClearCache: () -> Unit,
-) {
+private fun DebugClearCache(onClearCache: () -> Unit) {
+    var showDialog by remember { mutableStateOf(false) }
+    Button(onClick = { showDialog = true }) {
+        Text(stringResource(R.string.settings_clear_cache_button))
+    }
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "Forgets each car's cached address and pairing slots; the cars, keys and history stay.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (showDialog) {
+        ClearCarCacheDialog(
+            onConfirm = {
+                showDialog = false
+                onClearCache()
+            },
+            onDismiss = { showDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun PairingCard(keys: List<Pair<String, String>>) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(
@@ -432,13 +440,6 @@ private fun PairingCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = onClearCache,
-                enabled = keys.isNotEmpty(),
-            ) {
-                Text(stringResource(R.string.settings_clear_cache_button))
-            }
         }
     }
 }

@@ -28,7 +28,7 @@
     <string name="settings_export_title">Records</string>
     <string name="settings_pairing">Pairing</string>
     <string name="settings_no_keys">No vehicle keys stored</string>
-    <string name="settings_pairing_hint">Each car has its own key, and pairing always enrolls a freshly generated one. Clearing the cache forgets each car\'s cached Bluetooth address and pairing slots, so the next scan finds the cars again; stored keys and history are kept.</string>
+    <string name="settings_pairing_hint">Each car has its own key, and pairing always enrolls a freshly generated one. Stored keys are kept, and a car that still has its key is marked paired by the next whitelist check.</string>
     <string name="settings_clear_cache_button">Clear car cache</string>
     <string name="settings_about">About</string>
     <string name="settings_about_more">More...</string>
