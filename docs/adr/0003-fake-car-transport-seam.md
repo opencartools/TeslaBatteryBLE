@@ -18,8 +18,11 @@ directly to Android GATT, so no flow could run in an emulator or in JVM tests.
   and whitelist replies, the add-key pairing flow with a simulated card tap,
   session handshakes, and encrypted wake/charge responses. `FakeTeslaTransport`
   adds scheduling and RSSI jitter around it.
-- The fake lives in the debug source set. Debug builds opt in with
-  `-PdemoCar=true`; release builds never contain it and always use GATT.
+- The fake lives in the debug source set. A debug build starts it with
+  `-PdemoCar=true` or turns it on from the Debug settings switch; release builds
+  never contain it and always use GATT.
+- The switch is additive: enabling it adds the simulated car next to the real
+  ones, and disabling it closes only the fake car's link.
 - CI and local runs share `.github/scripts/capture-screenshots.sh`; the demo
   steps simply skip when the app is a real build.
 

@@ -144,6 +144,8 @@
     <string name="history_parked_rate_hint_asleep">Power-down drain: the rate over the stretches the car sat parked with nobody in it and Sentry and climate off, an hour or more apart, the quietest the battery drains. The dashed line follows it.</string>
     <string name="history_parked_rate_hint_mixed">Parked drain over all parked time, powered down or not. Once enough power-down time is measured, this switches to the power-down rate.</string>
     <string name="soc_description">%1$s percent</string>
+    <string name="settings_debug_demo_car">Demo car</string>
+    <string name="settings_debug_demo_car_hint">Adds the simulated car alongside the real one while tracking. Debug builds only.</string>
     <string name="settings_units">Units</string>
     <string name="units_system">System default</string>
     <string name="units_metric">Metric (km)</string>

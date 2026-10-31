@@ -11,6 +11,7 @@ class DemoApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         DemoMode.car = FakeCarDemo(this)
+        DemoMode.restore(this)
         if (DemoMode.isEnabled()) {
             DemoHistory.seed(this)
         }
