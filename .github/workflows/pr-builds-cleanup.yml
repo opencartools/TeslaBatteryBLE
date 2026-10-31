@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+name: PR builds cleanup
+
+# Remove a pull request's APK from the rolling "PR builds" release as soon as
+# the PR closes, merged or abandoned. Fork PRs are never published (their token
+# is read-only) and their close event cannot delete either, so their assets, and
+# any left by a cancelled run, are pruned here or by the next publish.
+on:
+  pull_request:
+    types: [ closed ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-builds-cleanup-${{ github.event.pull_request.number || 'manual' }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Remove the PR build
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write # delete release assets
+      pull-requests: read # keep only open PRs' assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Remove the PR build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ -n "$PR_NUMBER" ]; then
+            bash .github/scripts/publish-pr-build.sh delete
+          else
+            bash .github/scripts/publish-pr-build.sh prune
+          fi
