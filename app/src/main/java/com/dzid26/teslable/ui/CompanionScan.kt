@@ -20,7 +20,7 @@ internal fun rememberCompanionScan(controller: TeslaBleController): () -> Unit {
     val context = LocalContext.current
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-            val car = if (result.resultCode == Activity.RESULT_OK) companionCar(result.data) else null
+            val car = if (result.resultCode == Activity.RESULT_OK) companionCar(context, result.data) else null
             val name = car?.name
             if (car != null && name != null) {
                 controller.rememberVehicle(name, car.address, null)

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ble
 
+import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.ScanResult
 import android.companion.AssociationInfo
@@ -13,6 +14,7 @@ import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Parcelable
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import com.dzid26.teslable.protocol.TeslaNames
 import java.util.regex.Pattern
@@ -65,28 +67,50 @@ fun requestCompanionCar(
 }
 
 /** The car the user picked in the chooser, or null when the result carries no Tesla address. */
-fun companionCar(data: Intent?): CompanionCar? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) modernCar(data) else legacyCar(data)
+fun companionCar(
+    context: Context,
+    data: Intent?,
+): CompanionCar? =
+    when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> modernCar(context, data)
+        else -> legacyCar(context, data)
+    }
 
-private fun modernCar(data: Intent?): CompanionCar? {
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private fun modernCar(
+    context: Context,
+    data: Intent?,
+): CompanionCar? {
     val association =
         data?.getParcelableExtra(CompanionDeviceManager.EXTRA_ASSOCIATION, AssociationInfo::class.java)
             ?: return null
     val address = association.deviceMacAddress?.toString()
-    return address?.let { CompanionCar(advertisedName(association.displayName?.toString()) ?: adapterName(it), it) }
+    return address?.let {
+        CompanionCar(advertisedName(association.displayName?.toString()) ?: adapterName(context, it), it)
+    }
 }
 
 @Suppress("DEPRECATION")
-private fun legacyCar(data: Intent?): CompanionCar? {
+private fun legacyCar(
+    context: Context,
+    data: Intent?,
+): CompanionCar? {
     val result = data?.getParcelableExtra<Parcelable>(CompanionDeviceManager.EXTRA_DEVICE) as? ScanResult ?: return null
     val address = result.device.address
-    return CompanionCar(advertisedName(result.scanRecord?.deviceName) ?: adapterName(address), address)
+    return CompanionCar(advertisedName(result.scanRecord?.deviceName) ?: adapterName(context, address), address)
 }
 
 private fun advertisedName(name: String?): String? = name?.takeIf(TeslaNames::isTeslaBleName)
 
 /** The name the system cached while scanning, when the result itself carried none. */
-private fun adapterName(address: String): String? =
-    runCatching { BluetoothAdapter.getDefaultAdapter()?.getRemoteDevice(address)?.name }
+private fun adapterName(
+    context: Context,
+    address: String,
+): String? {
+    if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+        return null
+    }
+    return runCatching { BluetoothAdapter.getDefaultAdapter()?.getRemoteDevice(address)?.name }
         .getOrNull()
         ?.takeIf(TeslaNames::isTeslaBleName)
+}
