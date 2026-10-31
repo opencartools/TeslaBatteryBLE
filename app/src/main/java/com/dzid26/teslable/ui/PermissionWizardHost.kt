@@ -18,8 +18,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.dzid26.teslable.ble.LOCATION_PERMISSIONS
 import com.dzid26.teslable.ble.TrackingChannels
+import com.dzid26.teslable.ble.canAskLocationAgain
 import com.dzid26.teslable.ble.hasBlePermissions
+import com.dzid26.teslable.ble.hasLocationPermission
 import com.dzid26.teslable.ble.isLocationEnabled
 import com.dzid26.teslable.ble.missingOnboardingPermissions
 import com.dzid26.teslable.ble.onboardingPermissions
@@ -39,6 +42,7 @@ internal fun PermissionWizardHost(
         permissionsGranted: Boolean,
         locationServicesEnabled: Boolean,
         requestPermissions: () -> Unit,
+        requestLocation: (onGranted: () -> Unit) -> Unit,
     ) -> Unit,
 ) {
     val context = LocalContext.current
@@ -72,6 +76,13 @@ internal fun PermissionWizardHost(
                 locationServicesEnabled = isLocationEnabled(context)
                 onGranted()
             }
+        }
+
+    // The location dialog is not part of the wizard: a car at its stored address
+    // reconnects without a scan, so it is only asked when a scan needs it.
+    val requestLocation =
+        rememberLocationRequest(refreshKey, appSettingsIntent) {
+            locationServicesEnabled = isLocationEnabled(context)
         }
 
     LaunchedEffect(refreshKey) {
@@ -108,7 +119,7 @@ internal fun PermissionWizardHost(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        content(permissionsGranted, locationServicesEnabled, requestPermissions)
+        content(permissionsGranted, locationServicesEnabled, requestPermissions, requestLocation)
 
         if (wizardOpen && !introDone) {
             PermissionWizardGreeting(
@@ -169,3 +180,47 @@ private fun Map<String, Boolean>.deniedStep(): List<String>? =
 
 private fun Map<String, Boolean>.finishesOnboarding(context: Context) =
     hasBlePermissions(context) && (isOptionalOnly() || missingOnboardingPermissions(context).isEmpty())
+
+/**
+ * Asks for location when a scan needs it, then runs [action]. A still-missing grant runs the
+ * action anyway, so it can mark what was blocked and the cars list can explain it.
+ */
+@Composable
+private fun rememberLocationRequest(
+    refreshKey: Int,
+    appSettingsIntent: Intent,
+    onStateChanged: () -> Unit,
+): (onGranted: () -> Unit) -> Unit {
+    val context = LocalContext.current
+    var asked by remember { mutableStateOf(false) }
+    var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val launcher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            onStateChanged()
+            pending?.invoke()
+            pending = null
+        }
+    LaunchedEffect(refreshKey) {
+        onStateChanged()
+        val action = pending
+        if (action != null) {
+            pending = null
+            action()
+        }
+    }
+    return { action ->
+        when {
+            hasLocationPermission(context) -> action()
+            // Once Android stopped showing the dialog, only app settings can grant it.
+            asked && !canAskLocationAgain(context) -> {
+                pending = action
+                context.startActivity(appSettingsIntent)
+            }
+            else -> {
+                asked = true
+                pending = action
+                launcher.launch(LOCATION_PERMISSIONS.toTypedArray())
+            }
+        }
+    }
+}

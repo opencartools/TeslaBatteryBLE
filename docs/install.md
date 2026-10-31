@@ -7,6 +7,18 @@ The README has the short version. Stable releases are not out yet; signed stable
 Install the APK from the latest [release](https://github.com/opencartools/TeslaBatteryBLE/releases).
 Releases are signed with the owner key and include prereleases such as betas.
 
+## PR builds
+
+Every pull request that compiles has its debug APK in the rolling
+[**PR builds**](https://github.com/opencartools/TeslaBatteryBLE/releases/tag/pr-builds)
+prerelease: one asset per open PR, named after the PR number and commit
+(`TeslaBatteryBLE-pr417-a1b2c3d.apk`). It is replaced on every push and deleted
+when the PR closes, and the link needs no GitHub login and no unzipping.
+
+These are test builds of `com.dzid26.teslable.pr`, signed with the shared CI
+debug key instead of the release key, so they install next to the app rather
+than over it. They are not app releases: do not point Obtainium at them.
+
 ## Obtainium (auto-updates from GitHub)
 
 1. Open [Obtainium](https://github.com/ImranR98/Obtainium) → **Add App**
@@ -30,8 +42,9 @@ Obtainium settings:
 
 Users who follow tagged betas with **Include prereleases** and no title filter
 are not affected as long as a tagged pre-release is newer than the preview; to be
-sure, set the title filter to the inverted regex `^Preview` (Obtainium's invert
-switch).
+sure, set the title filter to the inverted regex `^(Preview|PR builds)`
+(Obtainium's invert switch), which also keeps the PR builds release out of the
+update check.
 
 The preview carries two APKs of the same commit, both minified with R8 and signed
 with the release key: `...-release.apk` (not debuggable, like a tagged release) and

@@ -51,9 +51,9 @@
     <string name="settings_price_per_kwh">Price per kWh (%1$s)</string>
     <string name="settings_version">TeslaBatteryBLE version: %1$s</string>
     <string name="perm_nearby_title">Allow nearby devices</string>
-    <string name="perm_nearby_why">Lets the app find your Tesla over Bluetooth and open the encrypted link to read its battery state. This is Android\'s \"Nearby devices\" permission; it does not use your location.</string>
+    <string name="perm_nearby_why">Lets the app find your Tesla over Bluetooth and open the encrypted link to read its battery state. This is Android\'s \"Nearby devices\" permission.</string>
     <string name="perm_location_title">Allow location access</string>
-    <string name="perm_location_why">Android 11 and older only allow Bluetooth scanning with location permission. The app never reads your location, and nothing leaves the phone.</string>
+    <string name="perm_location_why">Android only lets apps scan iBeacon-style Bluetooth devices with location permission. Allow it once here: the app never reads your location, and nothing leaves the phone.</string>
     <string name="perm_notifications_dnd">If you use Do Not Disturb while driving, add this app to its exceptions so trip notifications still pop up.</string>
     <string name="perm_notifications_dnd_link">Open Do Not Disturb settings</string>
     <string name="perm_notifications_title">Allow notifications</string>
@@ -106,12 +106,13 @@
     <string name="action_save">Save</string>
 
     <string name="main_pull_scan">Scan for cars</string>
-    <string name="main_permission_title">Allow Bluetooth access</string>
-    <string name="main_permission_body">TeslaBatteryBLE finds and talks to your Tesla over Bluetooth, so it needs permission to see nearby devices. Nothing leaves the phone.</string>
+    <string name="main_permission_title">Permissions needed</string>
+    <string name="main_permission_body">TeslaBatteryBLE needs Bluetooth access to find and talk to your car. Nothing leaves the phone.</string>
     <string name="main_permission_button">Grant permissions</string>
     <string name="main_bluetooth_off_title">Bluetooth is off</string>
     <string name="main_bluetooth_off_body">Turn it on to find your car. The app reconnects by itself.</string>
     <string name="main_bluetooth_off_button">Turn on Bluetooth</string>
+    <string name="main_location_needed_button">Allow location</string>
     <string name="main_location_off">Location services are off. BLE scans return no results until it is enabled.</string>
     <string name="main_car_summary">%1$d car(s), %2$d connected</string>
     <string name="main_no_scan">No scan yet</string>
@@ -143,6 +144,8 @@
     <string name="history_parked_rate_hint_asleep">Power-down drain: the rate over the stretches the car sat parked with nobody in it and Sentry and climate off, an hour or more apart, the quietest the battery drains. The dashed line follows it.</string>
     <string name="history_parked_rate_hint_mixed">Parked drain over all parked time, powered down or not. Once enough power-down time is measured, this switches to the power-down rate.</string>
     <string name="soc_description">%1$s percent</string>
+    <string name="settings_debug_demo_car">Demo car</string>
+    <string name="settings_debug_demo_car_hint">Adds the simulated car to the next scan, alongside the real ones. Debug builds only.</string>
     <string name="settings_units">Units</string>
     <string name="units_system">System default</string>
     <string name="units_metric">Metric (km)</string>

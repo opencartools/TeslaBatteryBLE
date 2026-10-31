@@ -31,6 +31,16 @@ SOC. No cloud. Kotlin + Compose with a Kotlin protocol core; no FFI.
   all API levels. Rejected the `neverForLocation` shortcut: the platform may
   filter scan results with it, and requesting location is the compatible
   behavior on every Android version, including 16.
+  Amended 2026-10-29: the flag is out again. With it declared, both a Jelly
+  Star on Android 13 and a Samsung on Android 16 found no car while scanning,
+  yet still reached their paired car at its known address; a Jelly Star scan
+  heard 742 advertisements, 323 of them named, and not one Tesla. Android drops
+  beacon-style advertisements for apps that disavow location, and the cars
+  advertise that way. Without the flag a scan needs fine location on Android 12+
+  as well. It is not part of onboarding: a car at its stored address reconnects
+  without a scan, so location is asked when a scan needs it (the first run, a
+  pull to scan, or a reconnect that must rediscover a car at a new address),
+  and the cars list shows a card when discovery is blocked.
 - Default pairing role: CHARGING_MANAGER. Driver/owner only by explicit opt-in.
 - Polling: VCSEC ~10s (safe while asleep); Infotainment charge state only while
   the car is awake, ~10s while charging. Never wake the car to read SOC.

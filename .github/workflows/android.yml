@@ -71,6 +71,8 @@ concurrency:
 # and pushes without secrets and signs with the default debug key. `release`
 # (v* tags) takes the signing key and ATTACHMENTS_TOKEN from the `release`
 # environment and builds the signed APK itself. `draft` (main) needs no secrets.
+# `pr-release` (same-repo PRs) gets a release-write token, but only uploads the
+# APK `build` produced: it never builds or runs the app.
 jobs:
   tests:
     name: Unit tests
@@ -202,6 +204,42 @@ jobs:
         with:
           name: teslable-debug-apk
           path: dist-apk/*.apk
+
+  # One rolling "PR builds" prerelease carries the latest APK of every open
+  # PR, so a tester can install a PR from a phone with one tap: no GitHub
+  # login, no unzipping an Actions artifact. The job only uploads the file
+  # `build` produced (it does not build or run the app); a fork PR's token is
+  # read-only, so fork PRs keep their artifact and are skipped here. Stale
+  # assets are pruned on each publish and removed by pr-builds-cleanup.yml when
+  # the PR closes.
+  pr-release:
+    name: Publish the PR build
+    needs: build
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      actions: read # download the APK artifact
+      pull-requests: read # keep only open PRs' assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false # only the step's GH_TOKEN may write
+
+      - name: Download the debug APK
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: teslable-debug-apk
+          path: dist-apk
+
+      - name: Publish the PR build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/publish-pr-build.sh publish "dist-apk/TeslaBatteryBLE-pr${PR_NUMBER}-${HEAD_SHA:0:7}.apk"
 
   smoke:
     name: Release smoke test

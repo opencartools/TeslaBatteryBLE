@@ -28,6 +28,7 @@ import com.dzid26.teslable.ble.BleControllerHolder
 import com.dzid26.teslable.ble.BleTrackingService
 import com.dzid26.teslable.ble.PairingKeyStore
 import com.dzid26.teslable.ble.TeslaBleController
+import com.dzid26.teslable.ble.hasLocationPermission
 import com.dzid26.teslable.ble.shouldTrack
 import com.dzid26.teslable.core.history.AppState
 import com.dzid26.teslable.history.HistorySamples
@@ -128,11 +129,8 @@ class MainActivity : ComponentActivity() {
 
                 PermissionWizardHost(
                     refreshKey = resumeCounter,
-                    onGranted = {
-                        controller.startScan()
-                        controller.ensureConnected()
-                    },
-                ) { permissionsGranted, locationEnabled, requestPermissions ->
+                    onGranted = { controller.ensureConnected() },
+                ) { permissionsGranted, locationEnabled, requestPermissions, requestLocation ->
                     when (screen) {
                         AppScreen.SETTINGS ->
                             SettingsScreen(
@@ -156,13 +154,13 @@ class MainActivity : ComponentActivity() {
                                     permissionsGranted = permissionsGranted,
                                     locationServicesEnabled = locationEnabled,
                                     onRequestPermissions = requestPermissions,
+                                    onRequestLocation = { requestLocation { controller.ensureConnected() } },
                                     onToggleScan = {
-                                        if (state.scanning) {
-                                            controller.stopScan()
-                                        } else if (permissionsGranted) {
-                                            controller.startScan()
-                                        } else {
-                                            requestPermissions()
+                                        when {
+                                            state.scanning -> controller.stopScan()
+                                            !permissionsGranted -> requestPermissions()
+                                            hasLocationPermission(context) -> controller.startScan()
+                                            else -> requestLocation { controller.startScan() }
                                         }
                                     },
                                     onToggleTracking = controller::setTrackingEnabled,

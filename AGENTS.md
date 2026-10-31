@@ -51,7 +51,7 @@ detekt runs at default thresholds (`config/detekt/detekt.yml` only sets `MaxLine
 ## Installing PR builds on the phone
 
 - PR CI builds install as `com.dzid26.teslable.pr`, one shared slot, signed with the shared CI debug key (`CI_DEBUG_KEYSTORE_BASE64`) and all built with the same fixed versionCode (`2_000_000_000`), so any PR build installs over any other, in any order. A local Gradle build on the PC signs with the release key instead, and Android refuses to update across the two keys.
-- Install the PR's CI APK if its build exists (`gh run download <run> -n teslable-debug-apk`, then `adb install -r -d`); otherwise build `:app:assembleDebug -PciDebugBuild=true` locally and install that the same way. `-d` is a harmless safety net (versionCodes are equal now); it cannot override a signature mismatch.
+- Install the PR's CI APK from the rolling **PR builds** release (one asset per open PR, no login or unzip; deleted when the PR closes) or with `gh run download <run> -n teslable-debug-apk`, then `adb install -r -d`; otherwise build `:app:assembleDebug -PciDebugBuild=true` locally and install that the same way. `-d` is a harmless safety net (versionCodes are equal now); it cannot override a signature mismatch.
 - Never uninstall anything to get an install through: `com.dzid26.teslable` holds the car pairing key, and the owner decides about `com.dzid26.teslable.pr`. On `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, stop and report it.
 
 ## Do not
