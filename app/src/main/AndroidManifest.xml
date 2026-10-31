@@ -7,7 +7,7 @@
         android:required="true" />
     <!-- The system chooser that finds a car without location access, where the phone has it. -->
     <uses-feature
-        android:name="android.hardware.companion_device_setup"
+        android:name="android.software.companion_device_setup"
         android:required="false" />
 
     <uses-permission

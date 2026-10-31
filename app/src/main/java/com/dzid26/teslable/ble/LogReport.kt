@@ -49,6 +49,7 @@ fun deviceReportHeader(context: Context): List<String> {
         "Phone: ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
         "Bluetooth: ${if (bluetooth?.isEnabled == true) "on" else "off or unavailable"}",
         "System location: ${if (location?.let(LocationManagerCompat::isLocationEnabled) == true) "on" else "off"}",
+        "System chooser: ${if (hasCompanionChooser(context)) "available" else "unavailable"}",
     ) + reportedPermissions().map { "${it.substringAfterLast('.')}: ${grantedLabel(context, it)}" }
 }
 

@@ -26,7 +26,7 @@ data class CompanionCar(
 )
 
 /** Whether the phone can run the system's companion-device chooser at all. */
-fun hasCompanionChooser(context: Context): Boolean = context.packageManager.hasSystemFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP)
+fun hasCompanionChooser(context: Context): Boolean = context.getSystemService(CompanionDeviceManager::class.java) != null
 
 /**
  * Asks the system to scan for Teslas and lets the user pick one. The system scan needs no
