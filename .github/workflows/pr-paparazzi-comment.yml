@@ -11,11 +11,12 @@ name: PR paparazzi comment
 # checks out or runs pull request code, and treats the artifact as untrusted
 # input. The upload token comes from the `release` environment. The shots are
 # hosted as user attachments, so neither the PR nor the releases carry image
-# assets. The comment links the rolling PR builds release, which carries the
-# latest debug APK of every open PR as a direct download, so a reviewer can
-# install the PR without a GitHub login or unzipping a CI artifact. Previous
-# rounds' comments are minimized as outdated, so only the newest diff stays
-# expanded.
+# assets. The comment links the direct APK from the rolling PR builds release,
+# always (the asset starts working once that commit is built), plus the Android
+# CI run for the same commit as a fallback: the release keeps only the latest
+# build of each open PR, so the run's artifact is how to reach an earlier
+# commit's APK. Previous rounds' comments are minimized as outdated, so only
+# the newest diff stays expanded.
 on:
   workflow_run:
     workflows: ["PR paparazzi"]
@@ -239,13 +240,59 @@ jobs:
             echo "COMMENT_EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # The direct release link is always present, even before the asset
+      # exists: the filename is <pr><sha7>, so it starts working once this
+      # commit is built. The release keeps only the latest build of each open
+      # PR, which is why the Android CI run for the same commit is linked too:
+      # its artifact is the way back to an earlier commit's APK.
+      - name: Find the debug APK
+        id: apk
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR: ${{ steps.meta.outputs.pr }}
+        run: |
+          set -euo pipefail
+          runs_url="https://github.com/$GITHUB_REPOSITORY/actions/runs"
+          direct="https://github.com/$GITHUB_REPOSITORY/releases/download/pr-builds/TeslaBatteryBLE-pr${PR}-${HEAD_SHA:0:7}.apk"
+          line="Debug APK: [PR APK]($direct) (no sign-in)"
+          if [[ ! "$HEAD_SHA" =~ ^[0-9a-f]{40}$ || ! "$PR" =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::warning::unexpected ids; posting with the release link only"
+            line="Debug APK: [PR builds](https://github.com/$GITHUB_REPOSITORY/releases/tag/pr-builds) (no sign-in)"
+          elif ! run="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=1" \
+              --jq '.workflow_runs[0] // empty | "\(.id) \(.status) \(.conclusion // "none")"')"; then
+            echo "::warning::could not look up the Android CI run; posting without the CI fallback"
+          elif [ -z "$run" ]; then
+            echo "No Android CI run for this commit; posting without the CI fallback."
+          else
+            read -r run_id status conclusion <<< "$run"
+            if [[ ! "$run_id" =~ ^[0-9]+$ ]]; then
+              echo "::warning::unexpected Android CI run id; posting without the CI fallback"
+            elif [ "$status" != completed ]; then
+              line="$line or follow [Android CI]($runs_url/$run_id) (sign-in needed)"
+            elif [ "$conclusion" = success ]; then
+              artifact_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" \
+                --jq '[.artifacts[] | select(.name == "teslable-debug-apk" and (.expired | not))] | sort_by(.created_at) | last | .id // empty')" ||
+                artifact_id=""
+              if [[ "$artifact_id" =~ ^[0-9]+$ ]]; then
+                line="$line or the [CI artifact]($runs_url/$run_id/artifacts/$artifact_id) (sign-in needed)"
+              else
+                line="$line or the [Android CI run]($runs_url/$run_id) (sign-in needed)"
+              fi
+            else
+              line="$line or the [Android CI run]($runs_url/$run_id) (sign-in needed)"
+            fi
+          fi
+          echo "line=$line" >> "$GITHUB_OUTPUT"
+
       - name: Comment on the pull request
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
           message: |
             ${{ steps.shots.outputs.message }}
 
-            Debug APK: [PR builds](https://github.com/${{ github.repository }}/releases/tag/pr-builds) (direct download, no GitHub sign-in)
+            ${{ steps.apk.outputs.line }}
           comment-tag: pr-paparazzi-${{ steps.meta.outputs.short }}
           pr-number: ${{ steps.meta.outputs.pr }}
           github-token: ${{ github.token }}
