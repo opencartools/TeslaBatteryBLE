@@ -11,6 +11,11 @@ sealed interface VinIntent {
 
     /** Wake the car, from the car screen or the notification. */
     data object Wake : VinIntent
+
+    /** Open the charge port or flash the lights: the car moves, so it needs the same VIN a read does. */
+    data class Control(
+        val action: QuickAction,
+    ) : VinIntent
 }
 
 /**

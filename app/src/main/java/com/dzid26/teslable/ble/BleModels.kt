@@ -92,6 +92,32 @@ data class BleUiState(
      * as a blocking dialog; saving the VIN clears it and replays [VinRequest.replay] once.
      */
     val vinRequest: VinRequest? = null,
+    /** The last quick action's result, shown once as a snackbar and then consumed. */
+    val actionFeedback: QuickActionFeedback? = null,
+)
+
+/** One control on the car screen's quick-action stack. */
+enum class QuickAction {
+    CHARGE_PORT,
+    FLASH_LIGHTS,
+    WAKE,
+}
+
+/** How a [QuickAction] ended, for the snackbar that reports it. */
+enum class QuickActionOutcome {
+    /** The request went out; the car has not answered yet. */
+    SENT,
+
+    /** The car was asleep, so it was woken and the action goes out once the session is ready. */
+    WAKING,
+
+    /** Nothing could be sent: no link, no key, no VIN, or the handshake gave up. */
+    FAILED,
+}
+
+data class QuickActionFeedback(
+    val action: QuickAction,
+    val outcome: QuickActionOutcome,
 )
 
 /** One log line, tagged with the car it came from (null for app-wide lines) and when it was written. */

@@ -64,6 +64,8 @@ class DrivingScreenSnapshots {
                 onRefresh = {},
                 onOpenSettings = {},
                 onToggleTracking = {},
+                onQuickAction = {},
+                onActionFeedbackShown = {},
                 nowMillis = NOW,
                 homePrice = HOME_PRICE,
             )
@@ -89,6 +91,8 @@ class DrivingScreenSnapshots {
                 onRefresh = {},
                 onOpenSettings = {},
                 onToggleTracking = {},
+                onQuickAction = {},
+                onActionFeedbackShown = {},
                 nowMillis = NOW,
                 homePrice = HOME_PRICE,
                 scrollState = rememberScrollState(DRIVE_CARD_SCROLL_PX),

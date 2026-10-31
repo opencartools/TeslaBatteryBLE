@@ -74,6 +74,7 @@ import com.dzid26.teslable.ble.CarDetails
 import com.dzid26.teslable.ble.ConnectionLabel
 import com.dzid26.teslable.ble.ConnectionPhase
 import com.dzid26.teslable.ble.LogEntry
+import com.dzid26.teslable.ble.QuickAction
 import com.dzid26.teslable.ble.READ_SPINNER_MIN_VISIBLE_MS
 import com.dzid26.teslable.ble.STALENESS_TICK_MS
 import com.dzid26.teslable.ble.TeslaAdvert
@@ -117,6 +118,8 @@ fun MainScreen(
     onRequestVin: (String) -> Unit,
     onDismissVin: () -> Unit,
     onOpenSettings: () -> Unit,
+    onQuickAction: (QuickAction) -> Unit,
+    onActionFeedbackShown: () -> Unit,
 ) {
     var viewingBleName by rememberSaveable { mutableStateOf<String?>(null) }
     var vinTarget by rememberSaveable { mutableStateOf<String?>(null) }
@@ -178,6 +181,8 @@ fun MainScreen(
             onAddVin = { onRequestVin(bleName) },
             onOpenSettings = onOpenSettings,
             onToggleTracking = onToggleTracking,
+            onQuickAction = onQuickAction,
+            onActionFeedbackShown = onActionFeedbackShown,
         )
     } else {
         ConnectionsScreen(

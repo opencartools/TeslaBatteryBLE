@@ -2,6 +2,7 @@
 package com.dzid26.teslable.protocol
 
 import com.tesla.generated.carserver.server.Action
+import com.tesla.generated.carserver.server.ChargePortDoorOpen
 import com.tesla.generated.carserver.server.GetChargeState
 import com.tesla.generated.carserver.server.GetClimateState
 import com.tesla.generated.carserver.server.GetClosuresState
@@ -9,6 +10,7 @@ import com.tesla.generated.carserver.server.GetDriveState
 import com.tesla.generated.carserver.server.GetVehicleData
 import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.carserver.server.VehicleAction
+import com.tesla.generated.carserver.server.VehicleControlFlashLightsAction
 import com.tesla.generated.carserver.vehicle.ChargeState
 import com.tesla.generated.carserver.vehicle.ClimateState
 import com.tesla.generated.carserver.vehicle.ClosuresState
@@ -16,6 +18,13 @@ import com.tesla.generated.carserver.vehicle.DriveState
 import com.tesla.generated.vcsec.RKEAction_E
 import com.tesla.generated.vcsec.UnsignedMessage
 
+/**
+ * The protocol's request builders and reply parsers. The object grows with every car-server
+ * action the app can send, so the function-count threshold is waived here on purpose: splitting
+ * the wake/VCSEC helpers, the reads and the actions into separate objects would only make the
+ * library API harder to find.
+ */
+@Suppress("TooManyFunctions")
 object TeslaCommands {
     fun buildWakeRequest(): ByteArray = UnsignedMessage(RKEAction = RKEAction_E.RKE_ACTION_WAKE_VEHICLE).encode()
 
@@ -54,6 +63,24 @@ object TeslaCommands {
             vehicleAction =
                 VehicleAction(
                     getVehicleData = GetVehicleData(getClimateState = GetClimateState()),
+                ),
+        ).encode()
+
+    /** The car-server action that opens the charge-port door (field 62). */
+    fun buildChargePortOpenRequest(): ByteArray =
+        Action(
+            vehicleAction =
+                VehicleAction(
+                    chargePortDoorOpen = ChargePortDoorOpen(),
+                ),
+        ).encode()
+
+    /** The car-server action that flashes the lights (field 26). */
+    fun buildFlashLightsRequest(): ByteArray =
+        Action(
+            vehicleAction =
+                VehicleAction(
+                    vehicleControlFlashLightsAction = VehicleControlFlashLightsAction(),
                 ),
         ).encode()
 

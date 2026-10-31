@@ -5,6 +5,8 @@ import android.content.Context
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +37,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -72,6 +76,7 @@ import com.dzid26.teslable.ble.BleUiState
 import com.dzid26.teslable.ble.ConnectionDisplay
 import com.dzid26.teslable.ble.ConnectionLabel
 import com.dzid26.teslable.ble.ConnectionPhase
+import com.dzid26.teslable.ble.QuickAction
 import com.dzid26.teslable.ble.TeslaAdvert
 import com.dzid26.teslable.ble.TeslaConnection
 import com.dzid26.teslable.ble.Vehicle
@@ -167,6 +172,10 @@ internal fun CarScreen(
     homePrice: Float? = null,
     // Injectable for the Paparazzi snapshots, to render the screen scrolled down.
     scrollState: ScrollState = rememberScrollState(),
+    // The quick-action stack's callbacks, and a way to start it open in a snapshot.
+    onQuickAction: (QuickAction) -> Unit,
+    onActionFeedbackShown: () -> Unit,
+    initialQuickActionsExpanded: Boolean = false,
     // False while the store is still publishing the logs: the whole-history figures follow at once until then.
     historyLoaded: Boolean = true,
 ) {
@@ -236,8 +245,46 @@ internal fun CarScreen(
             refreshing = false
         }
     }
+    // The quick actions: a data-driven stack, plus the snackbar that reports each result once.
+    var quickActionsExpanded by rememberSaveable { mutableStateOf(initialQuickActionsExpanded) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val feedbackText = state.actionFeedback?.let { stringResource(it.message()) }
+    LaunchedEffect(feedbackText) {
+        if (feedbackText != null) {
+            snackbarHostState.showSnackbar(feedbackText)
+            onActionFeedbackShown()
+        }
+    }
+    // The stack folds before the screen leaves; only while it is open does it take the back press.
+    BackHandler(enabled = quickActionsExpanded) { quickActionsExpanded = false }
+    val quickActions =
+        listOf(
+            QuickActionItem(
+                action = QuickAction.CHARGE_PORT,
+                label = R.string.quick_action_charge_port,
+                icon = R.drawable.ic_charge_port,
+                enabled = true,
+                onClick = { onQuickAction(QuickAction.CHARGE_PORT) },
+            ),
+            QuickActionItem(
+                action = QuickAction.FLASH_LIGHTS,
+                label = R.string.quick_action_flash_lights,
+                icon = R.drawable.ic_flash_lights,
+                enabled = true,
+                onClick = { onQuickAction(QuickAction.FLASH_LIGHTS) },
+            ),
+            QuickActionItem(
+                action = QuickAction.WAKE,
+                label = R.string.quick_action_wake,
+                icon = R.drawable.ic_wake,
+                // Asking an awake car to wake up is noise; the other actions always report failure.
+                enabled = connection?.status?.asleep != false,
+                onClick = { onQuickAction(QuickAction.WAKE) },
+            ),
+        )
     Scaffold(
         modifier = Modifier.countingTouches(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 navigationIcon = {
@@ -283,56 +330,36 @@ internal fun CarScreen(
         },
     ) { innerPadding ->
         val pullState = rememberPullToRefreshState()
-        PullToRefreshBox(
-            isRefreshing = refreshing,
-            onRefresh = {
-                refreshing = true
-                onRefresh()
-            },
-            state = pullState,
+        Box(
             modifier =
                 Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-            indicator = {
-                RefreshPill(
-                    state = pullState,
-                    isRefreshing = refreshing,
-                    pullLabel = pullLabel,
-                    refreshingLabel = refreshingLabel,
-                )
-            },
         ) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState)
-                        .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+            PullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh = {
+                    refreshing = true
+                    onRefresh()
+                },
+                state = pullState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    RefreshPill(
+                        state = pullState,
+                        isRefreshing = refreshing,
+                        pullLabel = pullLabel,
+                        refreshingLabel = refreshingLabel,
+                    )
+                },
             ) {
-                val context = LocalContext.current
-                val priceChanges =
-                    remember { homePrice?.let { listOf(PriceChange(0L, it)) } ?: EnergyPriceStore(context).priceChanges() }
-                val pricePerKwh = priceChanges.lastOrNull()?.pricePerKwh
-                val currencyCode = remember { EnergyPriceStore(context).currencyCode() }
-                val unitStore = remember { UnitStore(context) }
-                val distanceUnit = remember { unitStore.preference().resolve() }
-                var efficiencyUnit by remember { mutableStateOf(unitStore.efficiency()) }
-                val cycleEfficiencyUnit: () -> Unit =
-                    remember {
-                        {
-                            efficiencyUnit = efficiencyUnit.next()
-                            unitStore.setEfficiency(efficiencyUnit)
-                        }
-                    }
-                CompositionLocalProvider(
-                    LocalDistanceUnit provides distanceUnit,
-                    LocalEfficiencyUnit provides efficiencyUnit,
-                    LocalCycleEfficiencyUnit provides cycleEfficiencyUnit,
-                    LocalCurrencyCode provides currencyCode,
-                    LocalPricePerKwh provides pricePerKwh,
-                    LocalPriceChanges provides priceChanges,
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = QuickActionsContentPadding),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     HeroCard(
                         pricePerKwh = pricePerKwh,
@@ -385,6 +412,11 @@ internal fun CarScreen(
                     health?.let { BatteryHealthCard(it) }
                 }
             }
+            QuickActionStack(
+                actions = quickActions,
+                expanded = quickActionsExpanded,
+                onExpandedChange = { quickActionsExpanded = it },
+            )
         }
     }
 }

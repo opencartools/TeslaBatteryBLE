@@ -186,7 +186,8 @@ identity), `docs/requirements/multi-phone.md`
   - `Command` (field 9): one row per request the app sent to the car, raw as
     built, before encryption, with a `Reason`. `oneof request` holds the VCSEC
     `UnsignedMessage` (wake, whitelist and key-slot lookups, add key), the
-    CarServer `Action` (the charge, drive, closures and climate reads) or the
+    CarServer `Action` (the charge, drive, closures and climate reads, and the
+    quick-action charge-port and flash-lights commands) or the
     session info request as a `RoutableMessage` (only the domain it is
     addressed to: the public key, routing address and request id are left
     out, and so is the key in an add-key request, though keys are public).
@@ -194,7 +195,8 @@ identity), `docs/requirements/multi-phone.md`
     `POLICY_ACTIVE`, `POLICY_HOLD`, `POLICY_SAFETY` and `FRESH_START` (the
     poll policy says why a read is due, `InfotainmentPollPolicy.lastReadReason`),
     `SESSION_HANDSHAKE`, `FOLLOW_UP` (drive, closures, climate after the
-    previous reply), `PAIRING` and `KEY_LOOKUP`. A read that waits for its
+    previous reply), `PAIRING`, `KEY_LOOKUP` and `USER_ACTION` (the
+    quick-actions button). A read that waits for its
     Infotainment handshake keeps the reason it was made for.
   - `CommandResult` (field 10): logged only when the car refuses a command or
     never answers it, holding the reason, the domain and the raw status:
