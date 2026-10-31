@@ -131,7 +131,8 @@ class MainActivity : ComponentActivity() {
 
                 // The system's companion-device chooser finds a car without location permission;
                 // it is the fallback once Android will not show the location dialog again.
-                val companionScan = rememberCompanionScan(controller)
+                var locationCardHidden by rememberSaveable { mutableStateOf(false) }
+                val companionScan = rememberCompanionScan(controller) { locationCardHidden = true }
 
                 PermissionWizardHost(
                     refreshKey = resumeCounter,
@@ -159,6 +160,7 @@ class MainActivity : ComponentActivity() {
                                     history = history,
                                     permissionsGranted = permissionsGranted,
                                     locationServicesEnabled = locationEnabled,
+                                    locationNeeded = state.locationNeeded && !locationCardHidden,
                                     onRequestPermissions = requestPermissions,
                                     onRequestLocation = { requestLocation(null) { controller.ensureConnected() } },
                                     onToggleScan = {

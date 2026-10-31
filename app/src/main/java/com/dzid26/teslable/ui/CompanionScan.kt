@@ -16,7 +16,10 @@ import com.dzid26.teslable.ble.requestCompanionCar
  * chooser finds a Tesla without the location permission. Returns the starter for that chooser.
  */
 @Composable
-internal fun rememberCompanionScan(controller: TeslaBleController): () -> Unit {
+internal fun rememberCompanionScan(
+    controller: TeslaBleController,
+    onDismissed: () -> Unit = {},
+): () -> Unit {
     val context = LocalContext.current
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
@@ -27,13 +30,17 @@ internal fun rememberCompanionScan(controller: TeslaBleController): () -> Unit {
                 controller.openVehicle(car.address)
             } else {
                 controller.log("System chooser: no Tesla found")
+                onDismissed()
             }
         }
     return {
         requestCompanionCar(
             context,
             onChooser = { sender -> launcher.launch(IntentSenderRequest.Builder(sender).build()) },
-            onFailure = { message -> controller.log("System chooser: ${message.ifBlank { "no car found" }}") },
+            onFailure = { message ->
+                controller.log("System chooser: ${message.ifBlank { "no car found" }}")
+                onDismissed()
+            },
         )
     }
 }
