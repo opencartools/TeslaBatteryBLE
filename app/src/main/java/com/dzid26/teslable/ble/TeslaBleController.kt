@@ -122,6 +122,9 @@ class TeslaBleController(
                 onDevicesFound(realAdverts + demoAdverts)
             },
             onLog = ::log,
+            // A refused start never ran: stopScan drops the scanning state (so the button and the
+            // "scanning" text are honest) and leaves the scanner's own retry to run.
+            onRefused = ::stopScan,
         )
 
     private fun demoCar(): DemoMode.Car? = if (DemoMode.isEnabled()) DemoMode.car else null
