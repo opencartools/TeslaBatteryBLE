@@ -62,7 +62,9 @@ class VehicleStore(
                 for (index in 0 until array.length()) {
                     val item = array.optJSONObject(index) ?: continue
                     val bleName = item.optString(KEY_BLE_NAME).takeIf { it.isNotEmpty() } ?: continue
-                    val address = item.optString(KEY_ADDRESS).takeIf { it.isNotEmpty() } ?: continue
+                    // An empty address is a car whose cached Bluetooth address was forgotten;
+                    // it stays in the list and a scan fills the address in again.
+                    val address = item.optString(KEY_ADDRESS)
                     add(
                         Vehicle(
                             bleName = bleName,

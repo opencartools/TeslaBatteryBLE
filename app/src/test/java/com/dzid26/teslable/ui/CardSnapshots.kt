@@ -709,7 +709,7 @@ class CardSnapshots {
                 SettingsScreen(
                     keyStore = PairingKeyStore(LocalContext.current),
                     vehicles = listOf(DemoScreenFixtures.vehicle),
-                    onClearPairingCache = {},
+                    onClearCarCache = {},
                     logExportStatus = LogExportStatus.Idle,
                     onExportLogs = {},
                     onOpenAbout = {},
