@@ -52,7 +52,7 @@ class QuickActionSnapshots {
             carScreen(vehicle = DemoScreenFixtures.vehicle.copy(vin = null), expanded = false)
         }
 
-    /** A sleeping car, where Wake car is the one action that is enabled. */
+    /** A sleeping car, where Wake car is no longer the disabled row. */
     @Test
     fun screenCarDetailActionsAsleep() = both("screen-car-detail-actions-asleep", screenPhone) { carScreen(state = asleepState()) }
 

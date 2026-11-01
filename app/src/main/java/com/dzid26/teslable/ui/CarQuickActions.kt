@@ -43,7 +43,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -233,12 +232,14 @@ private fun QuickActionRow(
     item: QuickActionItem,
     onInvoke: () -> Unit,
 ) {
+    // A disabled row dims what it draws, not its fill: a translucent pill would let the content
+    // behind the stack read through it as a second label.
+    val contentAlpha = if (item.enabled) 1f else DISABLED_ALPHA
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = MinTouchTarget)
-                .alpha(if (item.enabled) 1f else DISABLED_ALPHA)
                 .clickable(enabled = item.enabled, role = Role.Button, onClick = onInvoke),
         horizontalArrangement = Arrangement.spacedBy(LabelSpacing),
         verticalAlignment = Alignment.CenterVertically,
@@ -247,7 +248,7 @@ private fun QuickActionRow(
             Surface(
                 shape = RoundedCornerShape(percent = 50),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = MaterialTheme.colorScheme.onSurface,
+                contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
                 shadowElevation = LabelElevation,
             ) {
                 Text(
@@ -264,7 +265,7 @@ private fun QuickActionRow(
             modifier = Modifier.size(ActionSize),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = contentAlpha),
             shadowElevation = ActionElevation,
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
