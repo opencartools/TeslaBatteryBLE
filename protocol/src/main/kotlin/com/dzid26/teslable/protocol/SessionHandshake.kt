@@ -11,7 +11,7 @@ interface SessionKeys {
     fun publicKeyRaw(): ByteArray?
 
     /** Null when there is no key, or one this phone cannot use. */
-    fun load(): TeslaKeyPair?
+    fun load(): VehicleKey?
 }
 
 /**
@@ -184,13 +184,12 @@ class SessionHandshake(
             host.log("session info missing tag")
             return true
         }
-        val keyPair = keys.load()
+        val key = keys.load()
         val vin = host.vin
         val session =
-            if (keyPair != null && vin != null) {
+            if (key != null && vin != null) {
                 TeslaSession.import(
-                    privateKeyPkcs8 = keyPair.privateKeyPkcs8,
-                    publicKeyRaw = keyPair.publicKeyRaw,
+                    key = key,
                     vin = vin,
                     challenge = challenge,
                     encodedInfo = encodedInfo,
@@ -202,7 +201,7 @@ class SessionHandshake(
         if (session == null) {
             // The store dropped a key this phone can never decrypt (for example a
             // device-only key restored from another phone).
-            if (keyPair == null && !keys.hasKey()) host.onKeyUnusable()
+            if (key == null && !keys.hasKey()) host.onKeyUnusable()
             host.log("session verification failed (${domain.name})")
             return true
         }

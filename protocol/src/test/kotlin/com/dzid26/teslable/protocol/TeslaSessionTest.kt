@@ -22,7 +22,7 @@ class TeslaSessionTest {
     private val client = TeslaKeys.generate()
     private val vehicle = TeslaKeys.generate()
     private val challenge = ByteArray(16) { 1 }
-    private val sessionKey = TeslaCrypto.sessionKey(client.privateKeyPkcs8, vehicle.publicKeyRaw)
+    private val sessionKey = client.sessionKeyWith(vehicle.publicKeyRaw)
 
     private fun sessionInfo(
         counter: Int = 7,
@@ -43,8 +43,7 @@ class TeslaSessionTest {
         val info = sessionInfo(counter, clockTime)
         val tag = TeslaSession.sessionInfoHmac(sessionKey, vin, challenge, info)
         return TeslaSession.import(
-            privateKeyPkcs8 = client.privateKeyPkcs8,
-            publicKeyRaw = client.publicKeyRaw,
+            key = client,
             vin = vin,
             challenge = challenge,
             encodedInfo = info,
@@ -65,7 +64,7 @@ class TeslaSessionTest {
         tag[0] = (tag[0] + 1).toByte()
         assertEquals(
             null,
-            TeslaSession.import(client.privateKeyPkcs8, client.publicKeyRaw, vin, challenge, info, tag),
+            TeslaSession.import(client, vin, challenge, info, tag),
         )
     }
 
@@ -76,8 +75,7 @@ class TeslaSessionTest {
         assertEquals(
             null,
             TeslaSession.import(
-                client.privateKeyPkcs8,
-                client.publicKeyRaw,
+                client,
                 "WRONGVIN000000000",
                 challenge,
                 info,
@@ -249,8 +247,7 @@ class TeslaSessionTest {
         val tag = TeslaSession.sessionInfoHmac(sessionKey, vin, challenge, info)
         val session =
             TeslaSession.import(
-                privateKeyPkcs8 = client.privateKeyPkcs8,
-                publicKeyRaw = client.publicKeyRaw,
+                key = client,
                 vin = vin,
                 challenge = challenge,
                 encodedInfo = info,

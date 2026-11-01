@@ -184,7 +184,7 @@ class SessionHandshakeTest {
         handshake.onMessage(answer(host.requests.single(), vin))
         val challenge = ByteArray(16) { 9 }
         val info = sessionInfo()
-        val key = TeslaCrypto.sessionKey(client.privateKeyPkcs8, vehicle.publicKeyRaw)
+        val key = client.sessionKeyWith(vehicle.publicKeyRaw)
         val tag = TeslaSession.sessionInfoHmac(key, vin, challenge, info)
 
         assertTrue(handshake.resync(Domain.DOMAIN_VEHICLE_SECURITY, challenge, info, tag))
@@ -198,7 +198,7 @@ class SessionHandshakeTest {
         handshake.start()
         handshake.onMessage(answer(host.requests.single(), vin))
         val info = sessionInfo()
-        val key = TeslaCrypto.sessionKey(client.privateKeyPkcs8, vehicle.publicKeyRaw)
+        val key = client.sessionKeyWith(vehicle.publicKeyRaw)
         val forAnotherChallenge = TeslaSession.sessionInfoHmac(key, vin, ByteArray(16) { 1 }, info)
 
         assertFalse(handshake.resync(Domain.DOMAIN_VEHICLE_SECURITY, ByteArray(16) { 9 }, info, forAnotherChallenge))
@@ -211,7 +211,7 @@ class SessionHandshakeTest {
     fun `session info for a domain with no session is refused`() {
         val challenge = ByteArray(16) { 9 }
         val info = sessionInfo()
-        val key = TeslaCrypto.sessionKey(client.privateKeyPkcs8, vehicle.publicKeyRaw)
+        val key = client.sessionKeyWith(vehicle.publicKeyRaw)
         val tag = TeslaSession.sessionInfoHmac(key, vin, challenge, info)
 
         assertFalse(handshake.resync(Domain.DOMAIN_VEHICLE_SECURITY, challenge, info, tag))
@@ -232,7 +232,7 @@ class SessionHandshakeTest {
     ): ByteArray {
         val uuid = RoutableMessage.ADAPTER.decode(request).uuid
         val info = sessionInfo()
-        val key = TeslaCrypto.sessionKey(client.privateKeyPkcs8, vehicle.publicKeyRaw)
+        val key = client.sessionKeyWith(vehicle.publicKeyRaw)
         val tag = TeslaSession.sessionInfoHmac(key, forVin, uuid.toByteArray(), info)
         return RoutableMessage(
             request_uuid = uuid,

@@ -102,7 +102,7 @@ class PairingFlowTest {
 
         flow.pairKey()
         assertEquals(PairingPhase.CHECKING, flow.phase)
-        flow.onMessage(whitelist(listOf(keyPair.keyId), slotMask = 0b100))
+        flow.onMessage(whitelist(listOf(TeslaKeys.keyId(keyPair.publicKeyRaw)), slotMask = 0b100))
 
         assertEquals(PairingPhase.OK, flow.phase)
         assertTrue(host.addKeyRequests.isEmpty())
@@ -144,7 +144,7 @@ class PairingFlowTest {
         flow.onTimer(PairingTimer.RESPONSE_TIMEOUT)
         assertEquals(PairingPhase.ERROR, flow.phase)
 
-        flow.onMessage(slotEntry(slot = 5, keyId = keyPair.keyId))
+        flow.onMessage(slotEntry(slot = 5, keyId = TeslaKeys.keyId(keyPair.publicKeyRaw)))
 
         assertEquals(5, host.keySlots.last())
         assertEquals(PairingPhase.IDLE, flow.phase)
@@ -154,7 +154,7 @@ class PairingFlowTest {
     fun `a slot entry for another key moves on to the next slot`() {
         keys.stored = keyPair
         flow.pairKey()
-        flow.onMessage(whitelist(listOf(keyPair.keyId, byteArrayOf(7, 7, 7, 7)), slotMask = 0b101))
+        flow.onMessage(whitelist(listOf(TeslaKeys.keyId(keyPair.publicKeyRaw), byteArrayOf(7, 7, 7, 7)), slotMask = 0b101))
         val before = host.vcsecRequests.size
 
         flow.onMessage(slotEntry(slot = 0, keyId = byteArrayOf(7, 7, 7, 7)))
@@ -275,8 +275,6 @@ class PairingFlowTest {
         override fun hasKey() = stored != null
 
         override fun publicKeyRaw() = stored?.publicKeyRaw
-
-        override fun keyId() = stored?.keyId
 
         override fun generate(): TeslaKeyPair? {
             generated++
