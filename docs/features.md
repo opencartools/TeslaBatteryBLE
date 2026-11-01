@@ -3,6 +3,7 @@
 What the app does today, in detail. The short version is in the [README](../README.md).
 
 - **Scan & connect** to nearby Teslas by advertised BLE name, with VIN-based hinting; once the VIN is saved, the car screen shows its model and model year under the name, and a pencil next to the name edits the VIN and the car's new-car rated range (the app links the EPA page for the VIN's model and year to copy it from)
+- **VIN before a session** — the BLE session is personalised with the VIN, so the app asks for it the first time you refresh or wake a car without one (background reads stay quiet). A small banner under the car screen's hero and the VIN field's hint say the easiest way is to copy it from the Tesla app, with an open-in-new icon that opens the app; saving the VIN replays the action you asked for. The VIN is checked against the car's advertised BLE name, stays on the phone and is never logged; it stays optional for the local views, which need no session
 - **Pair a key** (CHARGING_MANAGER role by default) via Tesla's unsigned `addKey` flow: NFC card tap on the console + vehicle confirmation
 - **No extra BLE channel** — the car reserves one BLE channel per connected device, not per app. A dongle or keyfob always takes its own channel; the app shares your phone's link, so installed on the same phone as Tesla's phone-key app it adds no channel at all
 - **Read battery SOC** and charge state over an authenticated, encrypted session; a
@@ -25,7 +26,7 @@ What the app does today, in detail. The short version is in the [README](../READ
   the app cannot see is read once every twenty minutes, which is longer than the car's own sleep timer, so
   the app never keeps it awake.
 - **Background tracking** via a foreground service: SOC timeline and connection state while parked or charging.
-  The notification shows from the first connect attempt to a paired car ("Connecting�"), not only after the first read.
+  The notification shows from the first connect attempt to a paired car ("Connecting�"), not only after the first read.
   Tracking resumes by itself after a reboot or an app update (once the phone is unlocked), as long as tracking
   is on and a car is paired. Some phones (Xiaomi, Huawei, Oppo/Vivo, Samsung "sleeping apps") block this unless
   you allow autostart for the app or set its battery usage to unrestricted. After a force stop, Android keeps

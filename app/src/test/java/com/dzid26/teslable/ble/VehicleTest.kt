@@ -24,6 +24,22 @@ class VehicleTest {
     }
 
     @Test
+    fun hasSessionVinOnlyForAFullLengthVin() {
+        assertFalse(vehicle().hasSessionVin)
+        assertFalse(vehicle(vin.take(16)).hasSessionVin)
+        assertTrue(vehicle(vin).hasSessionVin)
+    }
+
+    @Test
+    fun vinVerdictSplitsEmptyPartialMatchAndMismatch() {
+        val car = vehicle()
+        assertEquals(VinVerdict.EMPTY, car.vinVerdict("  "))
+        assertEquals(VinVerdict.PARTIAL, car.vinVerdict(vin.take(10)))
+        assertEquals(VinVerdict.MATCH, car.vinVerdict("  ${vin.lowercase()}  "))
+        assertEquals(VinVerdict.MISMATCH, car.vinVerdict("5YJ3E7EBXKF000000"))
+    }
+
+    @Test
     fun acceptsNormalisedInput() {
         assertTrue(vehicle().acceptsVin("  ${vin.lowercase()}  "))
         assertEquals(vin, Vehicle.normalizeVin("  ${vin.lowercase()}  "))

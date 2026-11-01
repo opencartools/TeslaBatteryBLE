@@ -113,7 +113,9 @@ fun MainScreen(
     onPairKey: (String) -> Unit,
     onSaveCar: (String, CarDetails) -> Unit,
     onWake: (String?) -> Unit,
-    onReadSoc: () -> Unit,
+    onRefreshVehicle: (String, String) -> Unit,
+    onRequestVin: (String) -> Unit,
+    onDismissVin: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     var viewingBleName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -168,16 +170,12 @@ fun MainScreen(
             onPair = { if (address.isNotEmpty()) onPairKey(address) },
             onRefresh = {
                 if (address.isNotEmpty()) {
-                    // One pull does the right thing for the current state: reconnect,
-                    // wake the car, or read the battery.
-                    val connection = state.connections[address]
-                    when {
-                        connection?.phase != ConnectionPhase.READY -> onOpenVehicle(address)
-                        connection.status?.asleep != false -> onWake(null)
-                        else -> onReadSoc()
-                    }
+                    // One pull does the right thing for the current state: reconnect, wake, or read
+                    // the battery. The controller gates it on the VIN and replays it once one is saved.
+                    onRefreshVehicle(bleName, address)
                 }
             },
+            onAddVin = { onRequestVin(bleName) },
             onOpenSettings = onOpenSettings,
             onToggleTracking = onToggleTracking,
         )
@@ -214,6 +212,22 @@ fun MainScreen(
         onSaveCar = onSaveCar,
         onDismiss = { vinTarget = null },
     )
+
+    // The VIN prompt for the car that asked for one: blocking, named for that car, and cleared by the
+    // controller on save, cancel, disconnect, or a car switch.
+    val vinRequest = state.vinRequest
+    if (vinRequest != null) {
+        val target = state.vehicles.firstOrNull { it.bleName == vinRequest.bleName }
+        if (target != null) {
+            VinPromptDialog(
+                vehicle = target,
+                onSave = { vin ->
+                    onSaveCar(target.bleName, CarDetails(vin = vin, factoryRangeMiles = target.factoryRangeMiles))
+                },
+                onDismiss = onDismissVin,
+            )
+        }
+    }
 }
 
 /** The car editor, opened from the cars list or the car screen; renders nothing unless a car is being edited. */
@@ -227,7 +241,6 @@ private fun CarEditor(
     if (target == null) return
     val vehicle = state.vehicles.firstOrNull { it.bleName == target } ?: return
     CarDialog(
-        bleName = target,
         vehicle = vehicle,
         onSave = { details ->
             onSaveCar(target, details)

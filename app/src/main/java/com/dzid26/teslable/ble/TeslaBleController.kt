@@ -104,6 +104,8 @@ class TeslaBleController(
     private val handler = Handler(Looper.getMainLooper())
     private val clientAddress = TeslaCrypto.randomBytes(16)
     private var selectedBleName: String? = null
+    private val vinPrompts = VinPrompts(_state, ::log)
+    private val carActions = CarActions()
 
     /** Cars a scan already connected to once, only to read their name; reset by each new scan. */
     private val nameProbes = mutableSetOf<String>()
@@ -234,23 +236,13 @@ class TeslaBleController(
     fun saveCar(
         bleName: String,
         details: CarDetails,
-    ) {
-        val vehicle = vehicles[bleName] ?: return
-        val normalized = details.vin?.let(Vehicle::normalizeVin)?.takeIf { it.isNotEmpty() }
-        if (normalized != null && !vehicle.acceptsVin(normalized)) {
-            log("${vehicle.title}: VIN does not match this car's advertised name")
-            return
-        }
-        updateVehicle(bleName) {
-            it.copy(
-                vin = normalized ?: it.vin,
-                factoryRangeMiles = details.factoryRangeMiles,
-            )
-        }
-        log("${vehicle.title}: details saved")
-        // A VIN unlocks the sessions; retry the handshake now.
-        if (normalized != null) links[bleName]?.takeIf { it.phase == ConnectionPhase.READY }?.startSession()
-    }
+    ) = carActions.save(bleName, details)
+
+    /** The car screen's banner: opens the same VIN prompt without anything to replay. */
+    fun requestVin(bleName: String) = carActions.requestVin(bleName)
+
+    /** The owner dismissed the VIN prompt: nothing is saved and the blocked action is not replayed. */
+    fun dismissVinRequest() = carActions.dismiss()
 
     fun startScan() {
         if (!_state.value.trackingEnabled) return
@@ -421,24 +413,113 @@ class TeslaBleController(
                 devices = emptyList(),
                 connections = emptyMap(),
                 selectedBleName = null,
+                log = emptyList(),
+                vinRequest = null,
             )
         }
         log("Background tracking disabled")
     }
 
-    fun wakeVehicle(bleName: String? = null) {
-        val target = bleName ?: selectedBleName
-        val link = target?.let(links::get)
-        if (link == null) {
-            log("No connected car to wake")
-            return
-        }
-        link.wake()
-    }
+    /**
+     * The car screen's pull: connect, wake the car or read it, whichever fits the link now. The VIN gate
+     * covers all three, and a saved VIN replays the same gesture, so the pull behaves the same before and
+     * after the prompt. [address] is the live one from the screen; a stored car falls back to its own.
+     */
+    fun refreshVehicle(
+        bleName: String? = null,
+        address: String? = null,
+    ) = carActions.refresh(bleName, address)
 
-    fun requestChargeState(bleName: String? = null) {
-        val link = (bleName ?: selectedBleName)?.let(links::get) ?: return
-        link.requestChargeState(Command.Reason.USER_REFRESH)
+    fun wakeVehicle(bleName: String? = null) = carActions.wake(bleName)
+
+    fun requestChargeState(bleName: String? = null) = carActions.read(bleName)
+
+    /**
+     * The car screen's user actions behind the VIN gate, and the prompt that asks for it. Nested so the
+     * controller's own body stays within the class-size limit; every public entry point delegates here.
+     */
+    private inner class CarActions {
+        /** Saves what the owner entered for a car, then replays the action its VIN prompt blocked, once. */
+        fun save(
+            bleName: String,
+            details: CarDetails,
+        ) {
+            val vehicle = vehicles[bleName] ?: return
+            val normalized = details.vin?.let(Vehicle::normalizeVin)?.takeIf { it.isNotEmpty() }
+            if (normalized != null && !vehicle.acceptsVin(normalized)) {
+                log("${vehicle.title}: VIN does not match this car's advertised name")
+                return
+            }
+            updateVehicle(bleName) {
+                it.copy(
+                    vin = normalized ?: it.vin,
+                    factoryRangeMiles = details.factoryRangeMiles,
+                )
+            }
+            log("${vehicle.title}: details saved")
+            // A VIN unlocks the sessions; retry the handshake now.
+            if (normalized != null) links[bleName]?.takeIf { it.phase == ConnectionPhase.READY }?.startSession()
+            saved(bleName)
+        }
+
+        /** Pull to refresh: reconnect, wake or read, whichever fits the link now. */
+        fun refresh(
+            bleName: String?,
+            address: String?,
+        ) {
+            val name = bleName ?: selectedBleName ?: return
+            if (blocks(vehicles[name], VinIntent.Refresh)) return
+            val link = links[name]
+            val linkAddress = address ?: vehicles[name]?.address
+            if (link == null || link.phase != ConnectionPhase.READY) {
+                if (linkAddress != null) openVehicle(name, linkAddress)
+            } else if (
+                _state.value.connections[link.address]
+                    ?.status
+                    ?.asleep != false
+            ) {
+                link.wake()
+            } else {
+                readLink(name)
+            }
+        }
+
+        fun wake(bleName: String?) {
+            val name = bleName ?: selectedBleName
+            if (blocks(name?.let(vehicles::get), VinIntent.Wake)) return
+            val link = name?.let(links::get)
+            if (link == null) log("No connected car to wake") else link.wake()
+        }
+
+        fun read(bleName: String?) {
+            val name = bleName ?: selectedBleName ?: return
+            if (blocks(vehicles[name], VinIntent.Refresh)) return
+            readLink(name)
+        }
+
+        fun requestVin(bleName: String) {
+            vehicles[bleName]?.let { vinPrompts.request(it) }
+        }
+
+        fun dismiss() = vinPrompts.dismiss()
+
+        /** The VIN was saved: the action its prompt blocked runs now, once. */
+        fun saved(bleName: String) {
+            when (vinPrompts.saved(vehicles[bleName])) {
+                VinIntent.Refresh -> refresh(bleName, address = null)
+                VinIntent.Wake -> wake(bleName)
+                null -> Unit
+            }
+        }
+
+        /** The read behind both the pull and a saved VIN's replay; never gated again. */
+        private fun readLink(name: String) = links[name]?.requestChargeState(Command.Reason.USER_REFRESH)
+
+        /** True when the VIN prompt took over [intent], so the caller must stop. */
+        private fun blocks(
+            vehicle: Vehicle?,
+            intent: VinIntent,
+        ): Boolean = vehicle != null && vinPrompts.request(vehicle, intent)
     }
 
     /**
@@ -748,14 +829,16 @@ class TeslaBleController(
         name: String,
         persist: Boolean = false,
     ) {
+        val previous = selectedBleName
         selectedBleName = name
         if (persist) {
             prefs.edit().putString(KEY_SELECTED_VEHICLE, name).apply()
         }
-        val vehicle = vehicles[name]
         _state.update {
             it.copy(
                 selectedBleName = name,
+                // A prompt belongs to the car that raised it; switching cars drops it.
+                vinRequest = if (previous == name) it.vinRequest else null,
             )
         }
     }
