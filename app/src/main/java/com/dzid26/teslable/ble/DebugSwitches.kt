@@ -4,19 +4,23 @@ package com.dzid26.teslable.ble
 import android.content.Context
 import com.dzid26.teslable.BuildConfig
 
-/** Experiments that only exist in debug builds; a release build ignores whatever is stored. */
+/**
+ * Experimental overrides. A release build ignores whatever is stored, so a debug session cannot
+ * leave a release install in a different state.
+ */
 class DebugSwitches(
     context: Context,
 ) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /**
-     * Connect with `connectGatt(autoConnect = true)`: Android connects in the background when the car comes
-     * into range instead of the app polling for it. Whether it pays off depends on Tesla's BLE addresses
-     * staying stable between visits, which this switch is for finding out.
+     * Connect with `connectGatt(autoConnect = true)`: Android waits for the car and connects when it
+     * comes into range. Debug build type only, on unless the switch is turned off; release keeps the
+     * direct-connect path. Gated on the build type, not [BuildConfig.DEBUG], because the rolling
+     * preview is a release build made debuggable.
      */
     var autoConnect: Boolean
-        get() = BuildConfig.DEBUG && prefs.getBoolean(KEY_AUTO_CONNECT, false)
+        get() = BuildConfig.BUILD_TYPE == "debug" && prefs.getBoolean(KEY_AUTO_CONNECT, true)
         set(value) = prefs.edit().putBoolean(KEY_AUTO_CONNECT, value).apply()
 
     /**

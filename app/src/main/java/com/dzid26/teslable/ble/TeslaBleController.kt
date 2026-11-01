@@ -261,6 +261,10 @@ class TeslaBleController(
                 locationNeeded = false,
             )
         }
+        // An app-open discovery may be running on the same callback; the owner's scan replaces it
+        // instead of colliding with it (the platform answers a second start with "already started").
+        handler.removeCallbacks(stopDiscovery)
+        stopScanner()
         startScanner()
         handler.removeCallbacks(stopQuietScan)
         handler.postDelayed(stopQuietScan, SCAN_QUIET_MS)
@@ -327,7 +331,9 @@ class TeslaBleController(
                 link.postPoll()
             }
 
-            ConnectionPhase.CONNECTING -> Unit
+            // A pending auto-connect may be waiting at an address the car has left: look for it where
+            // it is now instead of leaving the tap with nothing to do.
+            ConnectionPhase.CONNECTING -> startDiscovery()
 
             else -> ensureLink(bleName, address).connect()
         }
@@ -547,6 +553,9 @@ class TeslaBleController(
         if (visible) {
             // Opening the app is the signal to try again now, not after the long background wait.
             links.values.forEach { it.resetBackoff() }
+            // A car waiting on autoConnect may be waiting at an address it has left; one filtered
+            // scan finds it at the current one. No scan while every known car is connected.
+            if (vehicles.values.any { links[it.bleName]?.phase != ConnectionPhase.READY }) startDiscovery()
             selectedLink()?.takeIf { it.phase == ConnectionPhase.READY }?.let { link ->
                 link.startRssiPoll()
                 // A paused poll should not greet the owner with a reading from before the pause.
@@ -581,11 +590,12 @@ class TeslaBleController(
                 links[name]?.takeIf { it.phase !in ACTIVE_PHASES }?.resetBackoff()
             }
             if (known.address == device.address) continue
-            // The car is advertising from a new address; follow it.
+            // The car is advertising from a new address; follow it. Replacing the link clears its
+            // backoff, so autoConnect() below reconnects it under the connection cap and tracking switch.
+            // The log line is the evidence for address rotation: one per change, without the address.
+            if (known.address.isNotEmpty()) log("${known.title}: advertising from a new Bluetooth address")
             updateVehicle(name) { it.copy(address = device.address) }
-            links[name]?.let { link ->
-                if (link.address != device.address) link.close()
-            }
+            ensureLink(name, device.address)
         }
         _state.update { state ->
             val connections = state.connections.toMutableMap()
