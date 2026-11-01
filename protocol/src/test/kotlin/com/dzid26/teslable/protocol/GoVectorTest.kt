@@ -3,6 +3,7 @@ package com.dzid26.teslable.protocol
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
+import dev.whyoleg.cryptography.DelicateCryptographyApi
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -23,6 +24,28 @@ class GoVectorTest {
     @Test
     fun `rejects the go tag with the wrong vin`() {
         assertNull(createSession(vin = "WRONGVIN000000000"))
+    }
+
+    /**
+     * The seam this exists for: a handle can be used but not read. It holds the
+     * decoded provider key, never a PKCS#8 array, and still completes the
+     * handshake with Go's own bytes.
+     */
+    @OptIn(DelicateCryptographyApi::class)
+    @Test
+    fun `an opaque handle that never exposes private key bytes opens the session`() {
+        val opaque =
+            object : VehicleKey() {
+                private val privateKey = decodePrivateKeyPkcs8(hex("CLIENT_PRIVATE_PKCS8"))
+
+                override val publicKeyRaw = hex("CLIENT_PUBLIC")
+
+                override fun sharedSecretWith(peerPublicRaw: ByteArray): ByteArray =
+                    privateKey
+                        .sharedSecretGenerator()
+                        .generateSharedSecretToByteArrayBlocking(TeslaCrypto.rawToPublicKey(peerPublicRaw))
+            }
+        assertNotNull(createSession(key = opaque))
     }
 
     @Test
@@ -54,10 +77,12 @@ class GoVectorTest {
         assertContentEquals(hex("RESPONSE_PLAINTEXT"), plaintext)
     }
 
-    private fun createSession(vin: String = VIN): TeslaSession? =
+    private fun createSession(
+        vin: String = VIN,
+        key: VehicleKey = TeslaKeyPair(hex("CLIENT_PRIVATE_PKCS8"), hex("CLIENT_PUBLIC")),
+    ): TeslaSession? =
         TeslaSession.import(
-            privateKeyPkcs8 = hex("CLIENT_PRIVATE_PKCS8"),
-            publicKeyRaw = hex("CLIENT_PUBLIC"),
+            key = key,
             vin = vin,
             challenge = hex("CHALLENGE"),
             encodedInfo = hex("SESSION_INFO"),

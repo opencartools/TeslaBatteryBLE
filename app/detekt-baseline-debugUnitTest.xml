@@ -67,7 +67,6 @@
     <ID>UnnecessaryNotNullOperator:FakeCarProtocolTest.kt:FakeCarProtocolTest$response.signature_data!! .session_info_tag!! .tag!!</ID>
     <ID>UnnecessaryNotNullOperator:HealthSummaryTest.kt:HealthSummaryTest$summary.fullRangeMiles!!</ID>
     <ID>UnsafeCallOnNullableType:FakeCarProtocolTest.kt:FakeCarProtocolTest$TeslaCommands.parseChargeState(plaintext)!!</ID>
-    <ID>UnsafeCallOnNullableType:FakeCarProtocolTest.kt:FakeCarProtocolTest$TeslaSession.import( privateKeyPkcs8 = client.privateKeyPkcs8, publicKeyRaw = client.publicKeyRaw, vin = vin, challenge = uuid, encodedInfo = response.session_info!!.toByteArray(), tag = response.signature_data!! .session_info_tag!! .tag!! .toByteArray(), )!!</ID>
     <ID>UnsafeCallOnNullableType:FakeCarProtocolTest.kt:FakeCarProtocolTest$charge!!</ID>
     <ID>UnsafeCallOnNullableType:FakeCarProtocolTest.kt:FakeCarProtocolTest$charge.est_battery_range!!</ID>
     <ID>UnsafeCallOnNullableType:FakeCarProtocolTest.kt:FakeCarProtocolTest$climate!!</ID>

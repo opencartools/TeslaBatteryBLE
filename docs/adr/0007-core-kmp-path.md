@@ -67,10 +67,18 @@ Date: 2026-10-07
 - Revisit the crypto-library choice at build-migration time; if
   cryptography-kotlin is unmaintained then, take the `expect`/`actual`
   fallback.
-- Open question (#119): the seam should take a key handle
-  (`publicKeyRaw` + `agree(peer)`) rather than PKCS8 bytes, so
-  non-exportable keys (Android Keystore `PURPOSE_AGREE_KEY`, Secure Enclave)
-  stay possible.
+- Decided 2026-11-01 (#119, taken up in the owner's 2026-11-01 sweep): the
+  seam takes a key handle, not key bytes. `VehicleKey` exposes `publicKeyRaw`
+  and a final `sessionKeyWith(peerPublicRaw)`; an implementation supplies only
+  `sharedSecretWith` (raw ECDH), so the Tesla derivation `SHA-1(shared)[:16]`
+  stays in `:protocol` and cannot drift per platform. `TeslaKeyPair` (PKCS#8
+  plus the uncompressed point) is the software handle and the stored record;
+  `TeslaSession.import(key, …)` and `SessionKeys.load()` take the handle, and
+  the bytes-taking `TeslaCrypto.sessionKey(privateKeyPkcs8, peer)` is gone.
+- Hardware-backed handles (Android Keystore `PURPOSE_AGREE_KEY` on API 31+,
+  StrongBox, Secure Enclave) implement `sharedSecretWith` and never export a
+  private key. They are follow-up work; the app still builds a software
+  handle from the Keystore-wrapped PKCS#8 (ADR-0005) until then.
 
 ## Update 2026-10-20: build-migration plan
 
@@ -219,5 +227,7 @@ targets.
 
 ### Not in scope
 
-- The #119 key-handle seam, Android Keystore and Secure Enclave keys.
+- Keystore and Secure Enclave `VehicleKey` implementations, and what portable
+  (backup) mode means for a key that cannot be exported; the seam itself
+  landed in #119.
 - Moving app-level code into the library.

@@ -25,7 +25,7 @@ class TeslaPairingTest {
         assertEquals(65, keyPair.publicKeyRaw.size)
         assertEquals(0x04, keyPair.publicKeyRaw[0].toInt())
         assertTrue(keyPair.privateKeyPkcs8.isNotEmpty())
-        assertEquals(4, keyPair.keyId.size)
+        assertEquals(4, TeslaKeys.keyId(keyPair.publicKeyRaw).size)
     }
 
     @Test

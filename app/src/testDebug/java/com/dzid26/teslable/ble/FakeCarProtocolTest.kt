@@ -66,8 +66,8 @@ class FakeCarProtocolTest {
                 .first()
                 .publicKeySHA1
                 .toByteArray()
-                .copyOf(client.keyId.size)
-                .contentEquals(client.keyId),
+                .copyOf(TeslaKeys.keyId(client.publicKeyRaw).size)
+                .contentEquals(TeslaKeys.keyId(client.publicKeyRaw)),
         )
 
         val entry =
@@ -267,18 +267,19 @@ class FakeCarProtocolTest {
             RoutableMessage.ADAPTER.decode(
                 protocol.handle(request).single().bytes,
             )
-        return TeslaSession.import(
-            privateKeyPkcs8 = client.privateKeyPkcs8,
-            publicKeyRaw = client.publicKeyRaw,
-            vin = vin,
-            challenge = uuid,
-            encodedInfo = response.session_info!!.toByteArray(),
-            tag =
-                response.signature_data!!
-                    .session_info_tag!!
-                    .tag!!
-                    .toByteArray(),
-        )!!
+        val session =
+            TeslaSession.import(
+                key = client,
+                vin = vin,
+                challenge = uuid,
+                encodedInfo = response.session_info!!.toByteArray(),
+                tag =
+                    response.signature_data!!
+                        .session_info_tag!!
+                        .tag!!
+                        .toByteArray(),
+            )
+        return checkNotNull(session)
     }
 
     private fun authenticated(

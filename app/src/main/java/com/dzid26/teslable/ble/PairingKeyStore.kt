@@ -13,7 +13,6 @@ import android.util.Log
 import com.dzid26.teslable.protocol.TeslaKeyPair
 import com.dzid26.teslable.protocol.TeslaKeys
 import java.security.KeyStore
-import java.security.MessageDigest
 import java.security.UnrecoverableKeyException
 import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
@@ -81,8 +80,8 @@ class PairingKeyStore(
         return runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull()
     }
 
-    /** One car's key ID, SHA-1(public key)[:4] like [TeslaKeyPair.keyId], or null when it has no key. */
-    fun keyId(vehicleId: String): ByteArray? = publicKeyRaw(vehicleId)?.let { MessageDigest.getInstance("SHA-1").digest(it).copyOf(4) }
+    /** One car's key ID, SHA-1(public key)[:4] like [TeslaKeys.keyId], or null when it has no key. */
+    fun keyId(vehicleId: String): ByteArray? = publicKeyRaw(vehicleId)?.let { TeslaKeys.keyId(it) }
 
     /**
      * The key pair for one car, or null when the car has none or its private
