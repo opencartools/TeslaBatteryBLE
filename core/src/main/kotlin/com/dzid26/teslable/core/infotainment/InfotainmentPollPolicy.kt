@@ -31,7 +31,8 @@ import com.tesla.generated.vcsec.VehicleStatus
  *    remote wake) when the car stays awake anyway. The interval is deliberately longer than the car's
  *    own sleep countdown (about 10 to 15 minutes): a car that would sleep is already asleep when the
  *    read comes due, so it is skipped and its sleep is never extended. The value is tuned from the
- *    real-car check. The safety read does not start a hold.
+ *    real-car check. The safety read does not start a hold. [pausedUntilMillis] says when the next
+ *    one is due, so the screen can show Paused while the poll waits.
  * 4. Status changes start or restart the hold: asleep to awake, any lock-state change (locking too,
  *    which catches drive-away locking), any closure changing between open and not open (a closure
  *    that is neither CLOSED nor UNKNOWN counts as open, so ajar is open), a fresh start (see
@@ -232,6 +233,17 @@ class InfotainmentPollPolicy {
         lastReadAtMs = nowMillis
         lastReadReason = if (last == null) Reason.FRESH_START else reason
         return true
+    }
+
+    /**
+     * When the next read is due while the poll waits out [IDLE_SAFETY_INTERVAL_MS], or null when it is
+     * not waiting: a read is active or on the hold cadence, the car is asleep or has not reported yet,
+     * or no read has gone out (the first one is due at once). It is the moment [onStatus] next answers
+     * true, so the status pill's Paused state and the read it promises cannot disagree (ADR-0009).
+     */
+    fun pausedUntilMillis(nowMillis: Long): Long? {
+        if (previousAsleep != false || isActive() || holding(nowMillis)) return null
+        return lastReadAtMs?.plus(IDLE_SAFETY_INTERVAL_MS - DUE_SLACK_MS)
     }
 
     private fun holding(nowMillis: Long): Boolean {

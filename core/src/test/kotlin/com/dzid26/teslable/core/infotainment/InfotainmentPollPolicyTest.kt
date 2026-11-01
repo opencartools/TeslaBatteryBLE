@@ -12,6 +12,7 @@ import com.tesla.generated.vcsec.VehicleStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -579,6 +580,46 @@ class InfotainmentPollPolicyTest {
         policy.onTirePressureRequested(now + TICK)
         policy.onDriveReading(ShiftStateKind.D, 10_100)
         assertFalse(policy.wantsTirePressure(now + 2 * TICK), "only once per fresh start")
+    }
+
+    @Test
+    fun thePauseEndsAtTheNextSafetyRead() {
+        freshStartAndFirstRead()
+        goIdle()
+        val due = policy.pausedUntilMillis(now)
+        assertNotNull(due, "idle after the hold")
+        assertEquals(due, policy.pausedUntilMillis(now + TICK), "the pause does not move until its read")
+        assertFalse(policy.onStatus(status(), true, due - 1), "a millisecond early is still paused")
+        assertTrue(policy.onStatus(status(), true, due), "the safety read is due at the pause's end")
+        assertEquals(
+            due + SAFETY - InfotainmentPollPolicy.DUE_SLACK_MS,
+            policy.pausedUntilMillis(due),
+            "the pause restarts after the read",
+        )
+    }
+
+    @Test
+    fun aSleepingCarHasNoPause() {
+        policy.onFreshStart(now)
+        assertFalse(policy.onStatus(status(asleep = true), true, now))
+        assertNull(policy.pausedUntilMillis(now), "a sleeping car is not waiting for a read")
+    }
+
+    @Test
+    fun anActiveCarHasNoPause() {
+        freshStartAndFirstRead()
+        goIdle()
+        policy.onChargeReading(ChargingStateKind.Charging)
+        assertNull(policy.pausedUntilMillis(now), "charging reads every ten seconds")
+    }
+
+    @Test
+    fun aUserRequestLeavesThePause() {
+        freshStartAndFirstRead()
+        goIdle()
+        assertNotNull(policy.pausedUntilMillis(now))
+        policy.onUserRequest(now)
+        assertNull(policy.pausedUntilMillis(now), "the refresh starts a hold")
     }
 
     private companion object {

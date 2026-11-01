@@ -757,11 +757,11 @@ internal fun TrackingToggle(
     }
 }
 
-/** Shared by the cars list and the car view. */
+/** Shared by the cars list and the car view. Tappable where a tap explains the state. */
 @Composable
 internal fun StatusPill(
     connection: TeslaConnection?,
-    onAsleepClick: (() -> Unit)? = null,
+    onClick: ((ConnectionLabel) -> Unit)? = null,
     modifier: Modifier = Modifier,
     bluetoothOn: Boolean = true,
 ) {
@@ -770,17 +770,19 @@ internal fun StatusPill(
     val (container, content) =
         when (label) {
             ConnectionLabel.AWAKE -> colors.primaryContainer to colors.onPrimaryContainer
-            ConnectionLabel.ASLEEP -> colors.secondaryContainer to colors.onSecondaryContainer
+            // Paused and Asleep are both quiet: connected, but nothing is being read right now.
+            ConnectionLabel.PAUSED, ConnectionLabel.ASLEEP -> colors.secondaryContainer to colors.onSecondaryContainer
             ConnectionLabel.FAILED, ConnectionLabel.BLUETOOTH_OFF -> colors.errorContainer to colors.onErrorContainer
             ConnectionLabel.DISCONNECTED, ConnectionLabel.CONNECTING, ConnectionLabel.CONNECTED ->
                 colors.surfaceVariant to colors.onSurfaceVariant
         }
-    val asleep = label == ConnectionLabel.ASLEEP
+    // Only the states the owner can ask about take a tap; the rest are read-only labels.
+    val explains = label == ConnectionLabel.ASLEEP || label == ConnectionLabel.PAUSED
     Surface(
         color = container,
         contentColor = content,
         shape = RoundedCornerShape(50),
-        modifier = if (asleep && onAsleepClick != null) modifier.clickable { onAsleepClick() } else modifier,
+        modifier = if (explains && onClick != null) modifier.clickable { onClick(label) } else modifier,
     ) {
         Text(
             text = label.pillText,
@@ -888,8 +890,9 @@ private fun statusColor(
     when (connectionLabel(connection, bluetoothOn)) {
         ConnectionLabel.AWAKE -> MaterialTheme.colorScheme.primary
         ConnectionLabel.FAILED, ConnectionLabel.BLUETOOTH_OFF -> MaterialTheme.colorScheme.error
-        ConnectionLabel.DISCONNECTED, ConnectionLabel.CONNECTING, ConnectionLabel.CONNECTED, ConnectionLabel.ASLEEP ->
-            MaterialTheme.colorScheme.onSurfaceVariant
+        ConnectionLabel.DISCONNECTED, ConnectionLabel.CONNECTING, ConnectionLabel.CONNECTED, ConnectionLabel.ASLEEP,
+        ConnectionLabel.PAUSED,
+        -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
 /** The status pill's horizontal padding: where its text starts and ends inside it. */

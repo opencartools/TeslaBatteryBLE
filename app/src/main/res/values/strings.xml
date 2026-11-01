@@ -98,6 +98,7 @@
     <string name="car_range_label">Rated range when new (mi)</string>
     <string name="car_range_lookup">Use EPA "total range"</string>
     <string name="car_range_needs_vin">Enter the VIN first: it gives the model and year.</string>
+    <string name="connection_paused_hint">Parked and awake: the app reads the car every %1$s so it can sleep. Next read at %2$s. Refresh to read now.</string>
     <string name="vin_add">Add VIN</string>
     <string name="vin_edit">Edit VIN</string>
     <string name="vin_label">17-character VIN</string>
