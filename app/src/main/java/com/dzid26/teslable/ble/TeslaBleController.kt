@@ -411,6 +411,8 @@ class TeslaBleController(
         links.clear()
         handler.removeCallbacksAndMessages(null)
         selectedBleName = null
+        // The log stays: switching tracking off says nothing about what the app did until now, and
+        // the line below is the last entry of that story.
         _state.update {
             it.copy(
                 scanning = false,
@@ -419,7 +421,6 @@ class TeslaBleController(
                 devices = emptyList(),
                 connections = emptyMap(),
                 selectedBleName = null,
-                log = emptyList(),
             )
         }
         log("Background tracking disabled")
