@@ -13,10 +13,10 @@ name: PR paparazzi comment
 # hosted as user attachments, so neither the PR nor the releases carry image
 # assets. The comment links three APK sources, all static: the direct asset for
 # this commit (it starts working when the commit is built), the PR builds
-# release (the latest build of each open PR), and this commit's checks page,
-# which leads to the Android CI run and its artifact for earlier commits.
-# Previous rounds' comments are minimized as outdated, so only the newest diff
-# stays expanded.
+# release (the latest build of each open PR), and the Android CI runs for this
+# PR's branch, whose artifacts cover earlier commits once the release replaced
+# them. Previous rounds' comments are minimized as outdated, so only the newest
+# diff stays expanded.
 on:
   workflow_run:
     workflows: ["PR paparazzi"]
@@ -242,21 +242,23 @@ jobs:
 
       # Three links, all static: the direct asset for this commit (present even
       # before it exists, because the filename is <pr><sha7>); the release,
-      # which carries the latest build of every open PR; and this commit's
-      # checks page, which leads to the Android CI run and its artifact (the way
-      # back to an earlier commit after the release replaced its asset).
+      # which carries the latest build of every open PR; and the Android CI runs
+      # for this PR's branch, which keep the artifact for every earlier commit
+      # (the release replaces an earlier commit's asset).
       - name: Find the debug APK
         id: apk
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PR: ${{ steps.meta.outputs.pr }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -euo pipefail
           release_url="https://github.com/$GITHUB_REPOSITORY/releases/tag/pr-builds"
-          checks_url="https://github.com/$GITHUB_REPOSITORY/commit/$HEAD_SHA/checks"
+          branch_q="$(jq -rn --arg b "$BRANCH" '$b|@uri')"
+          ci_url="https://github.com/$GITHUB_REPOSITORY/actions/workflows/android.yml?query=branch%3A$branch_q"
           if [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ && "$PR" =~ ^[1-9][0-9]{0,9}$ ]]; then
             direct="https://github.com/$GITHUB_REPOSITORY/releases/download/pr-builds/TeslaBatteryBLE-pr${PR}-${HEAD_SHA:0:7}.apk"
-            line="Debug APK: [download the APK]($direct) from the [PR builds release]($release_url) (no sign-in), or get the [zip from CI]($checks_url) (sign-in needed) for an earlier commit."
+            line="Debug APK: [download the APK]($direct) from the [PR builds release]($release_url) (no sign-in), or get the [zip from CI]($ci_url) (sign-in needed) for an earlier commit."
           else
             line="Debug APK: [download from the PR builds release]($release_url)"
           fi
