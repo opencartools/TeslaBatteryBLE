@@ -49,6 +49,7 @@ import com.dzid26.teslable.protocol.isRefusal
 import com.dzid26.teslable.protocol.locked
 import com.dzid26.teslable.protocol.recovery
 import com.dzid26.teslable.protocol.userPresent
+import com.tesla.generated.keys.Role
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1220,6 +1221,10 @@ class TeslaBleController(
                     updateVehicle(bleName) { it.copy(keySlot = slot) }
                 }
 
+                override fun publishKeyRole(role: Role) {
+                    updateConnection(address) { it.copy(keyRole = role) }
+                }
+
                 override fun hasConnectionKeySlot(): Boolean = _state.value.connections[address]?.keySlot != null
 
                 override fun hasShownKeySlot(): Boolean = hasConnectionKeySlot() || vehicles[bleName]?.keySlot != null
@@ -1532,6 +1537,7 @@ class TeslaBleController(
         private fun resumeWaitingRead() {
             if (infotainmentGate.onSessionEstablished()) requestChargeState(waitingReadReason)
         }
+
         private fun clearWake() {
             wakeAfterSession = false
             wakeFromStack = false

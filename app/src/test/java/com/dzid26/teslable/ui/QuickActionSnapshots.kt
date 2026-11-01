@@ -8,6 +8,7 @@ import app.cash.paparazzi.Paparazzi
 import com.android.ide.common.rendering.api.SessionParams
 import com.dzid26.teslable.ble.BleUiState
 import com.dzid26.teslable.ble.Vehicle
+import com.tesla.generated.keys.Role
 import com.tesla.generated.vcsec.UserPresence_E
 import com.tesla.generated.vcsec.VehicleLockState_E
 import com.tesla.generated.vcsec.VehicleSleepStatus_E
@@ -52,6 +53,13 @@ class QuickActionSnapshots {
     /** A sleeping car, where Wake car is no longer the disabled row. */
     @Test
     fun screenCarDetailActionsAsleep() = both("screen-car-detail-actions-asleep", screenPhone) { carScreen(state = asleepState()) }
+
+    /** A charging-manager key: the car will not let it flash the lights, so the row is not offered. */
+    @Test
+    fun screenCarDetailActionsChargingKey() =
+        both("screen-car-detail-actions-charging-key", screenPhone) {
+            carScreen(state = stateWithRole(Role.ROLE_CHARGING_MANAGER))
+        }
 
     /** The stack at a 1.5x font scale: the labels must stay on one line at this width. */
     @Test
@@ -106,8 +114,21 @@ class QuickActionSnapshots {
                 vehicleSleepStatus = VehicleSleepStatus_E.VEHICLE_SLEEP_STATUS_ASLEEP,
                 userPresence = UserPresence_E.VEHICLE_USER_PRESENCE_NOT_PRESENT,
             )
+        return stateWithRole(DemoScreenFixtures.role, asleep = asleep)
+    }
+
+    /** The demo state with the phone's key in [role], and optionally the car in [asleep]. */
+    private fun stateWithRole(
+        role: Role,
+        asleep: VehicleStatus? = null,
+    ): BleUiState {
         val state = DemoScreenFixtures.carState(NOW)
-        return state.copy(connections = state.connections.mapValues { it.value.copy(status = asleep) })
+        return state.copy(
+            connections =
+                state.connections.mapValues { (_, connection) ->
+                    connection.copy(keyRole = role, status = asleep ?: connection.status)
+                },
+        )
     }
 
     private companion object {
