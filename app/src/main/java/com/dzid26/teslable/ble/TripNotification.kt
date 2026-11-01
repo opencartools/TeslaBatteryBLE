@@ -157,6 +157,7 @@ internal fun NotificationCompat.Builder.showTrip(
     notice: TripNotice,
     stateText: CharSequence,
     percent: Int?,
+    promote: Boolean = true,
 ): NotificationCompat.Builder {
     val remaining = text.remaining(notice)
     val headline =
@@ -178,7 +179,7 @@ internal fun NotificationCompat.Builder.showTrip(
             .setSubText(subText)
             .setStyle(progressStyle(text.context, progress))
             .setShortCriticalText(text.shortRemaining(notice))
-            .setRequestPromotedOngoing(true)
+            .apply { if (promote) setRequestPromotedOngoing(true) }
     }
     val body =
         SpannableStringBuilder(stateText).apply {

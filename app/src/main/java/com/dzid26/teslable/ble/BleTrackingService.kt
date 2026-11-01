@@ -67,6 +67,9 @@ class BleTrackingService(
     private val postedCarIds = mutableMapOf<String, Int>()
     private var startLogged = false
 
+    /** After a trip alert, leave the group untouched until its heads-up would have timed out. */
+    private var holdUpdatesUntil = 0L
+
     private val tripSource by lazy { TripNoticeSource() }
     private val tripAlerts = TripAlerts()
 
@@ -232,6 +235,8 @@ class BleTrackingService(
                 mutableSetOf(),
             ) { model -> model.bleName?.takeIf { tripAlerts.shouldAlert(it, model.trip, now) } }
         val summaryAlert = models.size == 1 && summary.bleName in alerting
+        if (alerting.isNotEmpty()) holdUpdatesUntil = now + HEADS_UP_HOLD_MS
+        val hold = now < holdUpdatesUntil
         if (!foregroundStarted) {
             // A sticky restart after Bluetooth permission was revoked: Android 14+ refuses the
             // connected-device type without it, and a crash loop would be worse than no service.
@@ -256,11 +261,11 @@ class BleTrackingService(
             }
             foregroundStarted = true
             lastSummary = summary
-        } else if (shouldPost(lastSummary, summary)) {
+        } else if (summaryAlert || (!hold && shouldPost(lastSummary, summary))) {
             lastSummary = summary
             post(NOTIFICATION_ID, buildNotification(summary, groupSummary = models.size > 1, alert = summaryAlert))
         }
-        syncCarNotifications(models, alerting)
+        syncCarNotifications(models, alerting, hold)
     }
 
     /**
@@ -301,6 +306,7 @@ class BleTrackingService(
     private fun syncCarNotifications(
         models: List<NotificationModel>,
         alerting: Set<String>,
+        hold: Boolean,
     ) {
         val wanted: Map<String, NotificationModel> =
             if (models.size > 1) {
@@ -317,10 +323,11 @@ class BleTrackingService(
             }
         }
         for ((bleName, model) in wanted) {
-            if (!shouldPost(lastCarModels[bleName], model)) continue
+            val alert = bleName in alerting
+            if (!alert && (hold || !shouldPost(lastCarModels[bleName], model))) continue
             lastCarModels[bleName] = model
             val id = postedCarIds.getOrPut(bleName) { carNotificationId(bleName) }
-            post(id, buildNotification(model, groupSummary = false, alert = bleName in alerting))
+            post(id, buildNotification(model, groupSummary = false, alert = alert))
         }
     }
 
@@ -393,7 +400,15 @@ class BleTrackingService(
             builder.setGroupSummary(true)
         }
         model.trip?.let { trip ->
-            builder.showTrip(TripTextContext(this), trip, notificationText(model), model.percent.takeIf { !model.percentStale })
+            // A new trip first appears as a plain high-importance notification, so its heads-up cannot be turned
+            // into a Live Update chip or refreshed away. Later updates may promote it, after the hold expires.
+            builder.showTrip(
+                TripTextContext(this),
+                trip,
+                notificationText(model),
+                model.percent.takeIf { !model.percentStale },
+                promote = !alert,
+            )
         }
         if (model.showWake && model.bleName != null) {
             builder.addAction(
@@ -495,6 +510,9 @@ class BleTrackingService(
         private const val LOG_TAG = "BleTrackingService"
         private const val CHANNEL_ID = TrackingChannels.TRACKING
         private const val TRIP_CHANNEL_ID = TrackingChannels.TRIP
+
+        /** Android's heads-up banners last a few seconds; do not touch the group for this long after an alert. */
+        private const val HEADS_UP_HOLD_MS = 15_000L
         private const val GROUP_KEY = "com.dzid26.teslable.cars"
         private const val NOTIFICATION_ID = 1
         private const val CAR_NOTIFICATION_BASE = 1000
