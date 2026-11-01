@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -52,6 +53,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 import com.dzid26.teslable.ble.QuickAction
@@ -234,23 +236,29 @@ private fun QuickActionRow(
     Row(
         modifier =
             Modifier
+                .fillMaxWidth()
                 .heightIn(min = MinTouchTarget)
                 .alpha(if (item.enabled) 1f else DISABLED_ALPHA)
                 .clickable(enabled = item.enabled, role = Role.Button, onClick = onInvoke),
         horizontalArrangement = Arrangement.spacedBy(LabelSpacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Surface(
-            shape = RoundedCornerShape(percent = 50),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shadowElevation = LabelElevation,
-        ) {
-            Text(
-                text = stringResource(item.label),
-                modifier = Modifier.padding(horizontal = LabelHorizontalPadding, vertical = LabelVerticalPadding),
-                style = MaterialTheme.typography.labelLarge,
-            )
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            Surface(
+                shape = RoundedCornerShape(percent = 50),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                shadowElevation = LabelElevation,
+            ) {
+                Text(
+                    text = stringResource(item.label),
+                    modifier = Modifier.padding(horizontal = LabelHorizontalPadding, vertical = LabelVerticalPadding),
+                    style = MaterialTheme.typography.labelLarge,
+                    // A long label or a large font scale ellipsizes instead of pushing the icon off the screen.
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         Surface(
             modifier = Modifier.size(ActionSize),
@@ -350,7 +358,7 @@ internal fun QuickActionFeedback.message(): Int =
 private val FabElevation = 6.dp
 private val ActionSize = 48.dp
 private val ActionElevation = 4.dp
-private val ActionSpacing = 12.dp
+private val ActionSpacing = 16.dp
 private val LabelSpacing = 8.dp
 private val LabelElevation = 2.dp
 private val LabelHorizontalPadding = 12.dp
@@ -361,7 +369,9 @@ private val MinTouchTarget = 48.dp
 private val DragThreshold = 48.dp
 
 private const val DISABLED_ALPHA = 0.38f
-private const val SCRIM_ALPHA = 0.32f
+
+/** Strong enough that the content the stack covers reads as behind it, not as colliding with it. */
+private const val SCRIM_ALPHA = 0.5f
 private const val EXPANDED_ROTATION = 45f
 private const val INITIAL_SCALE = 0.5f
 private const val ANIMATION_IN_MS = 160

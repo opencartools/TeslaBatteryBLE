@@ -1585,23 +1585,26 @@ class TeslaBleController(
 
             /** Sends the action waiting for the Infotainment session, when there is one and the session exists. */
             fun sendPending() {
-                val action = pending ?: return
-                if (!handshake.has(Domain.DOMAIN_INFOTAINMENT)) return
+                val action = pending
+                if (action == null || !handshake.has(Domain.DOMAIN_INFOTAINMENT)) return
                 val payload =
                     when (action) {
                         QuickAction.CHARGE_PORT -> TeslaCommands.buildChargePortOpenRequest()
                         QuickAction.FLASH_LIGHTS -> TeslaCommands.buildFlashLightsRequest()
                         // Waking goes through its own VCSEC path in send(), so it is never queued here.
-                        QuickAction.WAKE -> return
+                        QuickAction.WAKE -> null
                     }
-                pending = null
-                val request = sendAuthenticated(Domain.DOMAIN_INFOTAINMENT, payload, CommandKind.ACTUATION, Command.Reason.USER_ACTION)
-                if (request != null) {
-                    sentByRequest[request] = action
-                    publish(action, QuickActionOutcome.SENT)
-                } else {
-                    publish(action, QuickActionOutcome.FAILED)
-                    resumeWaitingRead()
+                if (payload != null) {
+                    pending = null
+                    val request =
+                        sendAuthenticated(Domain.DOMAIN_INFOTAINMENT, payload, CommandKind.ACTUATION, Command.Reason.USER_ACTION)
+                    if (request != null) {
+                        sentByRequest[request] = action
+                        publish(action, QuickActionOutcome.SENT)
+                    } else {
+                        publish(action, QuickActionOutcome.FAILED)
+                        resumeWaitingRead()
+                    }
                 }
             }
 
@@ -1673,10 +1676,8 @@ class TeslaBleController(
                 sentByRequest.clear()
             }
 
-            fun publish(
-                action: QuickAction,
-                outcome: QuickActionOutcome,
-            ) = publishActionFeedback(QuickActionFeedback(action, outcome))
+            private val publish: (QuickAction, QuickActionOutcome) -> Unit =
+                { action, outcome -> publishActionFeedback(QuickActionFeedback(action, outcome)) }
         }
 
         /** Forgets a wake in progress, so a later, unrelated wake cannot report itself to the stack. */
@@ -1719,10 +1720,12 @@ class TeslaBleController(
                 return
             }
             val request = TeslaCommands.buildWakeRequest()
-            val sent = sendAuthenticated(Domain.DOMAIN_VEHICLE_SECURITY, request, CommandKind.WAKE, Command.Reason.USER_WAKE) != null
+            val sent =
+                sendAuthenticated(Domain.DOMAIN_VEHICLE_SECURITY, request, CommandKind.WAKE, Command.Reason.USER_WAKE) != null
             log("${name()}: " + if (sent) "wake requested" else "failed to send wake request")
             if (fromStack) {
-                publishActionFeedback(QuickActionFeedback(QuickAction.WAKE, if (sent) QuickActionOutcome.SENT else QuickActionOutcome.FAILED))
+                val outcome = if (sent) QuickActionOutcome.SENT else QuickActionOutcome.FAILED
+                publishActionFeedback(QuickActionFeedback(QuickAction.WAKE, outcome))
             }
         }
 
@@ -1826,12 +1829,29 @@ class TeslaBleController(
             kind: CommandKind,
             reason: Command.Reason = Command.Reason.FOLLOW_UP,
         ): String? {
-            val session =
-                handshake[domain] ?: run {
-                    log("${name()}: no session for ${domain.name}")
-                    return null
-                }
             val uuid = TeslaCrypto.randomBytes(16)
+            val sealed = sealRequest(domain, payload, uuid)
+            if (sealed == null) return null
+            val (encrypted, requestId) = sealed
+            val key = uuid.toHexString()
+            pendingCommands[key] = PendingCommand(domain, requestId, kind, reason)
+            val sent = transmit(encrypted.encode(), CommandRecords.authenticated(reason, domain, payload), key)
+            if (!sent) log("${name()}: failed to send ${kind.name.lowercase()} request")
+            if (sent && kind.isRead) readInFlight.onSent(System.currentTimeMillis())
+            return if (sent) key else null
+        }
+
+        /** Encrypts a request for [domain] and takes its id; null, with the reason logged, when that fails. */
+        private fun sealRequest(
+            domain: Domain,
+            payload: ByteArray,
+            uuid: ByteArray,
+        ): Pair<RoutableMessage, ByteArray>? {
+            val session = handshake[domain]
+            if (session == null) {
+                log("${name()}: no session for ${domain.name}")
+                return null
+            }
             val routing =
                 if (domain == Domain.DOMAIN_VEHICLE_SECURITY) {
                     TeslaCrypto.randomBytes(16)
@@ -1839,21 +1859,13 @@ class TeslaBleController(
                     clientAddress
                 }
             val message = TeslaSessionRequests.buildAuthenticatedRequest(domain, payload, routing, uuid)
-            val encrypted =
-                session.encrypt(message, COMMAND_EXPIRES_SECONDS) ?: run {
+            val encrypted = session.encrypt(message, COMMAND_EXPIRES_SECONDS)
+            return encrypted
+                ?.let { session.requestId(it)?.let { request -> encrypted to request } }
+                ?: run {
                     log("${name()}: encryption failed")
-                    return null
+                    null
                 }
-            val requestId = session.requestId(encrypted) ?: run {
-                log("${name()}: no request id")
-                return null
-            }
-            val key = uuid.toHexString()
-            pendingCommands[key] = PendingCommand(domain, requestId, kind, reason)
-            val sent = transmit(encrypted.encode(), CommandRecords.authenticated(reason, domain, payload), key)
-            if (!sent) log("${name()}: failed to send ${kind.name.lowercase()} request")
-            if (sent && kind.isRead) readInFlight.onSent(System.currentTimeMillis())
-            return if (sent) key else null
         }
 
         /** Applies the session info piggybacked on a rejected command; false when there is none or it does not verify. */
