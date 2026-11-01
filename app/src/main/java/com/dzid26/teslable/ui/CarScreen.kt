@@ -377,8 +377,8 @@ internal fun CarScreen(
                         ratedKwhPerMile = health?.ratedKwhPerMile,
                         pricePerKwh = pricePerKwh,
                     )
-                    health?.let { BatteryHealthCard(it) }
                     rest?.let { DrainStatsCard(it, current) }
+                    health?.let { BatteryHealthCard(it) }
                 }
             }
         }
