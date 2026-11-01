@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import com.dzid26.teslable.BuildConfig
 import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.history.ActivitySample
 import com.dzid26.teslable.core.history.AppState
@@ -48,9 +49,11 @@ import com.dzid26.teslable.protocol.chargingStateKind
 import com.dzid26.teslable.protocol.isRefusal
 import com.dzid26.teslable.protocol.locked
 import com.dzid26.teslable.protocol.recovery
+import com.dzid26.teslable.protocol.unknownFieldsSummary
 import com.dzid26.teslable.protocol.userPresent
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
+import com.tesla.generated.vcsec.VehicleStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -1002,6 +1005,9 @@ class TeslaBleController(
          */
         private var lastUiReadAtMs = 0L
 
+        /** The last VCSEC unknown-field summary logged, so a change is what gets a new line. */
+        private var lastUnknownStatus: String? = null
+
         /** Logs and feeds the policy with the drive, closures and climate replies (ADR-0008, ADR-0009). */
         private val stateReplies =
             InfotainmentStateReplies(
@@ -1540,6 +1546,19 @@ class TeslaBleController(
             updateConnection(address) { it.copy(pausedUntilMillis = pausedUntil) }
         }
 
+        /**
+         * Prints the VCSEC fields the vendored schema does not define, so an unknown state can be
+         * followed on the phone (debug builds only, ADR-0008's log). One line per change, so the 10 s
+         * poll does not flood the log; a reconnect starts afresh with the first status.
+         */
+        private fun logUnknownStatus(status: VehicleStatus) {
+            if (!BuildConfig.DEBUG) return
+            val summary = unknownFieldsSummary(status.unknownFields)
+            if (summary == lastUnknownStatus) return
+            lastUnknownStatus = summary
+            log("${name()}: VCSEC unknown fields ${summary.ifEmpty { "none" }}")
+        }
+
         /** The replies a read starting at [nowMs] expects: charge, drive, closures, climate, and location and tire pressure when due. */
         private fun expectedReplies(nowMs: Long): Int =
             BASE_READ_REPLIES +
@@ -1783,6 +1802,7 @@ class TeslaBleController(
                 val rssi = latestRssi(address)
                 historyStore.recordStatus(bleName, status, deviceTimestamp, rssi, firstAfterConnect = firstStatusAfterConnect)
                 firstStatusAfterConnect = false
+                logUnknownStatus(status)
                 if (!status.asleep) {
                     handler.removeCallbacks(wakeRefresh)
                 }
@@ -1858,6 +1878,7 @@ class TeslaBleController(
                         nextRetryAtMs = 0
                         lastAliveMillis = System.currentTimeMillis()
                         firstStatusAfterConnect = true
+                        lastUnknownStatus = null
                         infotainmentPolicy.onLinkReady(System.currentTimeMillis())
                         syncPauseState()
                         recordConnection(this@VehicleLink, ConnectionEvent.State.CONNECTED)
