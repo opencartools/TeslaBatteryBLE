@@ -53,6 +53,7 @@ class QuickActionSnapshots {
             statusHistory = emptyList(),
             onBack = {},
             onEdit = {},
+            onAddVin = {},
             onPair = {},
             onRefresh = {},
             onOpenSettings = {},

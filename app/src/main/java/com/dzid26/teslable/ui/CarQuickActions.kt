@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ui
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -34,7 +36,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -52,9 +57,54 @@ import com.dzid26.teslable.R
 import com.dzid26.teslable.ble.QuickAction
 import com.dzid26.teslable.ble.QuickActionFeedback
 import com.dzid26.teslable.ble.QuickActionOutcome
+import com.dzid26.teslable.ble.TeslaConnection
+import com.dzid26.teslable.protocol.asleep
+
+private val FabSize = 56.dp
+private val FabMargin = 16.dp
 
 /** How much bottom room the scrolling car content leaves for the floating button. */
-internal val QuickActionsContentPadding = 88.dp
+internal val QuickActionsContentPadding = FabSize + FabMargin * 2
+
+/** One entry of the car screen's quick-action stack: the data the UI needs, nothing else. */
+internal data class QuickActionItem(
+    val action: QuickAction,
+    @StringRes val label: Int,
+    @DrawableRes val icon: Int,
+    val enabled: Boolean = true,
+)
+
+/**
+ * The car screen's quick actions: the stack, the state that opens and folds it, and the back press
+ * that folds it before the screen leaves. Drawn over the car content, bottom-end.
+ */
+@Composable
+internal fun CarQuickActionsHost(
+    connection: TeslaConnection?,
+    onAction: (QuickAction) -> Unit,
+    initiallyExpanded: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
+    // The stack folds before the screen leaves; only while it is open does it take the back press.
+    BackHandler(enabled = expanded) { expanded = false }
+    val asleep = connection?.status?.asleep
+    QuickActionStack(
+        actions = remember(asleep) { quickActionItems(asleep) },
+        expanded = expanded,
+        onAction = onAction,
+        onExpandedChange = { expanded = it },
+        modifier = modifier,
+    )
+}
+
+/** Asking an awake car to wake up is noise; the other actions report their own failure. */
+private fun quickActionItems(asleep: Boolean?): List<QuickActionItem> =
+    listOf(
+        QuickActionItem(QuickAction.CHARGE_PORT, R.string.quick_action_charge_port, R.drawable.ic_charge_port),
+        QuickActionItem(QuickAction.FLASH_LIGHTS, R.string.quick_action_flash_lights, R.drawable.ic_flash_lights),
+        QuickActionItem(QuickAction.WAKE, R.string.quick_action_wake, R.drawable.ic_wake, enabled = asleep != false),
+    )
 
 /**
  * The floating button and its speed dial. The stack unfolds upward on a drag up or a long press,
@@ -65,6 +115,7 @@ internal val QuickActionsContentPadding = 88.dp
 internal fun QuickActionStack(
     actions: List<QuickActionItem>,
     expanded: Boolean,
+    onAction: (QuickAction) -> Unit,
     onExpandedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -87,10 +138,10 @@ internal fun QuickActionStack(
             modifier = Modifier.align(Alignment.BottomEnd).padding(FabMargin),
             horizontalAlignment = Alignment.End,
         ) {
-            QuickActionMenu(actions, expanded) { item ->
-                item.onClick()
+            QuickActionMenu(actions, expanded, onAction = { item ->
+                onAction(item)
                 onExpandedChange(false)
-            }
+            })
             QuickActionButton(
                 expanded = expanded,
                 onToggle = { onExpandedChange(!expanded) },
@@ -109,7 +160,7 @@ internal fun QuickActionStack(
 private fun QuickActionMenu(
     actions: List<QuickActionItem>,
     expanded: Boolean,
-    onAction: (QuickActionItem) -> Unit,
+    onAction: (QuickAction) -> Unit,
 ) {
     AnimatedVisibility(
         visible = expanded,
@@ -118,14 +169,14 @@ private fun QuickActionMenu(
                 scaleIn(
                     animationSpec = tween(ANIMATION_IN_MS),
                     initialScale = INITIAL_SCALE,
-                    transformOrigin = TransformOrigin(PIVOT, PIVOT),
+                    transformOrigin = TransformOrigin(STACK_PIVOT, STACK_PIVOT),
                 ),
         exit =
             fadeOut(tween(ANIMATION_OUT_MS)) +
                 scaleOut(
                     animationSpec = tween(ANIMATION_OUT_MS),
                     targetScale = INITIAL_SCALE,
-                    transformOrigin = TransformOrigin(PIVOT, PIVOT),
+                    transformOrigin = TransformOrigin(STACK_PIVOT, STACK_PIVOT),
                 ),
     ) {
         Column(
@@ -133,7 +184,7 @@ private fun QuickActionMenu(
             verticalArrangement = Arrangement.spacedBy(ActionSpacing),
         ) {
             actions.asReversed().forEach { item ->
-                QuickActionRow(item) { onAction(item) }
+                QuickActionRow(item) { onAction(item.action) }
             }
             Spacer(Modifier.height(ActionSpacing))
         }
@@ -259,44 +310,43 @@ private fun Modifier.combinedActionClick(
     onLongClick: () -> Unit,
     onClick: () -> Unit,
 ): Modifier =
-    this.then(
-        Modifier.combinedClickable(
-            role = Role.Button,
-            onClickLabel = onClickLabel,
-            onLongClickLabel = onLongClickLabel,
-            onLongClick = onLongClick,
-            onClick = onClick,
-        ),
+    combinedClickable(
+        role = Role.Button,
+        onClickLabel = onClickLabel,
+        onLongClickLabel = onLongClickLabel,
+        onLongClick = onLongClick,
+        onClick = onClick,
     )
 
 /** The snackbar text for each action and result, from `strings.xml`. */
 @StringRes
 internal fun QuickActionFeedback.message(): Int =
-    when (action) {
-        QuickAction.CHARGE_PORT ->
-            when (outcome) {
-                QuickActionOutcome.SENT -> R.string.quick_action_charge_port_sent
-                QuickActionOutcome.WAKING -> R.string.quick_action_charge_port_waking
-                QuickActionOutcome.FAILED -> R.string.quick_action_charge_port_failed
+    when (outcome) {
+        // Only the wake action can find the car already up, so this text names that one case.
+        QuickActionOutcome.ALREADY_AWAKE -> R.string.quick_action_wake_already_awake
+
+        QuickActionOutcome.SENT ->
+            when (action) {
+                QuickAction.CHARGE_PORT -> R.string.quick_action_charge_port_sent
+                QuickAction.FLASH_LIGHTS -> R.string.quick_action_flash_lights_sent
+                QuickAction.WAKE -> R.string.quick_action_wake_sent
             }
 
-        QuickAction.FLASH_LIGHTS ->
-            when (outcome) {
-                QuickActionOutcome.SENT -> R.string.quick_action_flash_lights_sent
-                QuickActionOutcome.WAKING -> R.string.quick_action_flash_lights_waking
-                QuickActionOutcome.FAILED -> R.string.quick_action_flash_lights_failed
+        QuickActionOutcome.WAKING ->
+            when (action) {
+                QuickAction.CHARGE_PORT -> R.string.quick_action_charge_port_waking
+                QuickAction.FLASH_LIGHTS -> R.string.quick_action_flash_lights_waking
+                QuickAction.WAKE -> R.string.quick_action_wake_waking
             }
 
-        QuickAction.WAKE ->
-            when (outcome) {
-                QuickActionOutcome.SENT -> R.string.quick_action_wake_sent
-                QuickActionOutcome.WAKING -> R.string.quick_action_wake_waking
-                QuickActionOutcome.FAILED -> R.string.quick_action_wake_failed
+        QuickActionOutcome.FAILED ->
+            when (action) {
+                QuickAction.CHARGE_PORT -> R.string.quick_action_charge_port_failed
+                QuickAction.FLASH_LIGHTS -> R.string.quick_action_flash_lights_failed
+                QuickAction.WAKE -> R.string.quick_action_wake_failed
             }
     }
 
-private val FabSize = 56.dp
-private val FabMargin = 16.dp
 private val FabElevation = 6.dp
 private val ActionSize = 48.dp
 private val ActionElevation = 4.dp
@@ -316,4 +366,6 @@ private const val EXPANDED_ROTATION = 45f
 private const val INITIAL_SCALE = 0.5f
 private const val ANIMATION_IN_MS = 160
 private const val ANIMATION_OUT_MS = 120
-private const val PIVOT = 1f
+
+/** The stack grows out of the button at the bottom end, so it scales from that corner. */
+private const val STACK_PIVOT = 1f

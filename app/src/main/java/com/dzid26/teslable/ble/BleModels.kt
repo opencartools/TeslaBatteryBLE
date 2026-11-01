@@ -111,7 +111,10 @@ enum class QuickActionOutcome {
     /** The car was asleep, so it was woken and the action goes out once the session is ready. */
     WAKING,
 
-    /** Nothing could be sent: no link, no key, no VIN, or the handshake gave up. */
+    /** A wake that had nothing to do: the car was already awake. */
+    ALREADY_AWAKE,
+
+    /** Nothing could be sent: no link, no key, no VIN, the car refused it, or the handshake gave up. */
     FAILED,
 }
 

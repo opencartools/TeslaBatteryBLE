@@ -5,8 +5,6 @@ import android.content.Context
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.annotation.DrawableRes
-import androidx.annotation.StringRes
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -245,8 +243,7 @@ internal fun CarScreen(
             refreshing = false
         }
     }
-    // The quick actions: a data-driven stack, plus the snackbar that reports each result once.
-    var quickActionsExpanded by rememberSaveable { mutableStateOf(initialQuickActionsExpanded) }
+    // The quick-action stack reports each result once, as a snackbar.
     val snackbarHostState = remember { SnackbarHostState() }
     val feedbackText = state.actionFeedback?.let { stringResource(it.message()) }
     LaunchedEffect(feedbackText) {
@@ -255,33 +252,6 @@ internal fun CarScreen(
             onActionFeedbackShown()
         }
     }
-    // The stack folds before the screen leaves; only while it is open does it take the back press.
-    BackHandler(enabled = quickActionsExpanded) { quickActionsExpanded = false }
-    val quickActions =
-        listOf(
-            QuickActionItem(
-                action = QuickAction.CHARGE_PORT,
-                label = R.string.quick_action_charge_port,
-                icon = R.drawable.ic_charge_port,
-                enabled = true,
-                onClick = { onQuickAction(QuickAction.CHARGE_PORT) },
-            ),
-            QuickActionItem(
-                action = QuickAction.FLASH_LIGHTS,
-                label = R.string.quick_action_flash_lights,
-                icon = R.drawable.ic_flash_lights,
-                enabled = true,
-                onClick = { onQuickAction(QuickAction.FLASH_LIGHTS) },
-            ),
-            QuickActionItem(
-                action = QuickAction.WAKE,
-                label = R.string.quick_action_wake,
-                icon = R.drawable.ic_wake,
-                // Asking an awake car to wake up is noise; the other actions always report failure.
-                enabled = connection?.status?.asleep != false,
-                onClick = { onQuickAction(QuickAction.WAKE) },
-            ),
-        )
     Scaffold(
         modifier = Modifier.countingTouches(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -330,36 +300,56 @@ internal fun CarScreen(
         },
     ) { innerPadding ->
         val pullState = rememberPullToRefreshState()
-        Box(
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = {
+                refreshing = true
+                onRefresh()
+            },
+            state = pullState,
             modifier =
                 Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
+            indicator = {
+                RefreshPill(
+                    state = pullState,
+                    isRefreshing = refreshing,
+                    pullLabel = pullLabel,
+                    refreshingLabel = refreshingLabel,
+                )
+            },
         ) {
-            PullToRefreshBox(
-                isRefreshing = refreshing,
-                onRefresh = {
-                    refreshing = true
-                    onRefresh()
-                },
-                state = pullState,
-                modifier = Modifier.fillMaxSize(),
-                indicator = {
-                    RefreshPill(
-                        state = pullState,
-                        isRefreshing = refreshing,
-                        pullLabel = pullLabel,
-                        refreshingLabel = refreshingLabel,
-                    )
-                },
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = QuickActionsContentPadding),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Column(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .verticalScroll(scrollState)
-                            .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = QuickActionsContentPadding),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                val context = LocalContext.current
+                val priceChanges =
+                    remember { homePrice?.let { listOf(PriceChange(0L, it)) } ?: EnergyPriceStore(context).priceChanges() }
+                val pricePerKwh = priceChanges.lastOrNull()?.pricePerKwh
+                val currencyCode = remember { EnergyPriceStore(context).currencyCode() }
+                val unitStore = remember { UnitStore(context) }
+                val distanceUnit = remember { unitStore.preference().resolve() }
+                var efficiencyUnit by remember { mutableStateOf(unitStore.efficiency()) }
+                val cycleEfficiencyUnit: () -> Unit =
+                    remember {
+                        {
+                            efficiencyUnit = efficiencyUnit.next()
+                            unitStore.setEfficiency(efficiencyUnit)
+                        }
+                    }
+                CompositionLocalProvider(
+                    LocalDistanceUnit provides distanceUnit,
+                    LocalEfficiencyUnit provides efficiencyUnit,
+                    LocalCycleEfficiencyUnit provides cycleEfficiencyUnit,
+                    LocalCurrencyCode provides currencyCode,
+                    LocalPricePerKwh provides pricePerKwh,
+                    LocalPriceChanges provides priceChanges,
                 ) {
                     HeroCard(
                         pricePerKwh = pricePerKwh,
@@ -412,10 +402,10 @@ internal fun CarScreen(
                     health?.let { BatteryHealthCard(it) }
                 }
             }
-            QuickActionStack(
-                actions = quickActions,
-                expanded = quickActionsExpanded,
-                onExpandedChange = { quickActionsExpanded = it },
+            CarQuickActionsHost(
+                connection = connection,
+                onAction = onQuickAction,
+                initiallyExpanded = initialQuickActionsExpanded,
             )
         }
     }

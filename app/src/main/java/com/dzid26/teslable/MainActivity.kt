@@ -185,7 +185,7 @@ class MainActivity : ComponentActivity() {
                                     onDismissVin = controller::dismissVinRequest,
                                     onOpenSettings = { screen = AppScreen.SETTINGS },
                                     onQuickAction = { action -> controller.sendQuickAction(action) },
-                                    onActionFeedbackShown = { controller.quickActions.consume() },
+                                    onActionFeedbackShown = { controller.consumeActionFeedback() },
                                 )
                             }
                     }
