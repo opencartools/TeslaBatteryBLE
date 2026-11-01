@@ -402,11 +402,15 @@ internal fun CarScreen(
                     health?.let { BatteryHealthCard(it) }
                 }
             }
-            CarQuickActionsHost(
-                connection = connection,
-                onAction = onQuickAction,
-                initiallyExpanded = initialQuickActionsExpanded,
-            )
+            // A car with no key or no VIN cannot be controlled, so the stack stays away entirely
+            // instead of raising a VIN prompt from a control that could not have worked.
+            if (paired && vehicle?.hasSessionVin == true) {
+                CarQuickActionsHost(
+                    connection = connection,
+                    onAction = onQuickAction,
+                    initiallyExpanded = initialQuickActionsExpanded,
+                )
+            }
         }
     }
 }

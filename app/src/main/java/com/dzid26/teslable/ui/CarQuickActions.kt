@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -30,7 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -43,7 +42,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -199,7 +197,6 @@ private fun QuickActionButton(
     onLongPress: () -> Unit,
     dragModifier: Modifier,
 ) {
-    val rotation by animateFloatAsState(if (expanded) EXPANDED_ROTATION else 0f, label = "quick actions")
     val description = stringResource(if (expanded) R.string.quick_actions_collapse else R.string.quick_actions_expand)
     Surface(
         modifier =
@@ -218,11 +215,20 @@ private fun QuickActionButton(
         shadowElevation = FabElevation,
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = description,
-                modifier = Modifier.size(IconSize).rotate(rotation),
-            )
+            // Open, the button is the stack's close affordance rather than a rotated controls glyph.
+            if (expanded) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = description,
+                    modifier = Modifier.size(IconSize),
+                )
+            } else {
+                Icon(
+                    painter = painterResource(R.drawable.ic_quick_actions),
+                    contentDescription = description,
+                    modifier = Modifier.size(IconSize),
+                )
+            }
         }
     }
 }
@@ -373,7 +379,6 @@ private const val DISABLED_ALPHA = 0.38f
 
 /** Strong enough that the content the stack covers reads as behind it, not as colliding with it. */
 private const val SCRIM_ALPHA = 0.5f
-private const val EXPANDED_ROTATION = 45f
 private const val INITIAL_SCALE = 0.5f
 private const val ANIMATION_IN_MS = 160
 private const val ANIMATION_OUT_MS = 120

@@ -38,19 +38,16 @@ class QuickActionSnapshots {
     @Test
     fun screenCarDetailActions() = both("screen-car-detail-actions", screenPhone) { carScreen() }
 
-    /** A car with no VIN shows the VIN prompt card and the stack's button together. */
+    /** A car with no VIN hides the controls button entirely: the VIN card is the only affordance. */
     @Test
     fun screenCarDetailActionsWithoutVin() =
         both("screen-car-detail-actions-no-vin", screenPhone) {
             carScreen(vehicle = DemoScreenFixtures.vehicle.copy(vin = null))
         }
 
-    /** The stack folded: only the button is on screen, over the VIN card. */
+    /** The stack folded: only the button is on screen. */
     @Test
-    fun screenCarDetailActionsFolded() =
-        both("screen-car-detail-actions-folded", screenPhone) {
-            carScreen(vehicle = DemoScreenFixtures.vehicle.copy(vin = null), expanded = false)
-        }
+    fun screenCarDetailActionsFolded() = both("screen-car-detail-actions-folded", screenPhone) { carScreen(expanded = false) }
 
     /** A sleeping car, where Wake car is no longer the disabled row. */
     @Test
