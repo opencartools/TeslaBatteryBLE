@@ -258,7 +258,7 @@ jobs:
           ci_url="https://github.com/$GITHUB_REPOSITORY/actions/workflows/android.yml?query=branch%3A$branch_q"
           if [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ && "$PR" =~ ^[1-9][0-9]{0,9}$ ]]; then
             direct="https://github.com/$GITHUB_REPOSITORY/releases/download/pr-builds/TeslaBatteryBLE-pr${PR}-${HEAD_SHA:0:7}.apk"
-            line="Debug APK: [download the APK]($direct) from the [PR builds release]($release_url) (no sign-in), or get the [zip from CI]($ci_url) (sign-in needed) for an earlier commit."
+            line="Debug APK: [download the APK]($direct) from the [PR builds release]($release_url) (no sign-in), or get the [zip from CI]($ci_url) Artifacts (sign-in needed) for an earlier commit."
           else
             line="Debug APK: [download from the PR builds release]($release_url)"
           fi
