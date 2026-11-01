@@ -170,8 +170,7 @@ class TeslaSession private constructor(
                 .checksum(encodedInfo)
 
         fun import(
-            privateKeyPkcs8: ByteArray,
-            publicKeyRaw: ByteArray,
+            key: VehicleKey,
             vin: String,
             challenge: ByteArray,
             encodedInfo: ByteArray,
@@ -181,10 +180,7 @@ class TeslaSession private constructor(
         ): TeslaSession? {
             val info = runCatching { SessionInfo.ADAPTER.decode(encodedInfo) }.getOrNull() ?: return null
             val remotePublic = info.publicKey.toByteArray()
-            val sessionKey =
-                runCatching {
-                    TeslaCrypto.sessionKey(privateKeyPkcs8, remotePublic)
-                }.getOrNull() ?: return null
+            val sessionKey = runCatching { key.sessionKeyWith(remotePublic) }.getOrNull() ?: return null
 
             val expected = sessionInfoHmac(sessionKey, vin, challenge, encodedInfo)
             if (!expected.contentEquals(tag)) return null
@@ -192,7 +188,7 @@ class TeslaSession private constructor(
             return TeslaSession(
                 sessionKey = sessionKey,
                 vin = vin,
-                localPublicRaw = publicKeyRaw,
+                localPublicRaw = key.publicKeyRaw,
                 remotePublicRaw = remotePublic,
                 counter = info.counter,
                 epoch = info.epoch.toByteArray(),

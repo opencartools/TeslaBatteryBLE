@@ -254,7 +254,7 @@ class FakeCarProtocol(
         // flow (or the transport pre-loading an already-paired app) does.
 
         val carKey = TeslaKeys.generate()
-        val sessionKey = TeslaCrypto.sessionKey(carKey.privateKeyPkcs8, clientPublic)
+        val sessionKey = carKey.sessionKeyWith(clientPublic)
         sessions[domain] = sessionKey
         val epoch = epochs.getOrPut(domain) { TeslaCrypto.randomBytes(EPOCH_BYTES) }
         val info =

@@ -21,24 +21,20 @@ object TeslaCrypto {
     private val ecdh = provider.get(ECDH)
     private val sha1 = provider.get(SHA1)
 
-    fun sessionKey(
-        privateKeyPkcs8: ByteArray,
-        peerPublicRaw: ByteArray,
-    ): ByteArray {
-        val privateKey =
-            ecdh
-                .privateKeyDecoder(EC.Curve.P256)
-                .decodeFromByteArrayBlocking(EC.PrivateKey.Format.DER.Generic, privateKeyPkcs8)
-        val shared =
-            privateKey
-                .sharedSecretGenerator()
-                .generateSharedSecretToByteArrayBlocking(rawToPublicKey(peerPublicRaw))
-        // Truncated SHA-1 is mandated by the Tesla protocol, not our choice.
-        return sha1.hasher().hashBlocking(shared).copyOf(SHARED_KEY_SIZE)
+    /**
+     * The Tesla session key from a raw ECDH secret: truncated SHA-1, mandated
+     * by the protocol. Internal so [VehicleKey.sessionKeyWith] is the only way
+     * to derive one, and no platform implementation can pick a different rule.
+     */
+    internal fun sessionKey(sharedSecret: ByteArray): ByteArray = sha1.hasher().hashBlocking(sharedSecret).copyOf(SHARED_KEY_SIZE)
+
+    /** Rejects anything but the uncompressed P-256 point the car sends. */
+    internal fun requireUncompressedPoint(raw: ByteArray) {
+        require(raw.size == 65 && raw[0] == 0x04.toByte()) { "expected uncompressed point" }
     }
 
-    fun rawToPublicKey(raw: ByteArray): ECDH.PublicKey {
-        require(raw.size == 65 && raw[0] == 0x04.toByte()) { "expected uncompressed point" }
+    internal fun rawToPublicKey(raw: ByteArray): ECDH.PublicKey {
+        requireUncompressedPoint(raw)
         return ecdh
             .publicKeyDecoder(EC.Curve.P256)
             .decodeFromByteArrayBlocking(EC.PublicKey.Format.RAW, raw)

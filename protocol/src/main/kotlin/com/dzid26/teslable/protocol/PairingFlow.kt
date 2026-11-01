@@ -38,10 +38,10 @@ interface PairingKeys {
     fun publicKeyRaw(): ByteArray?
 
     /** The short SHA-1 identifier the car lists for this key. */
-    fun keyId(): ByteArray?
+    fun keyId(): ByteArray? = publicKeyRaw()?.let { TeslaKeys.keyId(it) }
 
     /** Replaces the car's key with a fresh one; null when it could not be saved. */
-    fun generate(): TeslaKeyPair?
+    fun generate(): VehicleKey?
 }
 
 /**
@@ -197,8 +197,8 @@ class PairingFlow(
      * the stolen copy.
      */
     private fun pairWithFreshKey() {
-        val keyPair = keys.generate()
-        if (keyPair == null) {
+        val key = keys.generate()
+        if (key == null) {
             // Enrolling a key the app may not have kept would orphan the
             // car's key slot, so pairing stops here.
             setPairing(PairingPhase.ERROR)
@@ -207,14 +207,14 @@ class PairingFlow(
         }
         // The previous key is gone; its cached slot is stale.
         host.publishKeySlot(null)
-        sendAddKey(keyPair)
+        sendAddKey(key)
     }
 
-    private fun sendAddKey(keyPair: TeslaKeyPair) {
-        val id = keyPair.keyId.toHexString()
+    private fun sendAddKey(key: VehicleKey) {
+        val id = TeslaKeys.keyId(key.publicKeyRaw).toHexString()
         setPairing(PairingPhase.SENDING, id)
         host.log("pairing key $id")
-        if (!host.transmitAddKey(TeslaPairing.buildAddKeyRequest(keyPair.publicKeyRaw))) {
+        if (!host.transmitAddKey(TeslaPairing.buildAddKeyRequest(key.publicKeyRaw))) {
             setPairing(PairingPhase.ERROR)
             host.log("failed to send pairing request")
         } else {

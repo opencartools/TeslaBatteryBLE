@@ -193,7 +193,7 @@ class FakeCarFaultsTest {
     /** A car with one key pair that answers session requests and rejects commands. */
     private inner class FakeCar {
         private val keys = TeslaKeys.generate()
-        private val sessionKey = TeslaCrypto.sessionKey(phone.privateKeyPkcs8, keys.publicKeyRaw)
+        private val sessionKey = phone.sessionKeyWith(keys.publicKeyRaw)
 
         private fun info(counter: Int = BASE_COUNTER): ByteArray =
             SessionInfo(
