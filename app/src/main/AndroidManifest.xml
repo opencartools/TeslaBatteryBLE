@@ -2,6 +2,11 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- The VIN prompt opens the Tesla app (its launcher intent) so the owner can copy the VIN from it. -->
+    <queries>
+        <package android:name="com.teslamotors.tesla" />
+    </queries>
+
     <uses-feature
         android:name="android.hardware.bluetooth_le"
         android:required="true" />

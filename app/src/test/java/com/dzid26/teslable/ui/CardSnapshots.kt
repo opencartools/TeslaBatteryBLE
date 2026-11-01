@@ -419,6 +419,13 @@ class CardSnapshots {
     }
 
     @Test
+    fun vinNeededCard() {
+        snapCard("vin-card_needed") {
+            VinNeededCard(onAddVin = {})
+        }
+    }
+
+    @Test
     fun historyCardCharged() {
         snapCard("history-card_charged") {
             BatteryHistoryCard(
@@ -668,6 +675,7 @@ class CardSnapshots {
                 statusHistory = emptyList(),
                 onBack = {},
                 onEdit = {},
+                onAddVin = {},
                 onPair = {},
                 onRefresh = {},
                 onOpenSettings = {},
@@ -740,7 +748,7 @@ class CardSnapshots {
         snapScreen("screen-car-detail-learnt") {
             CarScreen(
                 state = learntState,
-                vehicle = vehicle,
+                vehicle = carScreenVehicle,
                 advert = advert,
                 address = ADDRESS,
                 history = learntSamples,
@@ -748,6 +756,7 @@ class CardSnapshots {
                 statusHistory = emptyList(),
                 onBack = {},
                 onEdit = {},
+                onAddVin = {},
                 onPair = {},
                 onRefresh = {},
                 onOpenSettings = {},
@@ -1021,6 +1030,9 @@ class CardSnapshots {
                 // Enrolled, so the app-key card stays out of the car screen.
                 keySlot = 3,
             )
+
+        // The car screen's car has a VIN: live readings need a session, and a session needs the VIN.
+        private val carScreenVehicle = vehicle.copy(vin = "5YJ3E1EA7KF000001")
         private val healthSummary =
             HealthSummary(
                 sessions = 6,

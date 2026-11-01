@@ -151,6 +151,7 @@ internal fun CarScreen(
     storedCharges: List<ChargeSession> = emptyList(),
     onBack: () -> Unit,
     onEdit: () -> Unit,
+    onAddVin: () -> Unit,
     onPair: () -> Unit,
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -340,6 +341,11 @@ internal fun CarScreen(
                         nowMillis = nowMillis ?: rememberNowMillis(connection?.chargeAtMillis),
                         scale = scale,
                     )
+                    // Without a VIN the car's BLE session cannot be personalised, so reads and
+                    // controls go nowhere; the standing hint stands right under the hero.
+                    if (vehicle != null && !vehicle.hasSessionVin) {
+                        VinNeededCard(onAddVin = onAddVin)
+                    }
                     // Once the app key is enrolled the hero carries its status; the
                     // card only exists for pairing, so it disappears when there is
                     // nothing to do.
@@ -686,6 +692,25 @@ private fun isPaired(
     connection: TeslaConnection?,
     vehicle: Vehicle?,
 ): Boolean = connection?.isPaired == true || vehicle?.isPaired == true
+
+/**
+ * The car screen's compact hint while the car has no VIN. It sits under the hero, so the reason the car
+ * cannot be read or controlled is visible without opening anything; its button opens the same prompt the
+ * first refresh or wake raises. The title carries the whole message: the prompt itself says where to get
+ * the VIN, so the card does not repeat it.
+ */
+@Composable
+internal fun VinNeededCard(onAddVin: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text(stringResource(R.string.vin_needed_title), style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = onAddVin) {
+                Text(stringResource(R.string.vin_add))
+            }
+        }
+    }
+}
 
 @Composable
 private fun KeyCard(

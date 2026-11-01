@@ -102,8 +102,13 @@
     <string name="vin_edit">Edit VIN</string>
     <string name="vin_label">17-character VIN</string>
     <string name="vin_mismatch">Doesn\'t match this car\'s advertised name</string>
+    <string name="vin_needed_title">Add your VIN to read and control this car</string>
+    <string name="vin_prompt_body">This car\'s Bluetooth session uses its VIN, so the app cannot read or control it without one. The easiest way to get it is to copy it from the Tesla app. It is checked against the car\'s advertised name, stays on the phone and is never logged.</string>
+    <string name="vin_prompt_title">VIN needed for %1$s</string>
     <string name="vin_saved">Saved for this car; never logged.</string>
-    <string name="vin_hint">Printed on the windshield or the driver\'s door jamb.</string>
+    <string name="vin_tesla_app_missing">Tesla app not installed. The VIN is also printed on the windshield or the driver\'s door jamb.</string>
+    <string name="vin_hint">The easiest way is to copy it from the Tesla app.</string>
+    <string name="vin_hint_open_app">Open the Tesla app</string>
     <string name="action_save">Save</string>
 
     <string name="main_pull_scan">Scan for cars</string>

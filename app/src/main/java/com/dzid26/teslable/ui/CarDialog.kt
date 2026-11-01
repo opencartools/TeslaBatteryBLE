@@ -26,21 +26,20 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.dzid26.teslable.R
 import com.dzid26.teslable.ble.CarDetails
 import com.dzid26.teslable.ble.Vehicle
+import com.dzid26.teslable.ble.VinVerdict
 import com.dzid26.teslable.core.vehicle.decodeVin
 import com.dzid26.teslable.core.vehicle.epaSearchUrl
-import com.dzid26.teslable.protocol.TeslaNames
 import java.util.Locale
 
 private const val GREYED_ALPHA = 0.38f
 
 /**
- * What the owner can say about a car: its VIN and its new-car rated range. The VIN is optional here, but
- * a typed one must hash to the car's advertised name, so a typo is caught before it is stored. The range
- * is copied from the EPA page the link opens for the VIN's model and year.
+ * What the owner can say about a car: its VIN and its new-car rated range. The VIN is optional here, and
+ * a typed one must hash to the car's advertised name (the shared [VinField] checks it). The range is
+ * copied from the EPA page the link opens for the VIN's model and year.
  */
 @Composable
 internal fun CarDialog(
-    bleName: String,
     vehicle: Vehicle,
     onSave: (CarDetails) -> Unit,
     onDismiss: () -> Unit,
@@ -48,14 +47,7 @@ internal fun CarDialog(
     var vinInput by remember { mutableStateOf(vehicle.vin.orEmpty()) }
     var rangeInput by remember { mutableStateOf(vehicle.factoryRangeMiles?.let { "%.0f".format(Locale.US, it) }.orEmpty()) }
     val normalized = Vehicle.normalizeVin(vinInput)
-    val expected =
-        if (normalized.length == Vehicle.VIN_LENGTH) {
-            runCatching { TeslaNames.bleName(normalized) }.getOrNull()
-        } else {
-            null
-        }
-    val mismatch = normalized.length == Vehicle.VIN_LENGTH && expected != null && expected != bleName
-    val vinValid = normalized.length == Vehicle.VIN_LENGTH && expected == bleName
+    val vinValid = vehicle.vinVerdict(vinInput) == VinVerdict.MATCH
     val range = rangeInput.replace(',', '.').toFloatOrNull()?.takeIf { it > 0f }
     val rangeValid = rangeInput.isBlank() || range != null
     val epaUrl = if (vinValid) decodeVin(normalized)?.let(::epaSearchUrl) else null
@@ -64,15 +56,7 @@ internal fun CarDialog(
         title = { Text(stringResource(R.string.car_edit_title)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                OutlinedTextField(
-                    value = vinInput,
-                    onValueChange = { vinInput = it },
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.vin_label)) },
-                    isError = mismatch,
-                    supportingText = { Text(stringResource(vinHint(mismatch, vinValid))) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                VinField(vehicle, vinInput) { vinInput = it }
                 DecimalField(rangeInput, { rangeInput = it }, R.string.car_range_label, R.string.car_range_hint, rangeValid)
                 EpaLookupButton(epaUrl)
             }
@@ -116,16 +100,6 @@ private fun EpaLookupButton(epaUrl: String?) {
         Text(stringResource(R.string.car_range_lookup))
     }
 }
-
-private fun vinHint(
-    mismatch: Boolean,
-    valid: Boolean,
-): Int =
-    when {
-        mismatch -> R.string.vin_mismatch
-        valid -> R.string.vin_saved
-        else -> R.string.vin_hint
-    }
 
 @Composable
 private fun DecimalField(

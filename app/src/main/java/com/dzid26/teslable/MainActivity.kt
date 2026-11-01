@@ -180,7 +180,9 @@ class MainActivity : ComponentActivity() {
                                     onPairKey = controller::pairKey,
                                     onSaveCar = controller::saveCar,
                                     onWake = { bleName -> controller.wakeVehicle(bleName) },
-                                    onReadSoc = { controller.requestChargeState() },
+                                    onRefreshVehicle = { bleName, address -> controller.refreshVehicle(bleName, address) },
+                                    onRequestVin = controller::requestVin,
+                                    onDismissVin = controller::dismissVinRequest,
                                     onOpenSettings = { screen = AppScreen.SETTINGS },
                                 )
                             }
