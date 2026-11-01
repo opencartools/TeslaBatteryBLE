@@ -547,7 +547,11 @@ class TeslaBleController(
         if (visible) {
             // Opening the app is the signal to try again now, not after the long background wait.
             links.values.forEach { it.resetBackoff() }
-            selectedLink()?.takeIf { it.phase == ConnectionPhase.READY }?.startRssiPoll()
+            selectedLink()?.takeIf { it.phase == ConnectionPhase.READY }?.let { link ->
+                link.startRssiPoll()
+                // A paused poll should not greet the owner with a reading from before the pause.
+                link.readForUi()
+            }
         }
     }
 
@@ -991,6 +995,12 @@ class TeslaBleController(
 
         /** The reason of the read that is waiting for the Infotainment handshake. */
         private var waitingReadReason = Command.Reason.REASON_UNSPECIFIED
+
+        /**
+         * When the app last read on coming to the foreground; reopening the screen sooner than
+         * [UI_READ_MIN_INTERVAL_MS] later reads nothing.
+         */
+        private var lastUiReadAtMs = 0L
 
         /** Logs and feeds the policy with the drive, closures and climate replies (ADR-0008, ADR-0009). */
         private val stateReplies =
@@ -1502,6 +1512,32 @@ class TeslaBleController(
                     }
                 }
             }
+            syncPauseState()
+        }
+
+        /**
+         * One read when the app comes to the foreground: the poll may be waiting out its idle
+         * safety interval, and the owner opening the screen is the clearest sign they want today's
+         * numbers. It counts as a user request, so it starts the hold and the pill leaves Paused; at
+         * most one a minute, so a rotation or a quick look at another screen does not read again.
+         */
+        fun readForUi() {
+            if (!isAwake()) return
+            val now = System.currentTimeMillis()
+            if (now - lastUiReadAtMs < UI_READ_MIN_INTERVAL_MS) return
+            lastUiReadAtMs = now
+            requestChargeState(Command.Reason.USER_REFRESH)
+        }
+
+        /**
+         * Publishes the poll's pause for the status pill (ADR-0009): when the idle safety read is
+         * due, or null while reads run every ten seconds. Nothing is written while it does not move,
+         * so the every-10-s status tick does not churn the UI state.
+         */
+        private fun syncPauseState() {
+            val pausedUntil = infotainmentPolicy.pausedUntilMillis(System.currentTimeMillis())
+            if (_state.value.connections[address]?.pausedUntilMillis == pausedUntil) return
+            updateConnection(address) { it.copy(pausedUntilMillis = pausedUntil) }
         }
 
         /** The replies a read starting at [nowMs] expects: charge, drive, closures, climate, and location and tire pressure when due. */
@@ -1771,6 +1807,7 @@ class TeslaBleController(
                     handshake.dropPendingInfotainment()
                 }
                 if (infotainmentPolicy.onStatus(status, canRead, System.currentTimeMillis())) requestChargeState()
+                syncPauseState()
                 // The status is in, so the car's awake state is known to the session request.
                 runStartupFollowUps()
             } else {
@@ -1800,7 +1837,7 @@ class TeslaBleController(
                             if (phase == ConnectionPhase.FAILED && !hadData) ConnectionPhase.FAILED else ConnectionPhase.DISCONNECTED
                         this@VehicleLink.phase = display
                         updateConnection(address) {
-                            it.copy(phase = display, disconnectedAtMillis = System.currentTimeMillis())
+                            it.copy(phase = display, disconnectedAtMillis = System.currentTimeMillis(), pausedUntilMillis = null)
                         }
                         scheduleReconnect()
                         return
@@ -1822,6 +1859,7 @@ class TeslaBleController(
                         lastAliveMillis = System.currentTimeMillis()
                         firstStatusAfterConnect = true
                         infotainmentPolicy.onLinkReady(System.currentTimeMillis())
+                        syncPauseState()
                         recordConnection(this@VehicleLink, ConnectionEvent.State.CONNECTED)
                         // Additive scans stay under the user's control; the selected
                         // car connecting is the one signal that means "found it".
@@ -1878,6 +1916,9 @@ class TeslaBleController(
         const val RSSI_POLL_MS = 500L
         const val DEMO_SCAN_MS = 2_000L
         const val REHANDSHAKE_COOLDOWN_MS = 60_000L
+
+        /** A foreground read at most this often: the owner reopening the app should not hammer the car. */
+        const val UI_READ_MIN_INTERVAL_MS = 60_000L
 
         const val DISCOVERY_AFTER_ATTEMPTS = 3
         const val DISCOVERY_TIMEOUT_MS = 30_000L

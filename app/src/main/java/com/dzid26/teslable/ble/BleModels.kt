@@ -37,6 +37,12 @@ data class TeslaConnection(
     val disconnectedAtMillis: Long? = null,
     /** How far the Infotainment read in flight has come; null when none is. The VCSEC status poll does not count. */
     val readProgress: ReadProgress? = null,
+    /**
+     * When the idle poll reads the car next, while it waits out the safety interval; null while reads
+     * run every ten seconds (active, holding, asleep, or no read yet). The status pill shows Paused
+     * while it is set (ADR-0009).
+     */
+    val pausedUntilMillis: Long? = null,
     /** Pairing flow state for this car; idle unless a Pair is in flight. */
     val pairing: PairingPhase = PairingPhase.IDLE,
     val pairingKeyId: String? = null,
@@ -288,7 +294,7 @@ private fun connectionStateText(
 
         ConnectionLabel.CONNECTING -> "Connecting..."
 
-        ConnectionLabel.CONNECTED, ConnectionLabel.AWAKE -> "Connected"
+        ConnectionLabel.CONNECTED, ConnectionLabel.AWAKE, ConnectionLabel.PAUSED -> "Connected"
 
         ConnectionLabel.ASLEEP ->
             "Connected \uD83D\uDCA4" +
@@ -316,6 +322,9 @@ enum class ConnectionLabel(
     CONNECTED("Connected"),
     AWAKE("Awake"),
     ASLEEP("Asleep"),
+
+    /** Awake, but the poll is waiting out the idle safety interval before its next read. */
+    PAUSED("Paused"),
 }
 
 fun connectionLabel(
@@ -337,10 +346,11 @@ private fun phaseLabel(connection: TeslaConnection?): ConnectionLabel =
         ConnectionPhase.CONNECTING, ConnectionPhase.CONNECTED, ConnectionPhase.DISCOVERING -> ConnectionLabel.CONNECTING
 
         ConnectionPhase.READY ->
-            when (connection.status?.asleep) {
-                true -> ConnectionLabel.ASLEEP
-                false -> ConnectionLabel.AWAKE
-                null -> ConnectionLabel.CONNECTED
+            when {
+                connection.status?.asleep == true -> ConnectionLabel.ASLEEP
+                connection.pausedUntilMillis != null -> ConnectionLabel.PAUSED
+                connection.status != null -> ConnectionLabel.AWAKE
+                else -> ConnectionLabel.CONNECTED
             }
     }
 

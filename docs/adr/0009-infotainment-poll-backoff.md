@@ -53,6 +53,19 @@ due. One instance per vehicle link.
   a car that would sleep is already asleep when the read comes due, so the read
   is skipped and its sleep is never extended. It does not start a hold. The
   value is tuned from the real-car check.
+- The screen shows the idle wait (owner, 2026-11-01). `pausedUntilMillis` answers
+  when the next idle read is due, the moment `onStatus` next answers true, and the
+  car's pill reads Paused while it is set; a tap on the pill shows a toast with that
+  time and why the numbers wait, the way the Asleep pill explains the swipe-to-wake.
+  A car with no read yet, or one asleep, active or in a
+  hold, has no pause, so the pill keeps Awake, Asleep or Connected there. The
+  cadence does not change: the pill is a view of the policy, kept beside the read
+  reason it already exposes (ADR-0008).
+- Opening the app counts as a user request (owner, 2026-11-01): the selected READY
+  link reads once when the screen comes to the foreground, at most once a minute,
+  logged as USER_REFRESH and through the same gates as the refresh button, so a
+  sleeping car is still never woken. The read starts the hold, so the pause ends by
+  itself and the first screen after a long pause is fresh.
 - Status changes that start or restart the hold: asleep to awake; any
   lock-state change (locking too, which catches driving away and locking from
   the phone); any closure (doors, trunks, charge port) changing between open
@@ -120,6 +133,13 @@ ticks does not turn a 10 s cadence into 20 s.
 - Sentry and climate are only seen on a read, so one that starts between reads
   shows after the next one: within 10 s during a hold or other activity, up to
   20 minutes otherwise (the safety read).
+- A car parked awake with someone inside is read once every 20 minutes, and the
+  screen now says so: the pill reads Paused with the time of the next read
+  instead of looking live while the numbers age. Opening the app reads once, so
+  the first screen after a long pause is fresh within a second. What the policy
+  knows about driving is as old as its last read, so a paused car that starts
+  moving stays Paused until the safety read sees the gear change (real-car log,
+  2026-11-01: the first reply after a pause read R at speed 0).
 - The envelope gains the closures and climate payloads (ADR-0008); the logs are
   otherwise sparser while idle.
 

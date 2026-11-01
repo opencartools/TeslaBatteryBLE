@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ui
 
+import android.content.Context
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -69,6 +70,7 @@ import com.dzid26.teslable.UnitStore
 import com.dzid26.teslable.ble.BatteryPercent
 import com.dzid26.teslable.ble.BleUiState
 import com.dzid26.teslable.ble.ConnectionDisplay
+import com.dzid26.teslable.ble.ConnectionLabel
 import com.dzid26.teslable.ble.ConnectionPhase
 import com.dzid26.teslable.ble.TeslaAdvert
 import com.dzid26.teslable.ble.TeslaConnection
@@ -77,6 +79,7 @@ import com.dzid26.teslable.ble.ageLabel
 import com.dzid26.teslable.ble.batteryPercent
 import com.dzid26.teslable.ble.chargingStateText
 import com.dzid26.teslable.ble.connectionDisplay
+import com.dzid26.teslable.ble.connectionLabel
 import com.dzid26.teslable.ble.vehicleStatusText
 import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.health.PriceChange
@@ -110,6 +113,7 @@ import com.dzid26.teslable.core.history.socTenths
 import com.dzid26.teslable.core.history.statusDurations
 import com.dzid26.teslable.core.history.withLiveTail
 import com.dzid26.teslable.core.history.within
+import com.dzid26.teslable.core.infotainment.InfotainmentPollPolicy
 import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.core.vehicle.decodeVin
 import com.dzid26.teslable.health.healthSummary
@@ -385,6 +389,35 @@ internal fun CarScreen(
     }
 }
 
+/** What a tap on the status pill says: asleep explains the swipe-to-wake, paused why the reads wait. */
+private fun pillClick(
+    context: Context,
+    pausedHint: String,
+): (ConnectionLabel) -> Unit =
+    { label ->
+        when (label) {
+            ConnectionLabel.ASLEEP -> Toast.makeText(context, "Swipe down to wake the car", Toast.LENGTH_SHORT).show()
+            ConnectionLabel.PAUSED -> Toast.makeText(context, pausedHint, Toast.LENGTH_LONG).show()
+            else -> Unit
+        }
+    }
+
+/** The Paused pill's toast: why the reads wait, and when the next one is due. Empty when not paused. */
+@Composable
+private fun pausedPillHint(
+    connection: TeslaConnection?,
+    paused: Boolean,
+): String {
+    val nextRead = connection?.pausedUntilMillis
+    if (!paused || nextRead == null) return ""
+    val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
+    return stringResource(
+        R.string.connection_paused_hint,
+        compactDuration(InfotainmentPollPolicy.IDLE_SAFETY_INTERVAL_MS).orEmpty(),
+        formatTime(nextRead, showDate = false, is24Hour = is24Hour),
+    )
+}
+
 @Composable
 internal fun HeroCard(
     connection: TeslaConnection?,
@@ -416,6 +449,9 @@ internal fun HeroCard(
     val durations = rememberInBackground(null, statusHistory, vehicleId, nowMillis) { statusDurations(statusHistory, vehicleId, nowMillis) }
     val keySlot = connection?.keySlot ?: vehicle?.keySlot
     val pairing = connection?.pairing ?: PairingPhase.IDLE
+    // The Paused pill explains itself on a tap, the same way the Asleep pill does.
+    val paused = connectionLabel(connection, bluetoothOn) == ConnectionLabel.PAUSED
+    val pausedHint = pausedPillHint(connection, paused)
     Card(
         modifier =
             Modifier
@@ -444,11 +480,7 @@ internal fun HeroCard(
                             StatusPill(
                                 connection = connection,
                                 bluetoothOn = bluetoothOn,
-                                onAsleepClick = {
-                                    Toast
-                                        .makeText(context, "Swipe down to wake the car", Toast.LENGTH_SHORT)
-                                        .show()
-                                },
+                                onClick = pillClick(context, pausedHint),
                                 modifier =
                                     Modifier
                                         .offset(x = PILL_CORNER_PULL, y = -PILL_CORNER_PULL)

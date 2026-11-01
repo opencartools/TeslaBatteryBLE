@@ -14,7 +14,14 @@ class ConnectionLabelTest {
     private fun connection(
         phase: ConnectionPhase,
         status: VehicleStatus? = null,
-    ) = TeslaConnection(address = "AA:BB", name = "car", phase = phase, status = status)
+        pausedUntilMillis: Long? = null,
+    ) = TeslaConnection(
+        address = "AA:BB",
+        name = "car",
+        phase = phase,
+        status = status,
+        pausedUntilMillis = pausedUntilMillis,
+    )
 
     private fun pillAndLine(connection: TeslaConnection?) =
         connectionLabel(connection).pillText to connectionDisplay(connection, advert = null).stateText
@@ -48,6 +55,25 @@ class ConnectionLabelTest {
     @Test
     fun `no connection at all reads disconnected`() {
         assertEquals("Disconnected" to "Disconnected", pillAndLine(null))
+    }
+
+    @Test
+    fun awakePausedCarReadsPausedOnThePillAndStaysConnected() {
+        assertEquals(
+            "awake and paused",
+            "Paused" to "Connected",
+            pillAndLine(connection(ConnectionPhase.READY, awake, pausedUntilMillis = 1_000L)),
+        )
+        assertEquals(
+            "a sleeping car reads Asleep whatever the pause says",
+            "Asleep" to "Connected $zzz",
+            pillAndLine(connection(ConnectionPhase.READY, asleep, pausedUntilMillis = 1_000L)),
+        )
+        assertEquals(
+            "only a ready link can be paused",
+            "Connecting" to "Connecting...",
+            pillAndLine(connection(ConnectionPhase.CONNECTING, awake, pausedUntilMillis = 1_000L)),
+        )
     }
 
     @Test
