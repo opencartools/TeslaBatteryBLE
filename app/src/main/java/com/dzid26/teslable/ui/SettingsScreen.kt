@@ -3,6 +3,7 @@ package com.dzid26.teslable.ui
 
 import android.net.Uri
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -389,6 +390,7 @@ private fun DebugCard(onClearCache: () -> Unit) {
 
 @Composable
 private fun DebugClearCache(onClearCache: () -> Unit) {
+    val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
     Button(onClick = { showDialog = true }) {
         Text(stringResource(R.string.settings_clear_cache_button))
@@ -404,6 +406,7 @@ private fun DebugClearCache(onClearCache: () -> Unit) {
             onConfirm = {
                 showDialog = false
                 onClearCache()
+                Toast.makeText(context, R.string.settings_clear_cache_done, Toast.LENGTH_LONG).show()
             },
             onDismiss = { showDialog = false },
         )
