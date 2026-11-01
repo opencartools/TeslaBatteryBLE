@@ -341,7 +341,7 @@ private fun DebugCard(onClearCache: () -> Unit) {
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Connect with autoConnect",
+                    text = stringResource(R.string.settings_debug_auto_connect),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
@@ -356,7 +356,7 @@ private fun DebugCard(onClearCache: () -> Unit) {
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Takes effect on the next connection. Needs the car's BLE address to stay stable between visits.",
+                text = stringResource(R.string.settings_debug_auto_connect_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

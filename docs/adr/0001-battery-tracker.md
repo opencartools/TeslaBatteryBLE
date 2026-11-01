@@ -74,6 +74,10 @@ protocol uses standard 12-byte AES-GCM nonces (Go takes the size from
 `gcm.NonceSize()`, `TeslaCrypto.NONCE_SIZE` is 12), and the text above now says so.
 Session persistence (milestone 5) was never built; sessions are in memory only.
 
+## Correction (2026-11-01)
+
+Debug builds connect with `connectGatt(autoConnect = true)` by default: Android holds the background connection and completes it when the car advertises, and the switch in Settings compares that against the polling path. Release builds keep the direct-connect and backoff path described above. Independently, a car that comes back at a new address is reconnected as soon as a scan sees it, and opening the app runs that filtered scan whenever a known car is not connected.
+
 ## References
 
 - https://github.com/teslamotors/vehicle-command
