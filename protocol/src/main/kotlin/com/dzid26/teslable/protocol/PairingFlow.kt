@@ -391,7 +391,7 @@ class PairingFlow(
         if (matches) {
             keySlotQueue = emptyList()
             host.publishKeySlot(entry.slot)
-            entry.keyRole?.let { host.publishKeyRole(it) }
+            host.publishKeyRole(entry.keyRole)
             if (phase == PairingPhase.ERROR) {
                 // The slot proves enrollment; clear the stale failure.
                 setPairing(PairingPhase.IDLE, null)

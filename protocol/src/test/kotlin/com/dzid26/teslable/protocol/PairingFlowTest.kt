@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.protocol
 
+import com.tesla.generated.keys.Role
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.vcsec.CommandStatus
 import com.tesla.generated.vcsec.FromVCSECMessage
@@ -144,9 +145,11 @@ class PairingFlowTest {
         flow.onTimer(PairingTimer.RESPONSE_TIMEOUT)
         assertEquals(PairingPhase.ERROR, flow.phase)
 
-        flow.onMessage(slotEntry(slot = 5, keyId = keyPair.keyId))
+        flow.onMessage(slotEntry(slot = 5, keyId = keyPair.keyId, role = Role.ROLE_CHARGING_MANAGER))
 
         assertEquals(5, host.keySlots.last())
+        // The role the car has for this key decides which actions it may authorize.
+        assertEquals(Role.ROLE_CHARGING_MANAGER, host.keyRoles.last())
         assertEquals(PairingPhase.IDLE, flow.phase)
     }
 
@@ -259,10 +262,16 @@ class PairingFlowTest {
     private fun slotEntry(
         slot: Int,
         keyId: ByteArray,
+        role: Role = Role.ROLE_NONE,
     ): ByteArray {
         val payload =
             FromVCSECMessage(
-                whitelistEntryInfo = WhitelistEntryInfo(keyId = KeyIdentifier(publicKeySHA1 = keyId.toByteString()), slot = slot),
+                whitelistEntryInfo =
+                    WhitelistEntryInfo(
+                        keyId = KeyIdentifier(publicKeySHA1 = keyId.toByteString()),
+                        slot = slot,
+                        keyRole = role,
+                    ),
             ).encode()
         return RoutableMessage(protobuf_message_as_bytes = payload.toByteString()).encode()
     }
@@ -297,6 +306,7 @@ class PairingFlowTest {
         val vcsecRequests = mutableListOf<Pair<ByteArray, PairingReason>>()
         val addKeyRequests = mutableListOf<ByteArray>()
         val keySlots = mutableListOf<Int?>()
+        val keyRoles = mutableListOf<Role>()
         val timers = mutableMapOf<PairingTimer, Long>()
 
         override fun log(message: String) {
@@ -322,6 +332,10 @@ class PairingFlowTest {
 
         override fun publishKeySlot(slot: Int?) {
             keySlots += slot
+        }
+
+        override fun publishKeyRole(role: Role) {
+            keyRoles += role
         }
 
         override fun hasConnectionKeySlot() = connectionSlot
