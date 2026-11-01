@@ -18,6 +18,7 @@ Master plan: `docs/master-plan.md` — read it first and update its checkboxes w
 - `.\gradlew :app:assembleDebug` — debug APK.
 - `.\gradlew :app:lintDebug` — Android lint (once wired into CI).
 - `.\gradlew ktlintCheck detektMain detektTest` — formatting and static analysis on main and test sources of every module, exactly what the CI static job runs besides Android lint (`.github/scripts/verify.sh static`). Needs JDK 21; on a machine with a newer default JDK set `org.gradle.java.home` in `~/.gradle/gradle.properties`. Run it before every push (a clean `detektMain` alone misses test-source findings); name one module's tasks while iterating (`:core:detektMain :core:detektTest`).
+- The configuration and build caches are on in `gradle.properties`: reruns reuse the task graph, and every worktree reuses task outputs from `~/.gradle/caches/build-cache-1` for inputs it has already seen. Both are effectively keyed per commit, because `app/build.gradle.kts` runs `git describe` at configuration time to derive `versionName`/`versionCode`: a new commit re-creates the configuration cache entry and re-runs whatever reads BuildConfig. Machine-specific limits (worker count, Kotlin daemon heap, `org.gradle.vfs.watch=false` where watching fails) belong in `~/.gradle/gradle.properties`, which takes precedence over this file.
 - CI workflows (`.github/workflows/`) are described in `docs/ci.md`.
 
 ## Conventions
