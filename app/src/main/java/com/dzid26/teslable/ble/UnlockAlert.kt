@@ -2,51 +2,106 @@
 package com.dzid26.teslable.ble
 
 import android.app.PendingIntent
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.dzid26.teslable.MainActivity
 import com.dzid26.teslable.R
 import com.dzid26.teslable.UnlockAlertStore
+import com.dzid26.teslable.protocol.locked
+import com.dzid26.teslable.protocol.userPresent
+import com.tesla.generated.vcsec.ClosureState_E
+import com.tesla.generated.vcsec.ClosureStatuses
+import com.tesla.generated.vcsec.VehicleStatus
+import kotlinx.coroutines.flow.StateFlow
 
 /**
- * The "car left unlocked" alert, start to finish: the per-car episode state, the owner's switch and the
- * heads-up. The controller feeds it each VCSEC status, each link drop, and the two conditions only the
- * controller knows (tracking on, Bluetooth off).
+ * The "car left unlocked" alert, start to finish: the wait after a drop, the per-car episode state, the
+ * owner's switch and the heads-up.
  *
- * It is its own notification, not part of the tracking service's ongoing one: it can be dismissed, and
- * the service's next update cannot take it away. The channel carries the importance and the car lock
- * sound; the notification itself only asks to alert.
+ * A car ends idle links all the time, so a drop only starts a timer. A successful reconnect before
+ * [UnlockAlerts.DEFAULT_WAIT_MILLIS] cancels it; a link that stays down for the whole wait posts the alert
+ * if the last status said the car was unlocked and open (or empty). Its own notification, not part of the
+ * tracking service's ongoing one, so it can be dismissed and the service's next update cannot take it away.
+ * The channel carries the importance and the car lock sound; the notification itself only asks to alert.
  */
 internal class UnlockAlert(
     private val context: Context,
+    private val state: StateFlow<BleUiState>,
+    private val log: (String) -> Unit,
     private val episodes: UnlockAlerts = UnlockAlerts(),
     private val store: UnlockAlertStore = UnlockAlertStore(context),
 ) {
+    private val handler = Handler(Looper.getMainLooper())
+    private val pending = mutableMapOf<String, Runnable>()
+
+    /** True when a door or trunk is open, ajar, opening or failed to latch. */
+    private fun ClosureStatuses?.anyOpen(): Boolean =
+        this != null &&
+            listOf(frontDriverDoor, frontPassengerDoor, rearDriverDoor, rearPassengerDoor, rearTrunk, frontTrunk, tonneau)
+                .any { it in openClosures }
+
     fun onStatus(
         bleName: String,
-        locked: Boolean,
-        userPresent: Boolean,
-    ) = episodes.onStatus(bleName, locked, userPresent)
+        status: VehicleStatus,
+    ) {
+        episodes.onStatus(
+            bleName,
+            unlocked = !status.locked,
+            closureOpen = status.closureStatuses.anyOpen(),
+            userPresent = status.userPresent,
+        )
+    }
 
-    /** Forgets every episode, for a deliberate teardown such as tracking or Bluetooth being switched off. */
-    fun disarmAll() = episodes.disarmAll()
-
-    /**
-     * Posts the alert when a link that was up on a car whose last status was unlocked and empty drops.
-     * [trackingEnabled] and [bluetoothOff] keep a teardown or the radio switch from looking like the owner
-     * walking away. Returns whether it posted.
-     */
+    /** Starts the wait after a link that was up drops; a reconnect before it ends cancels the wait. */
     fun onLinkDropped(
         bleName: String,
         title: String,
-        trackingEnabled: Boolean,
-        bluetoothOff: Boolean,
-    ): Boolean {
-        val alert = episodes.onLinkDropped(bleName, store.enabled(), trackingEnabled, bluetoothOff)
-        if (alert) post(bleName, title)
-        return alert
+    ) {
+        if (pending.containsKey(bleName)) return
+        val runnable = Runnable { fire(bleName, title) }
+        pending[bleName] = runnable
+        handler.postDelayed(runnable, UnlockAlerts.DEFAULT_WAIT_MILLIS)
+    }
+
+    /** The link is back: the car is reachable, so this drop was not a departure. */
+    fun onLinkReady(bleName: String) {
+        pending.remove(bleName)?.let(handler::removeCallbacks)
+        episodes.onLinkReady(bleName)
+    }
+
+    /** Forgets every episode and cancels every wait, for a deliberate teardown. */
+    fun disarmAll() {
+        pending.values.forEach(handler::removeCallbacks)
+        pending.clear()
+        episodes.disarmAll()
+    }
+
+    private fun fire(
+        bleName: String,
+        title: String,
+    ) {
+        pending.remove(bleName)
+        val enabled = store.enabled() && state.value.trackingEnabled && !bluetoothOff()
+        if (!episodes.due(bleName, System.currentTimeMillis(), enabled)) {
+            episodes.cancelPending(bleName)
+            return
+        }
+        post(bleName, title)
+        val minutes = UnlockAlerts.DEFAULT_WAIT_MILLIS / MILLIS_PER_MINUTE
+        log("$title: unlocked with a door or trunk open, no reconnect for $minutes min; alert posted")
+    }
+
+    /** True while the radio is off: the adapter ended that link, not the owner walking away with the phone. */
+    private fun bluetoothOff(): Boolean {
+        if (!state.value.bluetoothOn) return true
+        return runCatching {
+            context.getSystemService(BluetoothManager::class.java)?.adapter?.isEnabled == false
+        }.getOrDefault(false)
     }
 
     private fun post(
@@ -92,5 +147,15 @@ internal class UnlockAlert(
         /** Each car gets its own slot, away from the tracking notification ids. */
         const val NOTIFICATION_BASE = 2000
         const val ID_MASK = 0xFFFF
+        const val MILLIS_PER_MINUTE = 60_000L
+
+        /** A door or trunk left open counts even when the car says someone is present; a charge port alone does not. */
+        val openClosures =
+            setOf(
+                ClosureState_E.CLOSURESTATE_OPEN,
+                ClosureState_E.CLOSURESTATE_AJAR,
+                ClosureState_E.CLOSURESTATE_OPENING,
+                ClosureState_E.CLOSURESTATE_FAILED_UNLATCH,
+            )
     }
 }

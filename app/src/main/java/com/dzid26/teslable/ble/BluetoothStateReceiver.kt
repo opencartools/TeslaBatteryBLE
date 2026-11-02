@@ -20,7 +20,8 @@ internal class BluetoothStateReceiver(
     ) {
         when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
             BluetoothAdapter.STATE_TURNING_OFF,
-            BluetoothAdapter.STATE_OFF -> onOff()
+            BluetoothAdapter.STATE_OFF,
+            -> onOff()
 
             BluetoothAdapter.STATE_ON -> onOn()
         }

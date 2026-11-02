@@ -6,113 +6,116 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UnlockAlertsTest {
-    private val alerts = UnlockAlerts()
+    private val wait = UnlockAlerts.DEFAULT_WAIT_MILLIS
+    private val alerts = UnlockAlerts(wait)
 
-    private fun away() = alerts.onStatus("car", locked = false, userPresent = false)
-
-    private fun locked() = alerts.onStatus("car", locked = true, userPresent = false)
-
-    private fun present() = alerts.onStatus("car", locked = false, userPresent = true)
-
-    private fun drop(
+    private fun eligible(
         bleName: String = "car",
+        closureOpen: Boolean = true,
+        userPresent: Boolean = false,
+    ) = alerts.onStatus(bleName, unlocked = true, closureOpen = closureOpen, userPresent = userPresent)
+
+    private fun due(
+        bleName: String = "car",
+        nowMillis: Long = wait,
         enabled: Boolean = true,
-        trackingEnabled: Boolean = true,
-        bluetoothOff: Boolean = false,
-    ) = alerts.onLinkDropped(bleName, enabled, trackingEnabled, bluetoothOff)
+    ) = alerts.due(bleName, nowMillis, enabled)
 
     @Test
-    fun `alerts once when an unlocked empty car drops off`() {
-        away()
-        assertTrue(drop())
-        assertFalse(drop())
+    fun `an unlocked car with a door open alerts only after the wait`() {
+        eligible(closureOpen = true, userPresent = true)
+        alerts.onLinkDropped("car", nowMillis = 0)
+        assertFalse(due(nowMillis = wait - 1))
+        assertTrue(due(nowMillis = wait))
+    }
+
+    @Test
+    fun `nobody inside with everything shut is enough`() {
+        eligible(closureOpen = false, userPresent = false)
+        alerts.onLinkDropped("car", nowMillis = 0)
+        assertTrue(due(nowMillis = wait))
+    }
+
+    @Test
+    fun `a shut car with someone inside never alerts`() {
+        eligible(closureOpen = false, userPresent = true)
+        alerts.onLinkDropped("car", nowMillis = 0)
+        assertFalse(due(nowMillis = 2 * wait))
+    }
+
+    @Test
+    fun `a locked car never alerts even with a door open`() {
+        alerts.onStatus("car", unlocked = false, closureOpen = true, userPresent = false)
+        alerts.onLinkDropped("car", nowMillis = 0)
+        assertFalse(due(nowMillis = 2 * wait))
     }
 
     @Test
     fun `a drop before any status stays silent`() {
-        assertFalse(drop())
+        alerts.onLinkDropped("car", nowMillis = 0)
+        assertFalse(due(nowMillis = 2 * wait))
     }
 
     @Test
-    fun `a locked car stays silent`() {
-        locked()
-        assertFalse(drop())
+    fun `a quick reconnect cancels the wait`() {
+        eligible()
+        alerts.onLinkDropped("car", nowMillis = 0)
+        alerts.onLinkReady("car")
+        assertFalse(due(nowMillis = wait))
     }
 
     @Test
-    fun `a car with someone inside stays silent`() {
-        present()
-        assertFalse(drop())
+    fun `a second drop after a reconnect gets its own full wait`() {
+        eligible()
+        alerts.onLinkDropped("car", nowMillis = 0)
+        alerts.onLinkReady("car")
+        alerts.onLinkDropped("car", nowMillis = 2_000)
+        assertFalse(due(nowMillis = wait))
+        assertTrue(due(nowMillis = wait + 2_000))
     }
 
     @Test
-    fun `the toggle suppresses the alert`() {
-        away()
-        assertFalse(drop(enabled = false))
+    fun `the alert fires once per episode`() {
+        eligible()
+        alerts.onLinkDropped("car", nowMillis = 0)
+        assertTrue(due(nowMillis = wait))
+        assertFalse(due(nowMillis = 2 * wait))
     }
 
     @Test
-    fun `turning the toggle back on can still alert the same episode`() {
-        away()
-        assertFalse(drop(enabled = false))
-        assertTrue(drop())
+    fun `the toggle off suppresses without spending the episode`() {
+        eligible()
+        alerts.onLinkDropped("car", nowMillis = 0)
+        assertFalse(due(enabled = false))
+        assertTrue(due(enabled = true))
     }
 
     @Test
-    fun `tracking switched off suppresses the alert and leaves the episode armed`() {
-        away()
-        assertFalse(drop(trackingEnabled = false))
-        assertTrue(drop())
+    fun `a later locked status cancels the wait and re-arms`() {
+        eligible()
+        alerts.onLinkDropped("car", nowMillis = 0)
+        alerts.onStatus("car", unlocked = false, closureOpen = false, userPresent = false)
+        assertFalse(due(nowMillis = wait))
+        eligible()
+        alerts.onLinkDropped("car", nowMillis = 2 * wait)
+        assertTrue(due(nowMillis = 3 * wait))
     }
 
     @Test
-    fun `Bluetooth switched off suppresses the alert and leaves the episode armed`() {
-        away()
-        assertFalse(drop(bluetoothOff = true))
-        assertTrue(drop())
-    }
-
-    @Test
-    fun `locking and unlocking again alerts again`() {
-        away()
-        assertTrue(drop())
-        locked()
-        away()
-        assertTrue(drop())
-    }
-
-    @Test
-    fun `the driver leaving a still unlocked car is a new episode`() {
-        present()
-        away()
-        assertTrue(drop())
-        present()
-        away()
-        assertTrue(drop())
-    }
-
-    @Test
-    fun `a fresh status while already away keeps the episode spent`() {
-        away()
-        assertTrue(drop())
-        // Reconnecting polls the status again; it is still unlocked and empty, so this is the same episode.
-        away()
-        assertFalse(drop())
-    }
-
-    @Test
-    fun `disarming forgets the episode`() {
-        away()
+    fun `disarming forgets every episode`() {
+        eligible()
+        alerts.onLinkDropped("car", nowMillis = 0)
         alerts.disarmAll()
-        assertFalse(drop())
+        assertFalse(due(nowMillis = 2 * wait))
     }
 
     @Test
     fun `cars are tracked apart`() {
-        alerts.onStatus("a", locked = false, userPresent = false)
-        alerts.onStatus("b", locked = false, userPresent = false)
-        assertTrue(drop("a"))
-        assertTrue(drop("b"))
-        assertFalse(drop("a"))
+        eligible("a")
+        eligible("b")
+        alerts.onLinkDropped("a", nowMillis = 0)
+        alerts.onLinkReady("b")
+        assertTrue(due("a", nowMillis = wait))
+        assertFalse(due("b", nowMillis = wait))
     }
 }

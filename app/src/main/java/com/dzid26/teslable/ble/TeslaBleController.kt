@@ -72,7 +72,7 @@ class TeslaBleController(
     private val vehicleStore = VehicleStore(appContext)
     private val vehicles = mutableMapOf<String, Vehicle>()
     private val historyStore: HistoryStore
-    private val unlockAlert = UnlockAlert(appContext)
+    private val unlockAlert = UnlockAlert(appContext, _state, ::log)
 
     /** Battery readings recorded from every charge response, oldest first. */
     val batteryHistory: StateFlow<List<BatterySample>> get() = historyStore.samples
@@ -1259,12 +1259,9 @@ class TeslaBleController(
 
         fun vin(): String = vehicles[bleName]?.vin.orEmpty()
 
-        /** The owner's "car left unlocked" alert, if this drop qualifies; the episode state and switch live in [unlockAlert]. */
+        /** The owner's "car left unlocked" alert: a drop only starts the wait, which a reconnect cancels. */
         private fun alertUnlocked() {
-            val title = vehicles[bleName]?.title ?: bleName
-            if (unlockAlert.onLinkDropped(bleName, title, _state.value.trackingEnabled, bluetoothOff(appContext, _state.value))) {
-                log("$title: car was left unlocked; link dropped, alert posted")
-            }
+            unlockAlert.onLinkDropped(bleName, vehicles[bleName]?.title ?: bleName)
         }
 
         private fun log(message: String) {
@@ -1792,7 +1789,7 @@ class TeslaBleController(
             val status = runCatching { TeslaVcsec.parseStatusResponse(message) }.getOrNull()
             if (status != null) {
                 // Arms, or ends, the unlock-away alert; the link drop it fires on comes later.
-                unlockAlert.onStatus(bleName, status.locked, status.userPresent)
+                unlockAlert.onStatus(bleName, status)
                 // VCSEC replies carry no time: the phone's clock at receipt is
                 // the status log's timeline (ADR-0008).
                 val rssi = latestRssi(address)
@@ -1872,6 +1869,7 @@ class TeslaBleController(
                     if (phase == ConnectionPhase.READY && endNameProbe()) {
                         log("${name()}: name read; disconnecting until opened")
                     } else if (phase == ConnectionPhase.READY) {
+                        unlockAlert.onLinkReady(bleName)
                         reconnectAttempts = 0
                         nextRetryAtMs = 0
                         lastAliveMillis = System.currentTimeMillis()
@@ -1960,17 +1958,6 @@ class TeslaBleController(
                 ConnectionPhase.READY,
             )
     }
-}
-
-/** True while the radio is off: the adapter ended that link, not the owner walking away with the phone. */
-private fun bluetoothOff(
-    context: Context,
-    state: BleUiState,
-): Boolean {
-    if (!state.bluetoothOn) return true
-    return runCatching {
-        context.getSystemService(BluetoothManager::class.java)?.adapter?.isEnabled == false
-    }.getOrDefault(false)
 }
 
 /**
