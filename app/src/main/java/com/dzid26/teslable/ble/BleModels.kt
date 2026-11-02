@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ble
 
+import androidx.annotation.StringRes
+import com.dzid26.teslable.R
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.StatusDurations
 import com.dzid26.teslable.core.history.compactDuration
@@ -10,6 +12,7 @@ import com.dzid26.teslable.protocol.asleep
 import com.dzid26.teslable.protocol.locked
 import com.dzid26.teslable.protocol.userPresent
 import com.tesla.generated.carserver.vehicle.ChargeState
+import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.vcsec.VehicleStatus
 import java.util.UUID
 
@@ -353,6 +356,50 @@ private fun phaseLabel(connection: TeslaConnection?): ConnectionLabel =
                 else -> ConnectionLabel.CONNECTED
             }
     }
+
+/**
+ * Why a pull to read cannot go out now. Null from [readBlockedHint] means the read can be sent; this
+ * names the state to explain when it cannot.
+ */
+enum class ReadBlockedHint(
+    /** The toast's line. */
+    @StringRes val text: Int,
+) {
+    /** No ready link: the car must be connected to be read. */
+    NOT_READY(R.string.read_blocked_not_ready),
+
+    /** The car reports itself asleep, so a read would be dropped or would wake it. */
+    ASLEEP(R.string.read_blocked_asleep),
+
+    /** Connected and awake, but the stored VIN cannot personalise a session (ADR-0004). */
+    NEEDS_VIN(R.string.read_blocked_needs_vin),
+
+    /** Awake, but no Infotainment session: the read waits for the handshake to finish. */
+    NO_SESSION(R.string.read_blocked_no_session),
+}
+
+/**
+ * The reason to show when the owner pulls to read, or null when a read can go out now.
+ * [hasSessionVin] is whether the stored VIN can personalise a session; without it no read can be
+ * sent, whatever the link says.
+ */
+fun readBlockedHint(
+    connection: TeslaConnection?,
+    hasSessionVin: Boolean,
+): ReadBlockedHint? {
+    val link = connection?.takeIf { it.phase == ConnectionPhase.READY }
+    val status = link?.status
+    val sessions = link?.sessions.orEmpty()
+    return when {
+        link == null -> ReadBlockedHint.NOT_READY
+        // A link that is up but has not reported yet is normal right after connecting: the read waits.
+        status == null -> null
+        status.asleep -> ReadBlockedHint.ASLEEP
+        !hasSessionVin -> ReadBlockedHint.NEEDS_VIN
+        Domain.DOMAIN_INFOTAINMENT.name !in sessions -> ReadBlockedHint.NO_SESSION
+        else -> null
+    }
+}
 
 /**
  * "Asleep 1h 12m · Locked 3h · User away" instead of raw booleans. Asleep and
