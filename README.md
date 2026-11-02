@@ -39,8 +39,6 @@ All features in detail: [`docs/features.md`](docs/features.md). What is planned:
 
 Download the APK from [Releases](https://github.com/opencartools/TeslaBatteryBLE/releases) (prereleases are signed with the owner key), or let [Obtainium](https://github.com/ImranR98/Obtainium) keep it updated: add `https://github.com/opencartools/TeslaBatteryBLE`, and turn on **Include prereleases** to follow tagged betas.
 
-To follow `main`, every push that passes CI updates one prerelease titled **Preview of main**. Set Obtainium's release-title filter to `^Preview`, turn on **Include prereleases** and **Fall back to older releases**. Do not uninstall the app to switch signing keys, because that wipes the car pairing key. Details: [`docs/install.md`](docs/install.md).
-
 No stable release has shipped yet.
 
 ## Build from source
