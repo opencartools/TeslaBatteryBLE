@@ -1,0 +1,2 @@
+Fleet Telemetry: pinned `18800f7738757a741479e71b38ece584d363ef2d` · upstream latest `18800f7738757a741479e71b38ece584d363ef2d` (up to date)
+vehicle-command: pinned `a4b43c1eff0e09d77deb9f2dce97031141fe8c8a` · upstream latest touching pkg/protocol/protobuf `4c2143a5def65f6499b9048045581c56904901c6` (DRIFT - bump core protos deliberately)
