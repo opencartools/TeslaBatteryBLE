@@ -232,7 +232,7 @@ class FakeCarProtocolTest {
     }
 
     @Test
-    fun chargePortAndFlashLightsAreAcknowledgedAsActions() {
+    fun chargePortIsAcknowledgedAsAnAction() {
         val session = session(Domain.DOMAIN_INFOTAINMENT)
 
         val opened = authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaCommands.buildChargePortOpenRequest())
@@ -244,9 +244,6 @@ class FakeCarProtocolTest {
             )
         assertNotNull(charge)
         assertEquals(true, charge?.charge_port_door_open)
-
-        val flashed = authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaCommands.buildFlashLightsRequest())
-        assertEquals("OPERATIONSTATUS_OK", TeslaCommands.parseActionStatus(flashed))
         // A quick action is not a wake: the car-server domain leaves the car as it was.
         assertTrue(protocol.asleep)
     }

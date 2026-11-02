@@ -331,8 +331,8 @@ class FakeCarProtocol(
         }
         // The car-server actions the quick-actions button sends: acknowledge them like a car would.
         val actionRequest = action?.vehicleAction
-        if (actionRequest?.chargePortDoorOpen != null || actionRequest?.vehicleControlFlashLightsAction != null) {
-            if (actionRequest.chargePortDoorOpen != null) chargePortOpen = true
+        if (actionRequest?.chargePortDoorOpen != null) {
+            chargePortOpen = true
             out += authenticated(domain, uuid, requestTag, actionStatusResponse())
             return
         }

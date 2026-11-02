@@ -10,7 +10,6 @@ import com.tesla.generated.carserver.server.GetDriveState
 import com.tesla.generated.carserver.server.GetVehicleData
 import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.carserver.server.VehicleAction
-import com.tesla.generated.carserver.server.VehicleControlFlashLightsAction
 import com.tesla.generated.carserver.vehicle.ChargeState
 import com.tesla.generated.carserver.vehicle.ClimateState
 import com.tesla.generated.carserver.vehicle.ClosuresState
@@ -72,15 +71,6 @@ object TeslaCommands {
             vehicleAction =
                 VehicleAction(
                     chargePortDoorOpen = ChargePortDoorOpen(),
-                ),
-        ).encode()
-
-    /** The car-server action that flashes the lights (field 26). */
-    fun buildFlashLightsRequest(): ByteArray =
-        Action(
-            vehicleAction =
-                VehicleAction(
-                    vehicleControlFlashLightsAction = VehicleControlFlashLightsAction(),
                 ),
         ).encode()
 

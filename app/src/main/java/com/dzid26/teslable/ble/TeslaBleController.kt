@@ -49,7 +49,6 @@ import com.dzid26.teslable.protocol.isRefusal
 import com.dzid26.teslable.protocol.locked
 import com.dzid26.teslable.protocol.recovery
 import com.dzid26.teslable.protocol.userPresent
-import com.tesla.generated.keys.Role
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1219,10 +1218,6 @@ class TeslaBleController(
                 override fun publishKeySlot(slot: Int?) {
                     updateConnection(address) { it.copy(keySlot = slot) }
                     updateVehicle(bleName) { it.copy(keySlot = slot) }
-                }
-
-                override fun publishKeyRole(role: Role) {
-                    updateConnection(address) { it.copy(keyRole = role) }
                 }
 
                 override fun hasConnectionKeySlot(): Boolean = _state.value.connections[address]?.keySlot != null

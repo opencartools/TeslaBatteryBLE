@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.protocol
 
-import com.tesla.generated.keys.Role
 import com.tesla.generated.vcsec.WhitelistEntryInfo
 import com.tesla.generated.vcsec.WhitelistInfo
 
@@ -71,9 +70,6 @@ interface PairingHost {
 
     /** Shows [slot] as this phone's key slot on the link and in the saved vehicle; null clears it. */
     fun publishKeySlot(slot: Int?)
-
-    /** The role the car has for this phone's key: what the key may authorize. */
-    fun publishKeyRole(role: Role)
 
     /** The link already shows a key slot (used to skip a redundant lookup). */
     fun hasConnectionKeySlot(): Boolean
@@ -391,7 +387,6 @@ class PairingFlow(
         if (matches) {
             keySlotQueue = emptyList()
             host.publishKeySlot(entry.slot)
-            host.publishKeyRole(entry.keyRole)
             if (phase == PairingPhase.ERROR) {
                 // The slot proves enrollment; clear the stale failure.
                 setPairing(PairingPhase.IDLE, null)

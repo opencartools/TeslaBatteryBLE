@@ -187,7 +187,7 @@ identity), `docs/requirements/multi-phone.md`
     built, before encryption, with a `Reason`. `oneof request` holds the VCSEC
     `UnsignedMessage` (wake, whitelist and key-slot lookups, add key), the
     CarServer `Action` (the charge, drive, closures and climate reads, and the
-    quick-action charge-port and flash-lights commands) or the
+    quick-action charge-port command) or the
     session info request as a `RoutableMessage` (only the domain it is
     addressed to: the public key, routing address and request id are left
     out, and so is the key in an add-key request, though keys are public).

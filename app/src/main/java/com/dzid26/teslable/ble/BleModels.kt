@@ -10,7 +10,6 @@ import com.dzid26.teslable.protocol.asleep
 import com.dzid26.teslable.protocol.locked
 import com.dzid26.teslable.protocol.userPresent
 import com.tesla.generated.carserver.vehicle.ChargeState
-import com.tesla.generated.keys.Role
 import com.tesla.generated.vcsec.VehicleStatus
 import java.util.UUID
 
@@ -30,8 +29,6 @@ data class TeslaConnection(
     val rssi: Int? = null,
     val status: VehicleStatus? = null,
     val keySlot: Int? = null,
-    /** The role the car has for this phone's key; null until the whitelist lookup answers. */
-    val keyRole: Role? = null,
     val sessions: List<String> = emptyList(),
     val charge: ChargeState? = null,
     /** When [charge] was last read; null until the first charge response. */
@@ -102,17 +99,8 @@ data class BleUiState(
 /** One control on the car screen's quick-action stack. */
 enum class QuickAction {
     CHARGE_PORT,
-    FLASH_LIGHTS,
     WAKE,
 }
-
-/**
- * Whether the car may authorize a command that changes its state, such as flashing the lights. Tesla's
- * protocol scopes a Charging Manager and a Vehicle Monitor to reads and charging; only an Owner or a
- * Driver may authorize the rest, so the stack only offers those actions to them.
- */
-val Role?.authorizesVehicleControl: Boolean
-    get() = this == Role.ROLE_OWNER || this == Role.ROLE_DRIVER
 
 /** How a [QuickAction] ended, for the snackbar that reports it. */
 enum class QuickActionOutcome {

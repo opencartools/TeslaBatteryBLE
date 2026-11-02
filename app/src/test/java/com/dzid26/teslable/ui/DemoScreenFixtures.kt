@@ -17,7 +17,6 @@ import com.dzid26.teslable.protocol.ShiftStateKind
 import com.dzid26.teslable.protocol.TeslaNames
 import com.tesla.generated.carserver.common.Void
 import com.tesla.generated.carserver.vehicle.ChargeState
-import com.tesla.generated.keys.Role
 import com.tesla.generated.vcsec.UserPresence_E
 import com.tesla.generated.vcsec.VehicleLockState_E
 import com.tesla.generated.vcsec.VehicleSleepStatus_E
@@ -67,9 +66,6 @@ internal object DemoScreenFixtures {
 
     val carAdvert = TeslaAdvert(name = bleName, address = DEMO_ADDRESS, rssi = DEMO_RSSI_CAR)
 
-    /** The role the demo car has for this phone's key: a Driver, so every quick action is offered. */
-    val role: Role = Role.ROLE_DRIVER
-
     private val listAdvert = carAdvert.copy(rssi = DEMO_RSSI_LIST)
     private val otherAdvert = TeslaAdvert(name = OTHER_NAME, address = OTHER_ADDRESS, rssi = OTHER_RSSI)
 
@@ -116,8 +112,6 @@ internal object DemoScreenFixtures {
         phase = ConnectionPhase.READY,
         status = status,
         keySlot = KEY_SLOT,
-        // The demo car lets this phone's key control it, so every quick action is offered.
-        keyRole = role,
         charge = charge,
         chargeAtMillis = nowMillis - MINUTE,
         pairing = pairing,

@@ -101,7 +101,7 @@ internal class QuickActionSender(
                     host.wakeForAction(fromStack = true)
                 }
 
-            QuickAction.CHARGE_PORT, QuickAction.FLASH_LIGHTS ->
+            QuickAction.CHARGE_PORT ->
                 if (!host.isAwake()) {
                     // One pending action: it goes out once the wake and the session land.
                     pending = action
@@ -140,7 +140,6 @@ internal class QuickActionSender(
         val payload =
             when (action) {
                 QuickAction.CHARGE_PORT -> TeslaCommands.buildChargePortOpenRequest()
-                QuickAction.FLASH_LIGHTS -> TeslaCommands.buildFlashLightsRequest()
                 // Waking goes through its own VCSEC path in send(), so it is never queued here.
                 QuickAction.WAKE -> null
             }

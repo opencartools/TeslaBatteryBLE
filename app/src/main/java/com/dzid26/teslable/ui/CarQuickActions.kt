@@ -57,7 +57,6 @@ import com.dzid26.teslable.ble.QuickAction
 import com.dzid26.teslable.ble.QuickActionFeedback
 import com.dzid26.teslable.ble.QuickActionOutcome
 import com.dzid26.teslable.ble.TeslaConnection
-import com.dzid26.teslable.ble.authorizesVehicleControl
 import com.dzid26.teslable.protocol.asleep
 
 private val FabSize = 56.dp
@@ -89,9 +88,8 @@ internal fun CarQuickActionsHost(
     // The stack folds before the screen leaves; only while it is open does it take the back press.
     BackHandler(enabled = expanded) { expanded = false }
     val asleep = connection?.status?.asleep
-    val canControl = connection?.keyRole.authorizesVehicleControl
     QuickActionStack(
-        actions = remember(asleep, canControl) { quickActionItems(asleep, canControl) },
+        actions = remember(asleep) { quickActionItems(asleep) },
         expanded = expanded,
         onAction = onAction,
         onExpandedChange = { expanded = it },
@@ -99,21 +97,10 @@ internal fun CarQuickActionsHost(
     )
 }
 
-/**
- * Asking an awake car to wake up is noise, and flashing the lights needs a key the car lets change its
- * state; the other actions report their own failure.
- */
-private fun quickActionItems(
-    asleep: Boolean?,
-    canControl: Boolean,
-): List<QuickActionItem> =
-    listOfNotNull(
+/** Asking an awake car to wake up is noise; the other action reports its own failure. */
+private fun quickActionItems(asleep: Boolean?): List<QuickActionItem> =
+    listOf(
         QuickActionItem(QuickAction.CHARGE_PORT, R.string.quick_action_charge_port, R.drawable.ic_charge_port),
-        if (canControl) {
-            QuickActionItem(QuickAction.FLASH_LIGHTS, R.string.quick_action_flash_lights, R.drawable.ic_flash_lights)
-        } else {
-            null
-        },
         QuickActionItem(QuickAction.WAKE, R.string.quick_action_wake, R.drawable.ic_wake, enabled = asleep != false),
     )
 
@@ -355,21 +342,18 @@ internal fun QuickActionFeedback.message(): Int =
         QuickActionOutcome.SENT ->
             when (action) {
                 QuickAction.CHARGE_PORT -> R.string.quick_action_charge_port_sent
-                QuickAction.FLASH_LIGHTS -> R.string.quick_action_flash_lights_sent
                 QuickAction.WAKE -> R.string.quick_action_wake_sent
             }
 
         QuickActionOutcome.WAKING ->
             when (action) {
                 QuickAction.CHARGE_PORT -> R.string.quick_action_charge_port_waking
-                QuickAction.FLASH_LIGHTS -> R.string.quick_action_flash_lights_waking
                 QuickAction.WAKE -> R.string.quick_action_wake_waking
             }
 
         QuickActionOutcome.FAILED ->
             when (action) {
                 QuickAction.CHARGE_PORT -> R.string.quick_action_charge_port_failed
-                QuickAction.FLASH_LIGHTS -> R.string.quick_action_flash_lights_failed
                 QuickAction.WAKE -> R.string.quick_action_wake_failed
             }
     }
