@@ -73,8 +73,9 @@ Date: 2026-10-07
   `sharedSecretWith` (raw ECDH), so the Tesla derivation `SHA-1(shared)[:16]`
   stays in `:protocol` and cannot drift per platform. `TeslaKeyPair` (PKCS#8
   plus the uncompressed point) is the software handle and the stored record;
-  `TeslaSession.import(key, …)` and `SessionKeys.load()` take the handle, and
-  the bytes-taking `TeslaCrypto.sessionKey(privateKeyPkcs8, peer)` is gone.
+  `TeslaSession.import(key, …)` takes the handle, `SessionKeys.load()` returns
+  it, and the bytes-taking `TeslaCrypto.sessionKey(privateKeyPkcs8, peer)` is
+  gone.
 - Hardware-backed handles (Android Keystore `PURPOSE_AGREE_KEY` on API 31+,
   StrongBox, Secure Enclave) implement `sharedSecretWith` and never export a
   private key. They are follow-up work; the app still builds a software
@@ -229,5 +230,5 @@ targets.
 
 - Keystore and Secure Enclave `VehicleKey` implementations, and what portable
   (backup) mode means for a key that cannot be exported; the seam itself
-  landed in #119.
+  landed in #443.
 - Moving app-level code into the library.
