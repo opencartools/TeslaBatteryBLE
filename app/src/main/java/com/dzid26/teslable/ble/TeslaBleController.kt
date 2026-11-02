@@ -419,7 +419,6 @@ class TeslaBleController(
                 devices = emptyList(),
                 connections = emptyMap(),
                 selectedBleName = null,
-                log = emptyList(),
                 vinRequest = null,
             )
         }
