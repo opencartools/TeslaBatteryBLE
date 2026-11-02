@@ -344,6 +344,10 @@ internal fun CarScreen(
                         pricePerKwh = pricePerKwh,
                         bluetoothOn = state.bluetoothOn,
                         connection = connection,
+                        // A discovery for this car is running, or the last one ended without it. The
+                        // view says so instead of leaving a silent "Disconnected".
+                        discovering = state.discovering && connection?.phase != ConnectionPhase.READY,
+                        discoveryMissed = state.discoveryMissed && connection?.phase != ConnectionPhase.READY,
                         advert = advert,
                         vehicle = vehicle,
                         history = vehicleHistory,
@@ -432,6 +436,9 @@ internal fun HeroCard(
     history: List<BatterySample>,
     statusHistory: List<StatusSample>,
     bluetoothOn: Boolean = true,
+    // A filtered discovery is looking for this car right now, or the last one ended without it.
+    discovering: Boolean = false,
+    discoveryMissed: Boolean = false,
     // Injectable for the Paparazzi snapshots; production call sites use the
     // default, which is the same ticking clock as before.
     nowMillis: Long = rememberNowMillis(connection?.chargeAtMillis),
@@ -504,7 +511,12 @@ internal fun HeroCard(
                             )
                         }
                         Text(
-                            text = heroStatusText(display, connection?.disconnectedAtMillis, nowMillis),
+                            text =
+                                when {
+                                    discovering -> stringResource(R.string.car_looking_for_the_car)
+                                    discoveryMissed -> stringResource(R.string.car_not_seen_nearby)
+                                    else -> heroStatusText(display, connection?.disconnectedAtMillis, nowMillis)
+                                },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = if (paired) Modifier else besideRing,

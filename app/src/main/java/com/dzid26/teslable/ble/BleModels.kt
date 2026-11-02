@@ -90,6 +90,8 @@ data class BleUiState(
     val bluetoothOn: Boolean = true,
     /** A scan is needed but location access is missing; the cars list asks for it. */
     val locationNeeded: Boolean = false,
+    /** The last discovery scan ended without reaching a known car: the car view says it was not seen nearby. */
+    val discoveryMissed: Boolean = false,
     /**
      * A VIN prompt waiting for the owner, for the car that asked for one. The Compose layer renders it
      * as a blocking dialog; saving the VIN clears it and replays [VinRequest.replay] once.
