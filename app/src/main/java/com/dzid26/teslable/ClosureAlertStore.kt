@@ -4,7 +4,7 @@ package com.dzid26.teslable
 import android.content.Context
 import android.content.SharedPreferences
 
-/** The preference operations an [UnlockAlertStore] needs, so the default and persistence stay JVM-testable. */
+/** The preference operations a [ClosureAlertStore] needs, so the default and persistence stay JVM-testable. */
 internal interface BooleanPreference {
     fun getBoolean(
         key: String,
@@ -35,10 +35,10 @@ private class SharedPreferencesPreference(
 }
 
 /**
- * The owner's switch for the "car left unlocked" alert. It starts on: the alert exists to catch a car
- * that was left open, so a fresh install should not have to discover the setting first.
+ * The owner's switch for the "closure left open" alert. It starts on: the alert exists to catch a door or
+ * trunk left open, so a fresh install should not have to discover the setting first.
  */
-internal class UnlockAlertStore(
+internal class ClosureAlertStore(
     private val preference: BooleanPreference,
 ) {
     constructor(context: Context) : this(
@@ -52,6 +52,6 @@ internal class UnlockAlertStore(
     companion object {
         const val DEFAULT_ENABLED = true
         private const val PREFS = "teslable_alerts"
-        private const val KEY_ENABLED = "unlock_alert_enabled"
+        private const val KEY_ENABLED = "closure_alert_enabled"
     }
 }

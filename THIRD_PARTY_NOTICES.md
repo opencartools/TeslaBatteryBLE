@@ -35,11 +35,13 @@ only (AGPL-3.0-only). See [LICENSE](LICENSE).
 
 ## Car lock sound — CC BY 4.0
 
-- `app/src/main/res/raw/car_lock.mp3` is "Car Lock Sound Effect" from
+- `docs/sounds/car-lock-two-chirp.mp3` is the original "Car Lock Sound
+  Effect" from
   [Freesoundslibrary](https://www.freesoundslibrary.com/car-lock-sound-effect/)
   (author: Freesoundslibrary), licensed under
-  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). It plays on the
-  "car left unlocked" notification.
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+- `app/src/main/res/raw/car_lock.mp3` is that recording trimmed to its first
+  chirp; it plays on the open-closure notification.
 
 Full license texts for bundled dependencies (Wire, AndroidX, Kotlin, etc.)
 ship with release artifacts and appear in the app's open-source licenses

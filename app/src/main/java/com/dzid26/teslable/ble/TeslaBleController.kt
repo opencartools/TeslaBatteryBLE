@@ -72,7 +72,7 @@ class TeslaBleController(
     private val vehicleStore = VehicleStore(appContext)
     private val vehicles = mutableMapOf<String, Vehicle>()
     private val historyStore: HistoryStore
-    private val unlockAlert = UnlockAlert(appContext, _state, ::log)
+    private val closureAlert = ClosureAlert(appContext, _state, ::log)
 
     /** Battery readings recorded from every charge response, oldest first. */
     val batteryHistory: StateFlow<List<BatterySample>> get() = historyStore.samples
@@ -182,7 +182,7 @@ class TeslaBleController(
         BluetoothStateReceiver(
             onOff = {
                 _state.update { it.copy(bluetoothOn = false) }
-                unlockAlert.disarmAll()
+                closureAlert.disarmAll()
             },
             onOn = {
                 _state.update { it.copy(bluetoothOn = true) }
@@ -396,7 +396,7 @@ class TeslaBleController(
     }
 
     private fun disableTracking() {
-        unlockAlert.disarmAll()
+        closureAlert.disarmAll()
         BleTrackingService.stop(appContext)
         handler.removeCallbacks(stopDiscovery)
         stopScanner()
@@ -1259,9 +1259,9 @@ class TeslaBleController(
 
         fun vin(): String = vehicles[bleName]?.vin.orEmpty()
 
-        /** The owner's "car left unlocked" alert: a drop only starts the wait, which a reconnect cancels. */
-        private fun alertUnlocked() {
-            unlockAlert.onLinkDropped(bleName, vehicles[bleName]?.title ?: bleName)
+        /** The closure alert: beep now if the last status on this connection had a door or trunk open. */
+        private fun alertOpenClosure() {
+            closureAlert.onLinkDropped(bleName, vehicles[bleName]?.title ?: bleName)
         }
 
         private fun log(message: String) {
@@ -1789,7 +1789,7 @@ class TeslaBleController(
             val status = runCatching { TeslaVcsec.parseStatusResponse(message) }.getOrNull()
             if (status != null) {
                 // Arms, or ends, the unlock-away alert; the link drop it fires on comes later.
-                unlockAlert.onStatus(bleName, status)
+                closureAlert.onStatus(bleName, status)
                 // VCSEC replies carry no time: the phone's clock at receipt is
                 // the status log's timeline (ADR-0008).
                 val rssi = latestRssi(address)
@@ -1854,7 +1854,7 @@ class TeslaBleController(
                             it.copy(phase = display, disconnectedAtMillis = System.currentTimeMillis(), pausedUntilMillis = null)
                         }
                         scheduleReconnect()
-                        if (wasReady) alertUnlocked()
+                        if (wasReady) alertOpenClosure()
                         return
                     }
                     this@VehicleLink.phase = phase
@@ -1869,7 +1869,7 @@ class TeslaBleController(
                     if (phase == ConnectionPhase.READY && endNameProbe()) {
                         log("${name()}: name read; disconnecting until opened")
                     } else if (phase == ConnectionPhase.READY) {
-                        unlockAlert.onLinkReady(bleName)
+                        closureAlert.onLinkReady(bleName)
                         reconnectAttempts = 0
                         nextRetryAtMs = 0
                         lastAliveMillis = System.currentTimeMillis()

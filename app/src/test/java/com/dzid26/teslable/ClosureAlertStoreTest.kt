@@ -5,7 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class UnlockAlertStoreTest {
+class ClosureAlertStoreTest {
     /** What [android.content.SharedPreferences] holds for the two keys the switch uses. */
     private class MapPreference(
         private val values: MutableMap<String, Boolean> = mutableMapOf(),
@@ -25,21 +25,21 @@ class UnlockAlertStoreTest {
 
     @Test
     fun `the alert is on when nothing was saved`() {
-        assertTrue(UnlockAlertStore(MapPreference()).enabled())
+        assertTrue(ClosureAlertStore(MapPreference()).enabled())
     }
 
     @Test
     fun `turning it off survives a new store over the same preferences`() {
         val preferences = MapPreference()
-        UnlockAlertStore(preferences).setEnabled(false)
-        assertFalse(UnlockAlertStore(preferences).enabled())
+        ClosureAlertStore(preferences).setEnabled(false)
+        assertFalse(ClosureAlertStore(preferences).enabled())
     }
 
     @Test
     fun `turning it back on persists too`() {
         val preferences = MapPreference()
-        UnlockAlertStore(preferences).setEnabled(false)
-        UnlockAlertStore(preferences).setEnabled(true)
-        assertTrue(UnlockAlertStore(preferences).enabled())
+        ClosureAlertStore(preferences).setEnabled(false)
+        ClosureAlertStore(preferences).setEnabled(true)
+        assertTrue(ClosureAlertStore(preferences).enabled())
     }
 }

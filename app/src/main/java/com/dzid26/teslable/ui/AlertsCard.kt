@@ -22,14 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.dzid26.teslable.ClosureAlertStore
 import com.dzid26.teslable.R
-import com.dzid26.teslable.UnlockAlertStore
 
-/** The high-priority heads-up when a car was left unlocked and the phone loses the link; on unless turned off. */
+/** The high-priority heads-up when a door or trunk is open and the phone loses the link; on unless turned off. */
 @Composable
 internal fun AlertsCard() {
     val context = LocalContext.current
-    val store = remember { UnlockAlertStore(context.applicationContext) }
+    val store = remember { ClosureAlertStore(context.applicationContext) }
     var enabled by remember { mutableStateOf(store.enabled()) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
@@ -43,7 +43,7 @@ internal fun AlertsCard() {
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = stringResource(R.string.settings_unlock_alert_toggle),
+                    text = stringResource(R.string.settings_closure_alert_toggle),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
@@ -58,7 +58,7 @@ internal fun AlertsCard() {
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = stringResource(R.string.settings_unlock_alert_hint),
+                text = stringResource(R.string.settings_closure_alert_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

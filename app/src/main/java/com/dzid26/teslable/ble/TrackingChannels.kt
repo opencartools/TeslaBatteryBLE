@@ -16,7 +16,7 @@ import com.dzid26.teslable.R
 internal object TrackingChannels {
     const val TRACKING = "tracking"
     const val TRIP = "trip"
-    const val UNLOCK = "unlock_alert"
+    const val CLOSURE = "closure_alert"
 
     /** "[PR 332] title" in CI (PR) builds so they read apart from the main app; unchanged elsewhere. */
     fun withBuildLabel(text: String): String {
@@ -53,29 +53,29 @@ internal object TrackingChannels {
             manager.createNotificationChannel(channel)
         }
         // Its own channel, not the silent trip one: a high-importance channel is what gives the heads-up
-        // and the car lock sound on Android 8 and later.
-        if (manager.getNotificationChannel(UNLOCK) == null) {
+        // and the car lock chirp on Android 8 and later.
+        if (manager.getNotificationChannel(CLOSURE) == null) {
             val channel =
                 NotificationChannel(
-                    UNLOCK,
-                    withBuildLabel(context.getString(R.string.unlock_alert_channel_name)),
+                    CLOSURE,
+                    withBuildLabel(context.getString(R.string.closure_alert_channel_name)),
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
-                    description = context.getString(R.string.unlock_alert_channel_description)
+                    description = context.getString(R.string.closure_alert_channel_description)
                     setShowBadge(true)
-                    setSound(unlockSound(context), unlockAudioAttributes())
+                    setSound(closureSound(context), closureAudioAttributes())
                     enableVibration(true)
                 }
             manager.createNotificationChannel(channel)
         }
     }
 
-    /** The bundled car lock beep, which the alert channel plays. */
-    private fun unlockSound(context: Context): Uri =
+    /** The bundled car lock chirp, which the alert channel plays. */
+    private fun closureSound(context: Context): Uri =
         Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/${R.raw.car_lock}")
 
     /** A notification sound, so the alert does not ride the ringtone volume of an alarm or a call. */
-    private fun unlockAudioAttributes(): AudioAttributes {
+    private fun closureAudioAttributes(): AudioAttributes {
         val builder = AudioAttributes.Builder()
         builder.setUsage(AudioAttributes.USAGE_NOTIFICATION)
         builder.setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
