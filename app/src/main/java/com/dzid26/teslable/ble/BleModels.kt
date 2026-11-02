@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ble
 
+import androidx.annotation.StringRes
+import com.dzid26.teslable.R
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.StatusDurations
 import com.dzid26.teslable.core.history.compactDuration
@@ -10,6 +12,7 @@ import com.dzid26.teslable.protocol.asleep
 import com.dzid26.teslable.protocol.locked
 import com.dzid26.teslable.protocol.userPresent
 import com.tesla.generated.carserver.vehicle.ChargeState
+import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.vcsec.VehicleStatus
 import java.util.UUID
 
@@ -353,6 +356,48 @@ private fun phaseLabel(connection: TeslaConnection?): ConnectionLabel =
                 else -> ConnectionLabel.CONNECTED
             }
     }
+
+/** Why a pull to read cannot do what it looks like it will; [readBlockedHint] names the state. */
+enum class ReadBlockedHint(
+    /** The toast's line. */
+    @StringRes val text: Int,
+) {
+    /** No ready link: the pull reconnects first. */
+    NOT_READY(R.string.read_blocked_not_ready),
+
+    /** The car reports itself asleep: the pull wakes it before it can read. */
+    ASLEEP(R.string.read_blocked_asleep),
+
+    /** The stored VIN cannot personalise a session, and the pull asks for one before anything else (ADR-0004). */
+    NEEDS_VIN(R.string.read_blocked_needs_vin),
+
+    /** Awake, but no Infotainment session: the pull starts or waits for the handshake. */
+    NO_SESSION(R.string.read_blocked_no_session),
+}
+
+/**
+ * The reason to show when the owner pulls to read, or null when the pull needs no explanation.
+ * [hasSessionVin] is whether the stored VIN can personalise a session; without it the pull asks for
+ * one before it reconnects, wakes or reads.
+ */
+fun readBlockedHint(
+    connection: TeslaConnection?,
+    hasSessionVin: Boolean,
+): ReadBlockedHint? {
+    val link = connection?.takeIf { it.phase == ConnectionPhase.READY }
+    val status = link?.status
+    val sessions = link?.sessions.orEmpty()
+    return when {
+        // The pull's VIN gate runs before it reconnects, wakes or reads.
+        !hasSessionVin -> ReadBlockedHint.NEEDS_VIN
+        link == null -> ReadBlockedHint.NOT_READY
+        // A ready link before its first status is normal right after connecting: the pull wakes it.
+        status == null -> null
+        status.asleep -> ReadBlockedHint.ASLEEP
+        Domain.DOMAIN_INFOTAINMENT.name !in sessions -> ReadBlockedHint.NO_SESSION
+        else -> null
+    }
+}
 
 /**
  * "Asleep 1h 12m · Locked 3h · User away" instead of raw booleans. Asleep and

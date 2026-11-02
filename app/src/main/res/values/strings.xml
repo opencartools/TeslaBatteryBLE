@@ -129,6 +129,7 @@
     <string name="main_keep_open">Keep the app open and stay near the car.</string>
     <string name="main_pull_down">Pull down to scan.</string>
 
+    <string name="history_no_samples">No samples yet. SOC is recorded while the car is awake.</string>
     <string name="history_parked_projected">Parked · projected</string>
     <string name="history_parked_range">%1$d–%2$d%%</string>
     <string name="history_parked_value">%1$d%%</string>
@@ -151,6 +152,10 @@
     <string name="history_parked_range_hint">Worst and best case at that point: the drain could be two standard errors faster or slower than measured, from how much the parked readings scatter around the line.</string>
     <string name="history_parked_rate_hint_asleep">Power-down drain: the rate over the stretches the car sat parked with nobody in it and Sentry and climate off, an hour or more apart, the quietest the battery drains. The dashed line follows it.</string>
     <string name="history_parked_rate_hint_mixed">Parked drain over all parked time, powered down or not. Once enough power-down time is measured, this switches to the power-down rate.</string>
+    <string name="read_blocked_asleep">The car is asleep. Waking it.</string>
+    <string name="read_blocked_needs_vin">Enter the car\'s VIN first.</string>
+    <string name="read_blocked_no_session">No data session yet. Asking the car now.</string>
+    <string name="read_blocked_not_ready">Not connected to the car.</string>
     <string name="soc_description">%1$s percent</string>
     <string name="settings_debug_auto_connect">Auto-connect</string>
     <string name="settings_debug_auto_connect_hint">On: Android waits for the car and connects when it comes into range. Off: the app connects straight to the last address and scans when that fails. Takes effect on the next connection. Debug builds only.</string>
