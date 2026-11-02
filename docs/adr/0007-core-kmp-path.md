@@ -230,5 +230,7 @@ targets.
 
 - Keystore and Secure Enclave `VehicleKey` implementations, and what portable
   (backup) mode means for a key that cannot be exported; the seam itself
-  landed in #443.
+  landed in #443. A hardware `SessionKeys` must report a key it cannot use by
+  returning null from `load()`, because `SessionHandshake` calls
+  `onKeyUnusable()` only on that path.
 - Moving app-level code into the library.
