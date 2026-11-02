@@ -75,6 +75,11 @@ message ConnectionEvent {
         DISCONNECTED = 2; // an established connection ended, dropped or closed by the app
     }
     State state = 1;
+
+    // The car's BLE address when the event happened. The advertised name stays
+    // the same across an address change, so comparing this between events is how
+    // a rotated address shows up. Absent when the app did not know it.
+    optional string address = 2;
 }
 
 // A request the app sent to the car, kept as built (before encryption) with the
