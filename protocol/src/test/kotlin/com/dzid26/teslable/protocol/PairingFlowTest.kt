@@ -262,7 +262,11 @@ class PairingFlowTest {
     ): ByteArray {
         val payload =
             FromVCSECMessage(
-                whitelistEntryInfo = WhitelistEntryInfo(keyId = KeyIdentifier(publicKeySHA1 = keyId.toByteString()), slot = slot),
+                whitelistEntryInfo =
+                    WhitelistEntryInfo(
+                        keyId = KeyIdentifier(publicKeySHA1 = keyId.toByteString()),
+                        slot = slot,
+                    ),
             ).encode()
         return RoutableMessage(protobuf_message_as_bytes = payload.toByteString()).encode()
     }

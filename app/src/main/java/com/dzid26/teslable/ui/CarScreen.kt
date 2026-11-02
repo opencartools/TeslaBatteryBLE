@@ -35,6 +35,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -72,6 +74,7 @@ import com.dzid26.teslable.ble.BleUiState
 import com.dzid26.teslable.ble.ConnectionDisplay
 import com.dzid26.teslable.ble.ConnectionLabel
 import com.dzid26.teslable.ble.ConnectionPhase
+import com.dzid26.teslable.ble.QuickAction
 import com.dzid26.teslable.ble.TeslaAdvert
 import com.dzid26.teslable.ble.TeslaConnection
 import com.dzid26.teslable.ble.Vehicle
@@ -167,6 +170,10 @@ internal fun CarScreen(
     homePrice: Float? = null,
     // Injectable for the Paparazzi snapshots, to render the screen scrolled down.
     scrollState: ScrollState = rememberScrollState(),
+    // The quick-action stack's callbacks, and a way to start it open in a snapshot.
+    onQuickAction: (QuickAction) -> Unit,
+    onActionFeedbackShown: () -> Unit,
+    initialQuickActionsExpanded: Boolean = false,
     // False while the store is still publishing the logs: the whole-history figures follow at once until then.
     historyLoaded: Boolean = true,
 ) {
@@ -236,8 +243,18 @@ internal fun CarScreen(
             refreshing = false
         }
     }
+    // The quick-action stack reports each result once, as a snackbar.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val feedbackText = state.actionFeedback?.let { stringResource(it.message()) }
+    LaunchedEffect(feedbackText) {
+        if (feedbackText != null) {
+            snackbarHostState.showSnackbar(feedbackText)
+            onActionFeedbackShown()
+        }
+    }
     Scaffold(
         modifier = Modifier.countingTouches(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 navigationIcon = {
@@ -308,7 +325,7 @@ internal fun CarScreen(
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(scrollState)
-                        .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 16.dp),
+                        .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = QuickActionsContentPadding),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 val context = LocalContext.current
@@ -384,6 +401,15 @@ internal fun CarScreen(
                     rest?.let { DrainStatsCard(it, current) }
                     health?.let { BatteryHealthCard(it) }
                 }
+            }
+            // A car with no key or no VIN cannot be controlled, so the stack stays away entirely
+            // instead of raising a VIN prompt from a control that could not have worked.
+            if (paired && vehicle?.hasSessionVin == true) {
+                CarQuickActionsHost(
+                    connection = connection,
+                    onAction = onQuickAction,
+                    initiallyExpanded = initialQuickActionsExpanded,
+                )
             }
         }
     }

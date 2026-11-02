@@ -680,6 +680,8 @@ class CardSnapshots {
                 onRefresh = {},
                 onOpenSettings = {},
                 onToggleTracking = {},
+                onQuickAction = {},
+                onActionFeedbackShown = {},
                 nowMillis = NOW,
             )
         }
@@ -761,6 +763,8 @@ class CardSnapshots {
                 onRefresh = {},
                 onOpenSettings = {},
                 onToggleTracking = {},
+                onQuickAction = {},
+                onActionFeedbackShown = {},
                 nowMillis = NOW,
             )
         }

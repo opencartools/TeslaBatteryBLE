@@ -29,16 +29,13 @@ import com.dzid26.teslable.protocol.AntiReplayWindow
 import com.dzid26.teslable.protocol.FaultRecovery
 import com.dzid26.teslable.protocol.PairingFlow
 import com.dzid26.teslable.protocol.PairingHost
-import com.dzid26.teslable.protocol.PairingKeys
 import com.dzid26.teslable.protocol.PairingPhase
 import com.dzid26.teslable.protocol.PairingReason
 import com.dzid26.teslable.protocol.PairingTimer
 import com.dzid26.teslable.protocol.SessionHandshake
 import com.dzid26.teslable.protocol.SessionHost
-import com.dzid26.teslable.protocol.SessionKeys
 import com.dzid26.teslable.protocol.TeslaCommands
 import com.dzid26.teslable.protocol.TeslaCrypto
-import com.dzid26.teslable.protocol.TeslaKeyPair
 import com.dzid26.teslable.protocol.TeslaLocationTireCommands
 import com.dzid26.teslable.protocol.TeslaNames
 import com.dzid26.teslable.protocol.TeslaSessionRequests
@@ -440,6 +437,22 @@ class TeslaBleController(
 
     fun requestChargeState(bleName: String? = null) = carActions.read(bleName)
 
+    /** Sends one quick action to the selected (or given) car; the snackbar reports each step. */
+    fun sendQuickAction(
+        action: QuickAction,
+        bleName: String? = null,
+    ) = carActions.quickAction(action, bleName)
+
+    /** The car screen showed the last quick action's snackbar. */
+    fun consumeActionFeedback() {
+        _state.update { it.copy(actionFeedback = null) }
+    }
+
+    /** The one slot the car screen's snackbar reads; a newer result replaces one that was never shown. */
+    internal fun publishActionFeedback(feedback: QuickActionFeedback) {
+        _state.update { it.copy(actionFeedback = feedback) }
+    }
+
     /**
      * The car screen's user actions behind the VIN gate, and the prompt that asks for it. Nested so the
      * controller's own body stays within the class-size limit; every public entry point delegates here.
@@ -503,6 +516,29 @@ class TeslaBleController(
             readLink(name)
         }
 
+        /**
+         * A quick action. Waking is the gate's own wake intent; the other two move the car, so they are a
+         * control and a car with no VIN asks for one before it is told to move.
+         */
+        fun quickAction(
+            action: QuickAction,
+            bleName: String?,
+        ) {
+            if (action == QuickAction.WAKE) {
+                wake(bleName)
+                return
+            }
+            val name = bleName ?: selectedBleName
+            if (blocks(name?.let(vehicles::get), VinIntent.Control(action))) return
+            val link = name?.let(links::get)
+            if (link == null) {
+                log("No connected car for ${action.name.lowercase()}")
+                publishActionFeedback(QuickActionFeedback(action, QuickActionOutcome.FAILED))
+            } else {
+                link.sendQuickAction(action)
+            }
+        }
+
         fun requestVin(bleName: String) {
             vehicles[bleName]?.let { vinPrompts.request(it) }
         }
@@ -511,9 +547,10 @@ class TeslaBleController(
 
         /** The VIN was saved: the action its prompt blocked runs now, once. */
         fun saved(bleName: String) {
-            when (vinPrompts.saved(vehicles[bleName])) {
+            when (val intent = vinPrompts.saved(vehicles[bleName])) {
                 VinIntent.Refresh -> refresh(bleName, address = null)
                 VinIntent.Wake -> wake(bleName)
+                is VinIntent.Control -> quickAction(intent.action, bleName)
                 null -> Unit
             }
         }
@@ -925,9 +962,7 @@ class TeslaBleController(
         if (state == ConnectionEvent.State.DISCONNECTED) link.commands.logUnanswered(linkEnded = true)
     }
 
-    internal fun log(message: String) {
-        appendLog(null, message)
-    }
+    internal fun log(message: String) = appendLog(null, message)
 
     private fun appendLog(
         vehicleId: String?,
@@ -955,10 +990,16 @@ class TeslaBleController(
         CLIMATE,
         LOCATION,
         TIRE_PRESSURE,
+        ACTUATION,
         ;
 
         /** Part of an Infotainment read (charge, drive, closures, climate, location, tire pressure). */
-        val isRead: Boolean get() = this != WAKE
+        val isRead: Boolean
+            get() =
+                when (this) {
+                    WAKE, ACTUATION -> false
+                    CHARGE, DRIVE, CLOSURES, CLIMATE, LOCATION, TIRE_PRESSURE -> true
+                }
     }
 
     /**
@@ -980,6 +1021,44 @@ class TeslaBleController(
         private var transport: TeslaTransport? = null
         private val pendingCommands = mutableMapOf<String, PendingCommand>()
         private var wakeAfterSession = false
+
+        /** Whether that wake came from the quick-action stack, so only its own snackbar reports it. */
+        private var wakeFromStack = false
+
+        /** The stack's queued and sent actions, with the snackbar feedback they produce. */
+        private val quickActionSender =
+            QuickActionSender(
+                object : QuickActionHost {
+                    override val carName: String get() = name()
+
+                    override fun log(message: String) = this@VehicleLink.log(message)
+
+                    override fun isAwake(): Boolean = this@VehicleLink.isAwake()
+
+                    override fun hasInfotainmentSession(): Boolean = handshake.has(Domain.DOMAIN_INFOTAINMENT)
+
+                    override fun readWaiting(): Boolean = infotainmentGate.readWaiting
+
+                    override fun startSession(): Boolean = this@VehicleLink.startSession()
+
+                    override fun resumeWaitingRead() = this@VehicleLink.resumeWaitingRead()
+
+                    override fun wakeForAction(fromStack: Boolean) = wake(fromStack)
+
+                    override fun forgetQueuedWake() = clearWake()
+
+                    // The action goes out on the read's serial path: same domain, same reason.
+                    override fun sendActuation(payload: ByteArray): String? =
+                        sendAuthenticated(
+                            Domain.DOMAIN_INFOTAINMENT,
+                            payload,
+                            CommandKind.ACTUATION,
+                            Command.Reason.USER_ACTION,
+                        )
+
+                    override fun publish(feedback: QuickActionFeedback) = publishActionFeedback(feedback)
+                },
+            )
         var reconnectAttempts = 0
         private var wakeRefreshAttempts = 0
         private var decryptFailures = 0
@@ -1107,6 +1186,7 @@ class TeslaBleController(
                     }
                     if (wakeRefreshAttempts++ >= WAKE_REFRESH_MAX_ATTEMPTS) {
                         log("${name()}: wake not confirmed; the car may be out of range")
+                        quickActionSender.failQueued(wakeToo = true)
                         return
                     }
                     requestStatus()
@@ -1176,16 +1256,7 @@ class TeslaBleController(
         /** Enrolls this phone's key and finds its slot; the state machine lives in core. */
         val pairing: PairingFlow =
             PairingFlow(
-                keys =
-                    object : PairingKeys {
-                        override fun hasKey(): Boolean = keyStore.hasKey(bleName)
-
-                        override fun publicKeyRaw(): ByteArray? = keyStore.publicKeyRaw(bleName)
-
-                        override fun keyId(): ByteArray? = keyStore.keyId(bleName)
-
-                        override fun generate(): TeslaKeyPair? = keyStore.generate(bleName)
-                    },
+                keys = StoredPairingKeys(keyStore, bleName),
                 host = pairingHost,
             )
 
@@ -1206,15 +1277,17 @@ class TeslaBleController(
                     updateConnection(address) { it.copy(sessions = domains) }
                 }
 
-                override fun mayRequestInfotainment(awake: Boolean): Boolean = infotainmentGate.mayRequestSession(awake)
+                override fun mayRequestInfotainment(awake: Boolean): Boolean =
+                    (quickActionSender.hasPending && awake) || infotainmentGate.mayRequestSession(awake)
 
                 override fun onEstablished(domain: Domain) {
                     rememberVehicle(address)
                     // A fresh session starts with a clean count of resyncs.
                     resyncsWithoutReply = 0
                     if (domain == Domain.DOMAIN_VEHICLE_SECURITY) runStartupSlotLookup()
-                    if (domain == Domain.DOMAIN_INFOTAINMENT && infotainmentGate.onSessionEstablished()) {
-                        requestChargeState(waitingReadReason)
+                    if (domain == Domain.DOMAIN_INFOTAINMENT) {
+                        // A quick action goes first; the read that was waiting for this session follows its reply.
+                        if (quickActionSender.hasPending) quickActionSender.sendPending() else resumeWaitingRead()
                     }
                     if (domain == Domain.DOMAIN_VEHICLE_SECURITY && wakeAfterSession) {
                         wakeAfterSession = false
@@ -1224,6 +1297,8 @@ class TeslaBleController(
 
                 override fun onGaveUp() {
                     infotainmentGate.onGaveUp()
+                    quickActionSender.failQueued(wakeToo = wakeAfterSession)
+                    clearWake()
                     runStartupSlotLookup()
                 }
 
@@ -1243,14 +1318,7 @@ class TeslaBleController(
         /** Asks the car for sessions and keeps them; the handshake lives in core. */
         private val handshake: SessionHandshake =
             SessionHandshake(
-                keys =
-                    object : SessionKeys {
-                        override fun hasKey(): Boolean = keyStore.hasKey(bleName)
-
-                        override fun publicKeyRaw(): ByteArray? = keyStore.publicKeyRaw(bleName)
-
-                        override fun load(): TeslaKeyPair? = keyStore.load(bleName)
-                    },
+                keys = StoredSessionKeys(keyStore, bleName),
                 host = sessionHost,
                 clientAddress = clientAddress,
             )
@@ -1308,7 +1376,9 @@ class TeslaBleController(
             pairing.onLinkClosed()
             infotainmentGate.onLinkDropped()
             readInFlight.onLinkDropped()
-            wakeAfterSession = false
+            clearWake()
+            quickActionSender.failQueued(wakeToo = false)
+            quickActionSender.clear()
             updateConnection(address) {
                 it.copy(
                     phase = ConnectionPhase.IDLE,
@@ -1324,7 +1394,8 @@ class TeslaBleController(
             pendingCommands.clear()
             readInFlight.onLinkDropped()
             pairing.onCacheCleared()
-            wakeAfterSession = false
+            clearWake()
+            quickActionSender.clear()
             updateConnection(address) {
                 it.copy(
                     keySlot = null,
@@ -1446,7 +1517,20 @@ class TeslaBleController(
         /** True when session requests went out. */
         fun startSession(): Boolean = handshake.start()
 
-        fun wake() {
+        fun sendQuickAction(action: QuickAction) = quickActionSender.send(action)
+
+        /** The read that waited for the Infotainment session runs after an action, or once the session arrives. */
+        private fun resumeWaitingRead() {
+            if (infotainmentGate.onSessionEstablished()) requestChargeState(waitingReadReason)
+        }
+
+        private fun clearWake() {
+            wakeAfterSession = false
+            wakeFromStack = false
+        }
+
+        /** Wakes the car; [fromStack] says the quick-action stack asked, so only its own snackbar reports the send. */
+        fun wake(fromStack: Boolean = false) {
             if (_state.value.connections[address]
                     ?.status
                     ?.asleep == false
@@ -1464,18 +1548,28 @@ class TeslaBleController(
                 handshake.publish()
             }
             wakeAfterSession = true
+            wakeFromStack = fromStack
             log("${name()}: waking with a fresh session")
             startSession()
         }
 
         private fun sendWake() {
+            // A refresh or a notification wake has no stack snackbar to report to; the car screen's own
+            // "Waking…" pill already covers it.
+            val fromStack = wakeFromStack
+            wakeFromStack = false
             if (!handshake.has(Domain.DOMAIN_VEHICLE_SECURITY)) {
                 log("${name()}: no VCSEC session to wake with")
                 return
             }
             val request = TeslaCommands.buildWakeRequest()
-            val sent = sendAuthenticated(Domain.DOMAIN_VEHICLE_SECURITY, request, CommandKind.WAKE, Command.Reason.USER_WAKE)
+            val sent =
+                sendAuthenticated(Domain.DOMAIN_VEHICLE_SECURITY, request, CommandKind.WAKE, Command.Reason.USER_WAKE) != null
             log("${name()}: " + if (sent) "wake requested" else "failed to send wake request")
+            if (fromStack) {
+                val outcome = if (sent) QuickActionOutcome.SENT else QuickActionOutcome.FAILED
+                publishActionFeedback(QuickActionFeedback(QuickAction.WAKE, outcome))
+            }
         }
 
         /**
@@ -1496,7 +1590,7 @@ class TeslaBleController(
                     if (readInFlight.waitingForSession) {
                         readInFlight.sessionReady(now)
                     } else {
-                        readInFlight.begin(now, expectedReplies(now), afterHandshake = false)
+                        readInFlight.begin(now, infotainmentPolicy.expectedReplies(now), afterHandshake = false)
                     }
                     sendAuthenticated(
                         domain = Domain.DOMAIN_INFOTAINMENT,
@@ -1509,13 +1603,13 @@ class TeslaBleController(
                 // The retry loop is already running; the read goes out when the session arrives.
                 InfotainmentSessionGate.Action.WAIT_FOR_HANDSHAKE -> {
                     waitingReadReason = reason
-                    readInFlight.begin(now, expectedReplies(now), afterHandshake = true)
+                    readInFlight.begin(now, infotainmentPolicy.expectedReplies(now), afterHandshake = true)
                 }
 
                 InfotainmentSessionGate.Action.START_HANDSHAKE -> {
                     waitingReadReason = reason
                     log("${name()}: requesting Infotainment session for SOC")
-                    readInFlight.begin(now, expectedReplies(now), afterHandshake = true)
+                    readInFlight.begin(now, infotainmentPolicy.expectedReplies(now), afterHandshake = true)
                     if (!startSession()) {
                         infotainmentGate.onNotStartable()
                         readInFlight.onSkipped()
@@ -1550,12 +1644,6 @@ class TeslaBleController(
             updateConnection(address) { it.copy(pausedUntilMillis = pausedUntil) }
         }
 
-        /** The replies a read starting at [nowMs] expects: charge, drive, closures, climate, and location and tire pressure when due. */
-        private fun expectedReplies(nowMs: Long): Int =
-            BASE_READ_REPLIES +
-                (if (infotainmentPolicy.wantsLocation(nowMs)) 1 else 0) +
-                (if (infotainmentPolicy.wantsTirePressure(nowMs)) 1 else 0)
-
         /**
          * Asks for the next state category after the previous reply (drive
          * after charge, closures after drive, climate after closures, then location while
@@ -1571,18 +1659,15 @@ class TeslaBleController(
             sendAuthenticated(domain = Domain.DOMAIN_INFOTAINMENT, payload = payload, kind = kind)
         }
 
+        /** Sends an authenticated request; returns its request uuid, or null when nothing went out. */
         private fun sendAuthenticated(
             domain: Domain,
             payload: ByteArray,
             kind: CommandKind,
             reason: Command.Reason = Command.Reason.FOLLOW_UP,
-        ): Boolean {
-            val session =
-                handshake[domain] ?: run {
-                    log("${name()}: no session for ${domain.name}")
-                    return false
-                }
+        ): String? {
             val uuid = TeslaCrypto.randomBytes(16)
+            val session = handshake[domain]
             val routing =
                 if (domain == Domain.DOMAIN_VEHICLE_SECURITY) {
                     TeslaCrypto.randomBytes(16)
@@ -1590,17 +1675,18 @@ class TeslaBleController(
                     clientAddress
                 }
             val message = TeslaSessionRequests.buildAuthenticatedRequest(domain, payload, routing, uuid)
-            val encrypted =
-                session.encrypt(message, COMMAND_EXPIRES_SECONDS) ?: run {
-                    log("${name()}: encryption failed")
-                    return false
-                }
-            val requestId = session.requestId(encrypted) ?: return false
-            pendingCommands[uuid.toHexString()] = PendingCommand(domain, requestId, kind, reason)
-            val sent = transmit(encrypted.encode(), CommandRecords.authenticated(reason, domain, payload), uuid.toHexString())
+            val encrypted = session?.encrypt(message, COMMAND_EXPIRES_SECONDS)
+            val requestId = encrypted?.let { session.requestId(it) }
+            if (session == null || encrypted == null || requestId == null) {
+                log("${name()}: cannot authenticate the ${kind.name.lowercase()} request")
+                return null
+            }
+            val key = uuid.toHexString()
+            pendingCommands[key] = PendingCommand(domain, requestId, kind, reason)
+            val sent = transmit(encrypted.encode(), CommandRecords.authenticated(reason, domain, payload), key)
             if (!sent) log("${name()}: failed to send ${kind.name.lowercase()} request")
             if (sent && kind.isRead) readInFlight.onSent(System.currentTimeMillis())
-            return sent
+            return if (sent) key else null
         }
 
         /** Applies the session info piggybacked on a rejected command; false when there is none or it does not verify. */
@@ -1625,7 +1711,14 @@ class TeslaBleController(
         /** Forgets requests the car never answered, so they do not pile up for the life of the link. */
         private fun expirePendingCommands(now: Long) {
             val cutoff = now - PENDING_COMMAND_TTL_MS
-            pendingCommands.values.removeAll { it.sentAtMillis < cutoff }
+            val requests = pendingCommands.entries.iterator()
+            while (requests.hasNext()) {
+                val request = requests.next()
+                if (request.value.sentAtMillis >= cutoff) continue
+                requests.remove()
+                // A quick action whose reply never came reports a failure instead of going quiet.
+                if (request.value.kind == CommandKind.ACTUATION) quickActionSender.onExpired(request.key)
+            }
         }
 
         /** Drops the [domain] session and handshakes again, at most once a minute so a broken link cannot loop. */
@@ -1660,6 +1753,7 @@ class TeslaBleController(
             if (pending.kind.isRead) readInFlight.onReply()
             if (!encrypted) {
                 log("${name()}: ${pending.kind.name.lowercase()} rejected (${fault?.signed_message_fault?.name})")
+                if (pending.kind == CommandKind.ACTUATION) quickActionSender.failSent(key)
                 // Retrying on the old session fails forever. The car usually attaches fresh session
                 // info to such a rejection; when it verifies, the session resyncs in place, and
                 // only otherwise does a new handshake recover.
@@ -1706,6 +1800,8 @@ class TeslaBleController(
 
                 CommandKind.CLIMATE, CommandKind.LOCATION, CommandKind.TIRE_PRESSURE ->
                     handleLaterRead(pending.kind, plaintext, deviceTimestamp)
+
+                CommandKind.ACTUATION -> quickActionSender.onReply(plaintext, key)
             }
             return true
         }
@@ -1818,6 +1914,8 @@ class TeslaBleController(
                 }
                 if (infotainmentPolicy.onStatus(status, canRead, System.currentTimeMillis())) requestChargeState()
                 syncPauseState()
+                // A quick action queued on a sleeping car starts its session as soon as the car is up.
+                quickActionSender.startIfAwake(status.asleep)
                 // The status is in, so the car's awake state is known to the session request.
                 runStartupFollowUps()
             } else {
@@ -1837,6 +1935,8 @@ class TeslaBleController(
                         handler.removeCallbacks(rssiPoll)
                         infotainmentGate.onLinkDropped()
                         readInFlight.onLinkDropped()
+                        quickActionSender.failQueued(wakeToo = false)
+                        quickActionSender.clear()
                         handshake.clearPending()
                         val hadData =
                             _state.value.connections[address]?.let {
@@ -1910,8 +2010,6 @@ class TeslaBleController(
     private companion object {
         const val LOG_MAX_LINES = 200
 
-        /** Charge, drive, closures and climate: the replies every read waits for. */
-        const val BASE_READ_REPLIES = 4
         const val COMMAND_EXPIRES_SECONDS = 5
         const val POLL_MS = 10_000L
 

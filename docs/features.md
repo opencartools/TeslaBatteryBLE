@@ -18,6 +18,7 @@ What the app does today, in detail. The short version is in the [README](../READ
 - **Battery drain stats** — a card of its own. It says what the car is doing now and since when (charging, driving, parked, or powered down: parked an hour or more, nobody in it, Sentry and climate off), then, over the whole log, the longest parked (odometer unchanged, not charging, gaps between readings included), power down (parked, nobody in the car, Sentry and climate off) and deep sleep (asleep without a break in the phone's view) stretches, each with when it ended, when it started on tap and the battery drain, and the lowest drain between two readings at least six hours apart. A rate measured over less than a day carries a star. A deep sleep with no battery read near its ends shows a ceiling. Stretches that start while the usable level lags the level (cold battery) are left out. The parked-drain projection follows the power-down rate
 - **Metric or imperial** — pick System default, Metric or Imperial in Settings; range and the health card show km or mi, and the rated constant reads as Wh/km, kWh/100km or km/kWh (display only, the car reports miles)
 - **On-demand wake** — the car is only woken when you ask, never in the background
+- **Quick actions** - a floating button on the car screen unfolds on an upward drag or a long press into Open charge port and Wake car (a tap, a drag back down, back, or tapping outside folds it again). A sleeping car is woken for the action and the action goes out as soon as its session is ready; a snackbar says what happened. The button appears once the car is paired and its VIN is known, so it never offers a control that could not work.
 - **Lets the car sleep** — while it is charging, driving, in Sentry mode or running the climate (the car stays
   awake and draws power anyway), readings refresh every 10s. Otherwise the app keeps
   reading every 10s for a short while after something happens (the car wakes, locks or unlocks, a door or the
@@ -28,7 +29,7 @@ What the app does today, in detail. The short version is in the [README](../READ
   and when the next read is due; opening the app reads once (at most once a minute), so the screen is fresh even
   after a long pause.
 - **Background tracking** via a foreground service: SOC timeline and connection state while parked or charging.
-  The notification shows from the first connect attempt to a paired car ("Connecting�"), not only after the first read.
+  The notification shows from the first connect attempt to a paired car ("Connecting�"), not only after the first read.
   Tracking resumes by itself after a reboot or an app update (once the phone is unlocked), as long as tracking
   is on and a car is paired. Some phones (Xiaomi, Huawei, Oppo/Vivo, Samsung "sleeping apps") block this unless
   you allow autostart for the app or set its battery usage to unrestricted. After a force stop, Android keeps

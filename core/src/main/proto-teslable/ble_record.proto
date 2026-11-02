@@ -93,6 +93,7 @@ message Command {
         FOLLOW_UP = 8;         // drive, closures, climate, location or tire pressure read after the previous reply
         PAIRING = 9;           // checking the whitelist for our key, or adding it
         KEY_LOOKUP = 10;       // locating our key's slot in the whitelist
+        USER_ACTION = 11;      // the quick-actions button: charge port, flash lights
     }
 
     Reason reason = 1;
