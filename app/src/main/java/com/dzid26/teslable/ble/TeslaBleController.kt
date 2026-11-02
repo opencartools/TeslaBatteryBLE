@@ -29,16 +29,13 @@ import com.dzid26.teslable.protocol.AntiReplayWindow
 import com.dzid26.teslable.protocol.FaultRecovery
 import com.dzid26.teslable.protocol.PairingFlow
 import com.dzid26.teslable.protocol.PairingHost
-import com.dzid26.teslable.protocol.PairingKeys
 import com.dzid26.teslable.protocol.PairingPhase
 import com.dzid26.teslable.protocol.PairingReason
 import com.dzid26.teslable.protocol.PairingTimer
 import com.dzid26.teslable.protocol.SessionHandshake
 import com.dzid26.teslable.protocol.SessionHost
-import com.dzid26.teslable.protocol.SessionKeys
 import com.dzid26.teslable.protocol.TeslaCommands
 import com.dzid26.teslable.protocol.TeslaCrypto
-import com.dzid26.teslable.protocol.TeslaKeyPair
 import com.dzid26.teslable.protocol.TeslaLocationTireCommands
 import com.dzid26.teslable.protocol.TeslaNames
 import com.dzid26.teslable.protocol.TeslaSessionRequests
@@ -1249,16 +1246,7 @@ class TeslaBleController(
         /** Enrolls this phone's key and finds its slot; the state machine lives in core. */
         val pairing: PairingFlow =
             PairingFlow(
-                keys =
-                    object : PairingKeys {
-                        override fun hasKey(): Boolean = keyStore.hasKey(bleName)
-
-                        override fun publicKeyRaw(): ByteArray? = keyStore.publicKeyRaw(bleName)
-
-                        override fun keyId(): ByteArray? = keyStore.keyId(bleName)
-
-                        override fun generate(): TeslaKeyPair? = keyStore.generate(bleName)
-                    },
+                keys = StoredPairingKeys(keyStore, bleName),
                 host = pairingHost,
             )
 
@@ -1320,14 +1308,7 @@ class TeslaBleController(
         /** Asks the car for sessions and keeps them; the handshake lives in core. */
         private val handshake: SessionHandshake =
             SessionHandshake(
-                keys =
-                    object : SessionKeys {
-                        override fun hasKey(): Boolean = keyStore.hasKey(bleName)
-
-                        override fun publicKeyRaw(): ByteArray? = keyStore.publicKeyRaw(bleName)
-
-                        override fun load(): TeslaKeyPair? = keyStore.load(bleName)
-                    },
+                keys = StoredSessionKeys(keyStore, bleName),
                 host = sessionHost,
                 clientAddress = clientAddress,
             )
@@ -1599,7 +1580,7 @@ class TeslaBleController(
                     if (readInFlight.waitingForSession) {
                         readInFlight.sessionReady(now)
                     } else {
-                        readInFlight.begin(now, expectedReplies(now), afterHandshake = false)
+                        readInFlight.begin(now, infotainmentPolicy.expectedReplies(now), afterHandshake = false)
                     }
                     sendAuthenticated(
                         domain = Domain.DOMAIN_INFOTAINMENT,
@@ -1612,13 +1593,13 @@ class TeslaBleController(
                 // The retry loop is already running; the read goes out when the session arrives.
                 InfotainmentSessionGate.Action.WAIT_FOR_HANDSHAKE -> {
                     waitingReadReason = reason
-                    readInFlight.begin(now, expectedReplies(now), afterHandshake = true)
+                    readInFlight.begin(now, infotainmentPolicy.expectedReplies(now), afterHandshake = true)
                 }
 
                 InfotainmentSessionGate.Action.START_HANDSHAKE -> {
                     waitingReadReason = reason
                     log("${name()}: requesting Infotainment session for SOC")
-                    readInFlight.begin(now, expectedReplies(now), afterHandshake = true)
+                    readInFlight.begin(now, infotainmentPolicy.expectedReplies(now), afterHandshake = true)
                     if (!startSession()) {
                         infotainmentGate.onNotStartable()
                         readInFlight.onSkipped()
@@ -1653,12 +1634,6 @@ class TeslaBleController(
             updateConnection(address) { it.copy(pausedUntilMillis = pausedUntil) }
         }
 
-        /** The replies a read starting at [nowMs] expects: charge, drive, closures, climate, and location and tire pressure when due. */
-        private fun expectedReplies(nowMs: Long): Int =
-            BASE_READ_REPLIES +
-                (if (infotainmentPolicy.wantsLocation(nowMs)) 1 else 0) +
-                (if (infotainmentPolicy.wantsTirePressure(nowMs)) 1 else 0)
-
         /**
          * Asks for the next state category after the previous reply (drive
          * after charge, closures after drive, climate after closures, then location while
@@ -1682,28 +1657,7 @@ class TeslaBleController(
             reason: Command.Reason = Command.Reason.FOLLOW_UP,
         ): String? {
             val uuid = TeslaCrypto.randomBytes(16)
-            val sealed = sealRequest(domain, payload, uuid)
-            if (sealed == null) return null
-            val (encrypted, requestId) = sealed
-            val key = uuid.toHexString()
-            pendingCommands[key] = PendingCommand(domain, requestId, kind, reason)
-            val sent = transmit(encrypted.encode(), CommandRecords.authenticated(reason, domain, payload), key)
-            if (!sent) log("${name()}: failed to send ${kind.name.lowercase()} request")
-            if (sent && kind.isRead) readInFlight.onSent(System.currentTimeMillis())
-            return if (sent) key else null
-        }
-
-        /** Encrypts a request for [domain] and takes its id; null, with the reason logged, when that fails. */
-        private fun sealRequest(
-            domain: Domain,
-            payload: ByteArray,
-            uuid: ByteArray,
-        ): Pair<RoutableMessage, ByteArray>? {
             val session = handshake[domain]
-            if (session == null) {
-                log("${name()}: no session for ${domain.name}")
-                return null
-            }
             val routing =
                 if (domain == Domain.DOMAIN_VEHICLE_SECURITY) {
                     TeslaCrypto.randomBytes(16)
@@ -1711,13 +1665,18 @@ class TeslaBleController(
                     clientAddress
                 }
             val message = TeslaSessionRequests.buildAuthenticatedRequest(domain, payload, routing, uuid)
-            val encrypted = session.encrypt(message, COMMAND_EXPIRES_SECONDS)
-            return encrypted
-                ?.let { session.requestId(it)?.let { request -> encrypted to request } }
-                ?: run {
-                    log("${name()}: encryption failed")
-                    null
-                }
+            val encrypted = session?.encrypt(message, COMMAND_EXPIRES_SECONDS)
+            val requestId = encrypted?.let { session.requestId(it) }
+            if (session == null || encrypted == null || requestId == null) {
+                log("${name()}: cannot authenticate the ${kind.name.lowercase()} request")
+                return null
+            }
+            val key = uuid.toHexString()
+            pendingCommands[key] = PendingCommand(domain, requestId, kind, reason)
+            val sent = transmit(encrypted.encode(), CommandRecords.authenticated(reason, domain, payload), key)
+            if (!sent) log("${name()}: failed to send ${kind.name.lowercase()} request")
+            if (sent && kind.isRead) readInFlight.onSent(System.currentTimeMillis())
+            return if (sent) key else null
         }
 
         /** Applies the session info piggybacked on a rejected command; false when there is none or it does not verify. */
@@ -2040,9 +1999,6 @@ class TeslaBleController(
 
     private companion object {
         const val LOG_MAX_LINES = 200
-
-        /** Charge, drive, closures and climate: the replies every read waits for. */
-        const val BASE_READ_REPLIES = 4
 
         const val COMMAND_EXPIRES_SECONDS = 5
         const val POLL_MS = 10_000L
