@@ -6,6 +6,11 @@
     <string name="tracking_channel_description">Car connection and battery status while the app tracks in the background.</string>
     <string name="tracking_wake">Wake</string>
 
+    <string name="unlock_alert_channel_name">Unlocked car alerts</string>
+    <string name="unlock_alert_channel_description">Pops up when a car was left unlocked and the phone loses the connection to it.</string>
+    <string name="unlock_alert_notification_title">Car left unlocked</string>
+    <string name="unlock_alert_notification_text">%1$s was left unlocked and the phone lost the connection.</string>
+
     <string name="settings_title">Settings</string>
     <string name="settings_vehicle_keys">Vehicle keys</string>
     <string name="settings_backup_toggle">Include vehicle keys in Android backup</string>
@@ -51,6 +56,9 @@
     <string name="settings_efficiency_inverse">%1$s per kWh</string>
     <string name="settings_price_per_kwh">Price per kWh (%1$s)</string>
     <string name="settings_version">TeslaBatteryBLE version: %1$s</string>
+    <string name="settings_alerts">Alerts</string>
+    <string name="settings_unlock_alert_toggle">Car left unlocked</string>
+    <string name="settings_unlock_alert_hint">Notify when the car was left unlocked and the phone loses the link. Plays the car lock sound.</string>
     <string name="perm_nearby_title">Allow nearby devices</string>
     <string name="perm_nearby_why">Lets the app find your Tesla over Bluetooth and open the encrypted link to read its battery state. This is Android\'s \"Nearby devices\" permission.</string>
     <string name="perm_location_title">Allow location access</string>

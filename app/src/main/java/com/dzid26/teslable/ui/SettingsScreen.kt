@@ -148,6 +148,8 @@ fun SettingsScreen(
             Spacer(Modifier.height(16.dp))
             UnitsCard(unitStore = unitStore)
             Spacer(Modifier.height(16.dp))
+            AlertsCard()
+            Spacer(Modifier.height(16.dp))
             EnergyPriceCard(priceStore = priceStore)
             Spacer(Modifier.height(16.dp))
             PairingCard(keys = vehicleKeys)
