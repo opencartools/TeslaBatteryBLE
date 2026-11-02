@@ -915,7 +915,7 @@ class TeslaBleController(
     ) {
         if (link.phase != ConnectionPhase.READY) return
         val deviceTimestamp = Instant.ofEpochMilli(System.currentTimeMillis())
-        historyStore.recordConnection(link.bleName, state, deviceTimestamp, latestRssi(link.address))
+        historyStore.recordConnection(link.bleName, state, link.address, deviceTimestamp, latestRssi(link.address))
         // Whatever the car has not answered by now, it will not answer.
         if (state == ConnectionEvent.State.DISCONNECTED) link.commands.logUnanswered(linkEnded = true)
     }

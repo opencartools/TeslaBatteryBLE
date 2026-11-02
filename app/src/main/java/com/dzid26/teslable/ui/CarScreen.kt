@@ -80,6 +80,7 @@ import com.dzid26.teslable.ble.batteryPercent
 import com.dzid26.teslable.ble.chargingStateText
 import com.dzid26.teslable.ble.connectionDisplay
 import com.dzid26.teslable.ble.connectionLabel
+import com.dzid26.teslable.ble.readBlockedHint
 import com.dzid26.teslable.ble.vehicleStatusText
 import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.health.PriceChange
@@ -283,10 +284,15 @@ internal fun CarScreen(
         },
     ) { innerPadding ->
         val pullState = rememberPullToRefreshState()
+        val screenContext = LocalContext.current
+        // Resolved here, while the composition can see the configuration, not from the callback.
+        val blockedText = readBlockedHint(connection, vehicle?.hasSessionVin == true)?.let { stringResource(it.text) }
         PullToRefreshBox(
             isRefreshing = refreshing,
             onRefresh = {
                 refreshing = true
+                // A pull that cannot read should say why instead of silently doing nothing.
+                blockedText?.let { Toast.makeText(screenContext, it, Toast.LENGTH_LONG).show() }
                 onRefresh()
             },
             state = pullState,
@@ -933,7 +939,7 @@ internal fun BatteryHistoryCard(
             Spacer(Modifier.height(8.dp))
             if (visible.isEmpty()) {
                 Text(
-                    text = "No samples yet. SOC is recorded while the car is awake.",
+                    text = stringResource(R.string.history_no_samples),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
