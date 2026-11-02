@@ -39,11 +39,15 @@ class ClosureAlertMaskTest {
     }
 
     @Test
-    fun `a closure on its way or not latched counts`() {
+    fun `an opening or ajar closure counts`() {
         assertTrue(ClosureStatuses(frontDriverDoor = ClosureState_E.CLOSURESTATE_OPENING).anyClosureOpen())
-        assertTrue(ClosureStatuses(frontDriverDoor = ClosureState_E.CLOSURESTATE_CLOSING).anyClosureOpen())
-        assertTrue(ClosureStatuses(frontDriverDoor = ClosureState_E.CLOSURESTATE_FAILED_UNLATCH).anyClosureOpen())
         assertTrue(ClosureStatuses(frontDriverDoor = ClosureState_E.CLOSURESTATE_AJAR).anyClosureOpen())
+    }
+
+    @Test
+    fun `a closing or failed-to-latch closure does not count`() {
+        assertFalse(ClosureStatuses(frontDriverDoor = ClosureState_E.CLOSURESTATE_CLOSING).anyClosureOpen())
+        assertFalse(ClosureStatuses(frontDriverDoor = ClosureState_E.CLOSURESTATE_FAILED_UNLATCH).anyClosureOpen())
     }
 
     @Test

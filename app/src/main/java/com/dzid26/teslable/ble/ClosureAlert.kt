@@ -135,9 +135,9 @@ internal class ClosureAlert(
 }
 
 /**
- * Any door, trunk or tonneau that is not closed. `OPENING` and `CLOSING` count because the closure is
- * still not shut; `AJAR` counts although the car never reports it. `UNKNOWN` and `CLOSED` do not count.
- * The charge port is left out: it is normally open while charging.
+ * Any door, trunk or tonneau that is not closed. `OPENING` counts because the closure is still not shut;
+ * `AJAR` counts although the car never reports it. `CLOSED`, `CLOSING`, `FAILED_UNLATCH` and `UNKNOWN` do
+ * not count. The charge port is left out: it is normally open while charging.
  */
 internal fun ClosureStatuses?.anyClosureOpen(): Boolean =
     this != null &&
@@ -149,6 +149,4 @@ private val openClosureStates =
         ClosureState_E.CLOSURESTATE_OPEN,
         ClosureState_E.CLOSURESTATE_AJAR,
         ClosureState_E.CLOSURESTATE_OPENING,
-        ClosureState_E.CLOSURESTATE_CLOSING,
-        ClosureState_E.CLOSURESTATE_FAILED_UNLATCH,
     )
