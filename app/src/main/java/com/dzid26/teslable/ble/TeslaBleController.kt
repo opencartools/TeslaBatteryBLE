@@ -159,7 +159,7 @@ class TeslaBleController(
         Runnable {
             if (_state.value.discovering) {
                 stopScanner()
-                _state.update { it.copy(discovering = false) }
+                _state.update { it.copy(discovering = false, discoveryMissed = true) }
             }
         }
 
@@ -259,6 +259,7 @@ class TeslaBleController(
                 discovering = false,
                 explicitScan = true,
                 locationNeeded = false,
+                discoveryMissed = false,
             )
         }
         // An app-open discovery may be running on the same callback; the owner's scan replaces it
@@ -335,7 +336,10 @@ class TeslaBleController(
             // it is now instead of leaving the tap with nothing to do.
             ConnectionPhase.CONNECTING -> startDiscovery()
 
-            else -> ensureLink(bleName, address).connect()
+            else -> {
+                ensureLink(bleName, address).connect()
+                startDiscovery()
+            }
         }
     }
 
@@ -419,6 +423,7 @@ class TeslaBleController(
                 devices = emptyList(),
                 connections = emptyMap(),
                 selectedBleName = null,
+                discoveryMissed = false,
                 vinRequest = null,
             )
         }
@@ -731,7 +736,7 @@ class TeslaBleController(
         if (_state.value.scanning || _state.value.discovering) return
         if (!hasBlePermissions(appContext)) return
         if (!_state.scanAllowed(appContext, ::log)) return
-        _state.update { it.copy(discovering = true, explicitScan = false, locationNeeded = false) }
+        _state.update { it.copy(discovering = true, explicitScan = false, locationNeeded = false, discoveryMissed = false) }
         handler.removeCallbacks(stopDiscovery)
         handler.postDelayed(stopDiscovery, DISCOVERY_TIMEOUT_MS)
         startScanner(background = true)
@@ -1863,6 +1868,7 @@ class TeslaBleController(
                     if (phase == ConnectionPhase.READY && endNameProbe()) {
                         log("${name()}: name read; disconnecting until opened")
                     } else if (phase == ConnectionPhase.READY) {
+                        _state.update { it.copy(discoveryMissed = false) }
                         reconnectAttempts = 0
                         nextRetryAtMs = 0
                         lastAliveMillis = System.currentTimeMillis()
