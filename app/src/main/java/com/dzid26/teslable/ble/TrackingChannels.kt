@@ -3,8 +3,11 @@ package com.dzid26.teslable.ble
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.net.Uri
 import android.provider.Settings
 import com.dzid26.teslable.BuildConfig
 import com.dzid26.teslable.R
@@ -13,6 +16,7 @@ import com.dzid26.teslable.R
 internal object TrackingChannels {
     const val TRACKING = "tracking"
     const val TRIP = "trip"
+    const val UNLOCK = "unlock_alert"
 
     /** "[PR 332] title" in CI (PR) builds so they read apart from the main app; unchanged elsewhere. */
     fun withBuildLabel(text: String): String {
@@ -36,17 +40,46 @@ internal object TrackingChannels {
                 },
             )
         }
-        if (manager.getNotificationChannel(TRACKING) != null) return
-        val channel =
-            NotificationChannel(
-                TRACKING,
-                withBuildLabel(context.getString(R.string.tracking_channel_name)),
-                NotificationManager.IMPORTANCE_LOW,
-            ).apply {
-                description = context.getString(R.string.tracking_channel_description)
-                setShowBadge(false)
-            }
-        manager.createNotificationChannel(channel)
+        if (manager.getNotificationChannel(TRACKING) == null) {
+            val channel =
+                NotificationChannel(
+                    TRACKING,
+                    withBuildLabel(context.getString(R.string.tracking_channel_name)),
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = context.getString(R.string.tracking_channel_description)
+                    setShowBadge(false)
+                }
+            manager.createNotificationChannel(channel)
+        }
+        // Its own channel, not the silent trip one: a high-importance channel is what gives the heads-up
+        // and the car lock sound on Android 8 and later.
+        if (manager.getNotificationChannel(UNLOCK) == null) {
+            val channel =
+                NotificationChannel(
+                    UNLOCK,
+                    withBuildLabel(context.getString(R.string.unlock_alert_channel_name)),
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
+                    description = context.getString(R.string.unlock_alert_channel_description)
+                    setShowBadge(true)
+                    setSound(unlockSound(context), unlockAudioAttributes())
+                    enableVibration(true)
+                }
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    /** The bundled car lock beep, which the alert channel plays. */
+    private fun unlockSound(context: Context): Uri =
+        Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/${R.raw.car_lock}")
+
+    /** A notification sound, so the alert does not ride the ringtone volume of an alarm or a call. */
+    private fun unlockAudioAttributes(): AudioAttributes {
+        val builder = AudioAttributes.Builder()
+        builder.setUsage(AudioAttributes.USAGE_NOTIFICATION)
+        builder.setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        return builder.build()
     }
 
     /**
