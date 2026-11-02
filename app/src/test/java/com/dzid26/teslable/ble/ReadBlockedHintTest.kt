@@ -29,7 +29,7 @@ class ReadBlockedHintTest {
     }
 
     @Test
-    fun aReadyLinkBeforeItsFirstStatusStillReads() {
+    fun aReadyLinkBeforeItsFirstStatusSaysNothing() {
         assertNull(readBlockedHint(connection(status = null), hasSessionVin = true))
     }
 
@@ -39,8 +39,16 @@ class ReadBlockedHintTest {
     }
 
     @Test
-    fun aMissingVinComesBeforeTheSession() {
-        assertEquals(ReadBlockedHint.NEEDS_VIN, readBlockedHint(connection(sessions = emptyList()), hasSessionVin = false))
+    fun aMissingVinComesBeforeTheLink() {
+        assertEquals(ReadBlockedHint.NEEDS_VIN, readBlockedHint(null, hasSessionVin = false))
+    }
+
+    @Test
+    fun aMissingVinComesBeforeSleepAndTheSession() {
+        assertEquals(
+            ReadBlockedHint.NEEDS_VIN,
+            readBlockedHint(connection(status = asleep, sessions = emptyList()), hasSessionVin = false),
+        )
     }
 
     @Test

@@ -357,31 +357,28 @@ private fun phaseLabel(connection: TeslaConnection?): ConnectionLabel =
             }
     }
 
-/**
- * Why a pull to read cannot go out now. Null from [readBlockedHint] means the read can be sent; this
- * names the state to explain when it cannot.
- */
+/** Why a pull to read cannot do what it looks like it will; [readBlockedHint] names the state. */
 enum class ReadBlockedHint(
     /** The toast's line. */
     @StringRes val text: Int,
 ) {
-    /** No ready link: the car must be connected to be read. */
+    /** No ready link: the pull reconnects first. */
     NOT_READY(R.string.read_blocked_not_ready),
 
-    /** The car reports itself asleep, so a read would be dropped or would wake it. */
+    /** The car reports itself asleep: the pull wakes it before it can read. */
     ASLEEP(R.string.read_blocked_asleep),
 
-    /** Connected and awake, but the stored VIN cannot personalise a session (ADR-0004). */
+    /** The stored VIN cannot personalise a session, and the pull asks for one before anything else (ADR-0004). */
     NEEDS_VIN(R.string.read_blocked_needs_vin),
 
-    /** Awake, but no Infotainment session: the read waits for the handshake to finish. */
+    /** Awake, but no Infotainment session: the pull starts or waits for the handshake. */
     NO_SESSION(R.string.read_blocked_no_session),
 }
 
 /**
- * The reason to show when the owner pulls to read, or null when a read can go out now.
- * [hasSessionVin] is whether the stored VIN can personalise a session; without it no read can be
- * sent, whatever the link says.
+ * The reason to show when the owner pulls to read, or null when the pull needs no explanation.
+ * [hasSessionVin] is whether the stored VIN can personalise a session; without it the pull asks for
+ * one before it reconnects, wakes or reads.
  */
 fun readBlockedHint(
     connection: TeslaConnection?,
@@ -391,11 +388,12 @@ fun readBlockedHint(
     val status = link?.status
     val sessions = link?.sessions.orEmpty()
     return when {
+        // The pull's VIN gate runs before it reconnects, wakes or reads.
+        !hasSessionVin -> ReadBlockedHint.NEEDS_VIN
         link == null -> ReadBlockedHint.NOT_READY
-        // A link that is up but has not reported yet is normal right after connecting: the read waits.
+        // A ready link before its first status is normal right after connecting: the pull wakes it.
         status == null -> null
         status.asleep -> ReadBlockedHint.ASLEEP
-        !hasSessionVin -> ReadBlockedHint.NEEDS_VIN
         Domain.DOMAIN_INFOTAINMENT.name !in sessions -> ReadBlockedHint.NO_SESSION
         else -> null
     }
