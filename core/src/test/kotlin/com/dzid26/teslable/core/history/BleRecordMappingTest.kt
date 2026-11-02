@@ -310,6 +310,17 @@ class BleRecordMappingTest {
     }
 
     @Test
+    fun `a connection event keeps the BLE address it happened at`() {
+        val event = ConnectionEvent(state = ConnectionEvent.State.CONNECTED, address = "AA:BB:CC:DD:EE:FF")
+
+        val decoded = ConnectionEvent.ADAPTER.decode(event.encode())
+
+        assertEquals("AA:BB:CC:DD:EE:FF", decoded.address)
+        // Without an address the event keeps the two bytes it always had.
+        assertContentEquals(byteArrayOf(0x08, 1), ConnectionEvent(state = ConnectionEvent.State.CONNECTED).encode())
+    }
+
+    @Test
     fun `a charge record maps onto the sample its raw charge state maps onto`() {
         val sample = BleRecord(device_timestamp = ofEpochSecond(1_001, 0), charge_state = charging).toBatterySample(VEHICLE)
         assertEquals(charging.toBatterySample(VEHICLE)?.copy(readAtMillis = 1_001_000L), sample)

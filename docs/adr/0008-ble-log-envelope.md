@@ -93,8 +93,9 @@ identity), `docs/requirements/multi-phone.md`
   from before the connection came up (the advert's, or the previous
   connection's last). When the phone has no value yet the field is absent,
   never zero.
-- **Connection events.** `ConnectionEvent` carries one `State`: `CONNECTED`
-  when a connection becomes ready (where the controller also marks the next
+- **Connection events.** `ConnectionEvent` carries one `State` and the car's
+  BLE `address` at the event. `State` is `CONNECTED` when a connection becomes
+  ready (where the controller also marks the next
   status reading as the first after a connect) and `DISCONNECTED` when a
   connection that had become ready ends. `device_timestamp` is the event time and
   `rssi` the last RSSI before it. Failed connection attempts, which never
@@ -104,7 +105,8 @@ identity), `docs/requirements/multi-phone.md`
   or the car moving to a new address). A killed app logs nothing, so a
   CONNECTED that follows a CONNECTED means the stretch before it ended
   uncleanly, and the status heartbeat bounds where. Connection events are log
-  only: no read model and no UI yet.
+  only: no read model and no UI yet. The address is there to tell a rotated
+  Bluetooth address apart from the same car.
 - **One file per vehicle per kind**, in `filesDir/battery-history/`, framed by
   the same `ProtoLog` codec with the same 20k-record cap and trim per file:
   - `<vehicleId>.charge.pblog` for charge replies;
