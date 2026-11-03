@@ -56,7 +56,6 @@
     <string name="settings_efficiency_inverse">%1$s per kWh</string>
     <string name="settings_price_per_kwh">Price per kWh (%1$s)</string>
     <string name="settings_version">TeslaBatteryBLE version: %1$s</string>
-    <string name="settings_alerts">Alerts</string>
     <string name="settings_closure_alert_toggle">Door or trunk left open</string>
     <string name="settings_closure_alert_hint">Notify when you leave the car with a door, trunk or tonneau open. Plays the car lock chirp.</string>
     <string name="perm_nearby_title">Allow nearby devices</string>
