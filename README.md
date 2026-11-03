@@ -64,8 +64,9 @@ in [`.github/`](.github/).
 
 ## Security & privacy
 
-- [`SECURITY.md`](SECURITY.md) — how to report vulnerabilities privately
-- [`PRIVACY.md`](PRIVACY.md) — what the app does (and deliberately does not do) with data
+- [`SECURITY.md`](SECURITY.md) - how to report vulnerabilities privately
+- [`PRIVACY.md`](PRIVACY.md) - what the app does (and deliberately does not do) with data
+- Vehicle keys are generated on-device and encrypted at rest with a hardware-backed Keystore key. The vehicle key itself is software and is decrypted while the app uses it, so this is not a hardware key. [How keys are stored](docs/faq.md#where-are-my-vehicle-keys-stored)
 
 ## Support
 

@@ -78,6 +78,17 @@ impact to read + charge control — keys cannot unlock or drive the car, and
 adding new keys always needs an NFC card tap plus vehicle confirmation. You can
 remove the app's key from a car's key list at any time. Uninstalling the app
 deletes local key material.
+
+To be precise about what the Keystore protects: it protects the key at rest.
+The vehicle key itself is a normal software key. When the app opens a session
+it decrypts that key into app memory and runs the Bluetooth handshake there, so
+the key is readable by the app while it is in use. It is not generated in, or
+used by, dedicated security hardware such as StrongBox or a secure element. The
+app pairs as `CHARGING_MANAGER`, so a copied key can read and control charging
+but cannot unlock or drive the car, and adding a key needs an NFC card tap plus
+vehicle confirmation. A future version could keep the key inside dedicated
+hardware; that work is not done.
+
 Details:
 [session and pairing](protocol/session-and-pairing.md),
 [ADR-0005](adr/0005-plaintext-key-storage.md).
