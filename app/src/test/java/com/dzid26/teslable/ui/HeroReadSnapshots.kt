@@ -3,6 +3,7 @@
 package com.dzid26.teslable.ui
 
 import app.cash.paparazzi.Paparazzi
+import com.dzid26.teslable.ble.ConnectionPhase
 import com.dzid26.teslable.ble.ReadProgress
 import com.dzid26.teslable.ui.CardSnapshots.Companion.FRESH_MINUTES
 import com.dzid26.teslable.ui.CardSnapshots.Companion.MINUTE
@@ -69,4 +70,40 @@ class HeroReadSnapshots {
             )
         }
     }
+
+    @Test
+    fun heroCardLooksForTheCarDuringDiscovery() {
+        paparazzi.snapCard("hero-card_looking-for-car") {
+            HeroCard(
+                connection = offlineConnection(),
+                advert = null,
+                vehicle = vehicle,
+                history = emptyList(),
+                statusHistory = emptyList(),
+                nowMillis = NOW,
+                discovering = true,
+            )
+        }
+    }
+
+    @Test
+    fun heroCardSaysTheCarWasNotSeen() {
+        paparazzi.snapCard("hero-card_not-seen-nearby") {
+            HeroCard(
+                connection = offlineConnection(),
+                advert = null,
+                vehicle = vehicle,
+                history = emptyList(),
+                statusHistory = emptyList(),
+                nowMillis = NOW,
+                discoveryMissed = true,
+            )
+        }
+    }
+
+    private fun offlineConnection() =
+        liveConnection(charge = null).copy(
+            phase = ConnectionPhase.DISCONNECTED,
+            disconnectedAtMillis = NOW - 5 * MINUTE,
+        )
 }

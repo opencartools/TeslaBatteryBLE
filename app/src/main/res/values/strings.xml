@@ -102,6 +102,8 @@
     <string name="log_share_chooser">Share log</string>
     <string name="enable_toggle">Enable</string>
     <string name="car_edit_title">Edit car</string>
+    <string name="car_looking_for_the_car">Looking for the car…</string>
+    <string name="car_not_seen_nearby">Not seen nearby. Pull down to look again.</string>
     <string name="car_range_hint">Rated range in miles when the car was new; it sets the baseline for state of health.</string>
     <string name="car_range_label">Rated range when new (mi)</string>
     <string name="car_range_lookup">Use EPA "total range"</string>
