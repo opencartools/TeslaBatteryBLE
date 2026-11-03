@@ -179,16 +179,10 @@ class TeslaBleController(
      * and links reconnect as soon as it is back on instead of waiting out the reconnect backoff.
      */
     private val bluetoothReceiver =
-        BluetoothStateReceiver(
-            onOff = {
-                _state.update { it.copy(bluetoothOn = false) }
-                closureAlert.disarmAll()
-            },
-            onOn = {
-                _state.update { it.copy(bluetoothOn = true) }
-                ensureConnected(bluetoothJustOn = true)
-            },
-        )
+        BluetoothStateReceiver { enabled ->
+            _state.update { it.copy(bluetoothOn = enabled) }
+            if (enabled) ensureConnected(bluetoothJustOn = true) else closureAlert.disarmAll()
+        }
 
     init {
         val adapter = appContext.getSystemService(BluetoothManager::class.java)?.adapter

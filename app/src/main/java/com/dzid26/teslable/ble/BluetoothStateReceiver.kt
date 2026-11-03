@@ -8,11 +8,10 @@ import android.content.Intent
 
 /**
  * Follows the Bluetooth switch for the life of the process. Turning off and off are one event: a link
- * drop while the radio goes is the switch, not the owner walking away, so the alert treats them alike.
+ * drop while the radio goes is the switch, not the owner walking away.
  */
 internal class BluetoothStateReceiver(
-    private val onOff: () -> Unit,
-    private val onOn: () -> Unit,
+    private val onState: (Boolean) -> Unit,
 ) : BroadcastReceiver() {
     override fun onReceive(
         context: Context,
@@ -21,9 +20,9 @@ internal class BluetoothStateReceiver(
         when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
             BluetoothAdapter.STATE_TURNING_OFF,
             BluetoothAdapter.STATE_OFF,
-            -> onOff()
+            -> onState(false)
 
-            BluetoothAdapter.STATE_ON -> onOn()
+            BluetoothAdapter.STATE_ON -> onState(true)
         }
     }
 }
