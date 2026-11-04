@@ -38,11 +38,17 @@ internal class ClosureAlert(
     private val handler = Handler(Looper.getMainLooper())
     private val pendingRearm = mutableMapOf<String, Runnable>()
 
+    /** Cars whose alert is in the shade, so a later all-closed status cancels instead of re-cancelling every 10 s. */
+    private val posted = mutableSetOf<String>()
+
     fun onStatus(
         bleName: String,
         status: VehicleStatus,
     ) {
-        episodes.onStatus(bleName, closureOpen = status.closureStatuses.anyClosureOpen())
+        val closureOpen = status.closureStatuses.anyClosureOpen()
+        episodes.onStatus(bleName, closureOpen = closureOpen)
+        // Presence flips with key range and was PRESENT during the real door-open test, so it cannot clear this.
+        if (!closureOpen) clear(bleName)
     }
 
     /** A new connection: nothing may arm until a status arrives on it, and staying up re-arms the alert. */
@@ -105,7 +111,14 @@ internal class ClosureAlert(
         val manager = NotificationManagerCompat.from(context)
         if (manager.areNotificationsEnabled()) {
             manager.notify(notificationId(bleName), notification)
+            posted.add(bleName)
         }
+    }
+
+    /** Every closure is shut again: the warning has done its job. */
+    private fun clear(bleName: String) {
+        if (!posted.remove(bleName)) return
+        NotificationManagerCompat.from(context).cancel(notificationId(bleName))
     }
 
     /** Tapping the alert opens the app on that car, so the owner can close it. */
