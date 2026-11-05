@@ -2,6 +2,11 @@
 <resources>
     <string name="app_name">TeslaBatteryBLE</string>
 
+    <string name="closure_alert_channel_name">Open closure alerts</string>
+    <string name="closure_alert_channel_description">Pops up when a door, trunk or tonneau is open as you leave the car.</string>
+    <string name="closure_alert_notification_title">Door or trunk left open</string>
+    <string name="closure_alert_notification_text">%1$s has a door or trunk open.</string>
+
     <string name="tracking_channel_name">Background tracking</string>
     <string name="tracking_channel_description">Car connection and battery status while the app tracks in the background.</string>
     <string name="tracking_wake">Wake</string>
@@ -51,6 +56,8 @@
     <string name="settings_efficiency_inverse">%1$s per kWh</string>
     <string name="settings_price_per_kwh">Price per kWh (%1$s)</string>
     <string name="settings_version">TeslaBatteryBLE version: %1$s</string>
+    <string name="settings_closure_alert_toggle">Doors left open alert</string>
+    <string name="settings_closure_alert_hint">Notify when you leave the car with a door, trunk or tonneau open. Plays the car lock chirp.</string>
     <string name="perm_nearby_title">Allow nearby devices</string>
     <string name="perm_nearby_why">Lets the app find your Tesla over Bluetooth and open the encrypted link to read its battery state. This is Android\'s \"Nearby devices\" permission.</string>
     <string name="perm_location_title">Allow location access</string>

@@ -3,9 +3,7 @@ package com.dzid26.teslable.ble
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
 import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
@@ -74,6 +72,7 @@ class TeslaBleController(
     private val vehicleStore = VehicleStore(appContext)
     private val vehicles = mutableMapOf<String, Vehicle>()
     private val historyStore: HistoryStore
+    private val closureAlert = ClosureAlert(appContext, _state, ::log)
 
     /** Battery readings recorded from every charge response, oldest first. */
     val batteryHistory: StateFlow<List<BatterySample>> get() = historyStore.samples
@@ -180,20 +179,9 @@ class TeslaBleController(
      * and links reconnect as soon as it is back on instead of waiting out the reconnect backoff.
      */
     private val bluetoothReceiver =
-        object : BroadcastReceiver() {
-            override fun onReceive(
-                context: Context,
-                intent: Intent,
-            ) {
-                when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
-                    BluetoothAdapter.STATE_OFF -> _state.update { it.copy(bluetoothOn = false) }
-
-                    BluetoothAdapter.STATE_ON -> {
-                        _state.update { it.copy(bluetoothOn = true) }
-                        ensureConnected(bluetoothJustOn = true)
-                    }
-                }
-            }
+        BluetoothStateReceiver { enabled ->
+            _state.update { it.copy(bluetoothOn = enabled) }
+            if (enabled) ensureConnected(bluetoothJustOn = true) else closureAlert.disarmAll()
         }
 
     init {
@@ -406,6 +394,7 @@ class TeslaBleController(
     }
 
     private fun disableTracking() {
+        closureAlert.disarmAll()
         BleTrackingService.stop(appContext)
         handler.removeCallbacks(stopDiscovery)
         stopScanner()
@@ -1268,6 +1257,11 @@ class TeslaBleController(
 
         fun vin(): String = vehicles[bleName]?.vin.orEmpty()
 
+        /** The closure alert: beep now if the last status on this connection had a door or trunk open. */
+        private fun alertOpenClosure() {
+            closureAlert.onLinkDropped(bleName, vehicles[bleName]?.title ?: bleName)
+        }
+
         private fun log(message: String) {
             this@TeslaBleController.appendLog(bleName, message)
         }
@@ -1792,6 +1786,8 @@ class TeslaBleController(
 
             val status = runCatching { TeslaVcsec.parseStatusResponse(message) }.getOrNull()
             if (status != null) {
+                // Arms, or ends, the open-closure alert; the link drop it fires on comes later.
+                closureAlert.onStatus(bleName, status)
                 // VCSEC replies carry no time: the phone's clock at receipt is
                 // the status log's timeline (ADR-0008).
                 val rssi = latestRssi(address)
@@ -1833,7 +1829,9 @@ class TeslaBleController(
             object : TeslaTransport.Listener {
                 override fun onPhase(phase: ConnectionPhase) {
                     if (phase == ConnectionPhase.FAILED || phase == ConnectionPhase.DISCONNECTED) {
-                        if (this@VehicleLink.phase == ConnectionPhase.READY) lastAliveMillis = System.currentTimeMillis()
+                        // Only a link that was up is a drop: a failed retry reports DISCONNECTED too.
+                        val wasReady = this@VehicleLink.phase == ConnectionPhase.READY
+                        if (wasReady) lastAliveMillis = System.currentTimeMillis()
                         recordConnection(this@VehicleLink, ConnectionEvent.State.DISCONNECTED)
                         transport?.close()
                         transport = null
@@ -1854,6 +1852,7 @@ class TeslaBleController(
                             it.copy(phase = display, disconnectedAtMillis = System.currentTimeMillis(), pausedUntilMillis = null)
                         }
                         scheduleReconnect()
+                        if (wasReady) alertOpenClosure()
                         return
                     }
                     this@VehicleLink.phase = phase
@@ -1868,6 +1867,7 @@ class TeslaBleController(
                     if (phase == ConnectionPhase.READY && endNameProbe()) {
                         log("${name()}: name read; disconnecting until opened")
                     } else if (phase == ConnectionPhase.READY) {
+                        closureAlert.onLinkReady(bleName)
                         _state.update { it.copy(discoveryMissed = false) }
                         reconnectAttempts = 0
                         nextRetryAtMs = 0
