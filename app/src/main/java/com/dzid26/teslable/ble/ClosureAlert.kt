@@ -12,6 +12,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.dzid26.teslable.ClosureAlertStore
 import com.dzid26.teslable.MainActivity
 import com.dzid26.teslable.R
+import com.dzid26.teslable.protocol.locked
 import com.dzid26.teslable.protocol.userPresent
 import com.tesla.generated.vcsec.ClosureState_E
 import com.tesla.generated.vcsec.ClosureStatuses
@@ -48,7 +49,7 @@ internal class ClosureAlert(
     ) {
         val closureOpen = status.closureStatuses.anyClosureOpen()
         episodes.onStatus(bleName, closureOpen = closureOpen)
-        if (clearsWhenShut(closureOpen, status.userPresent)) clear(bleName)
+        if (clearsWhenShut(closureOpen, status.userPresent, status.locked)) clear(bleName)
     }
 
     /** A new connection: nothing may arm until a status arrives on it, and staying up re-arms the alert. */
@@ -148,13 +149,14 @@ internal class ClosureAlert(
 }
 
 /**
- * A closed car only clears the alert while the owner is in key range too: a passer-by shutting a door
- * while the phone is away leaves the warning up.
+ * A closed car clears the alert once it is also clearly secured: the owner is in key range, or the car
+ * itself has locked. A third party can shut and lock a door while the phone is away.
  */
 internal fun clearsWhenShut(
     closureOpen: Boolean,
     userPresent: Boolean,
-): Boolean = !closureOpen && userPresent
+    locked: Boolean,
+): Boolean = !closureOpen && (userPresent || locked)
 
 /**
  * Any door, trunk or tonneau that is not closed. `OPENING` counts because the closure is still not shut;

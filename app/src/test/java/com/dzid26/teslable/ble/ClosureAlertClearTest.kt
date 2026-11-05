@@ -8,17 +8,22 @@ import org.junit.Test
 class ClosureAlertClearTest {
     @Test
     fun `all shut while the owner is present clears the alert`() {
-        assertTrue(clearsWhenShut(closureOpen = false, userPresent = true))
+        assertTrue(clearsWhenShut(closureOpen = false, userPresent = true, locked = false))
     }
 
     @Test
-    fun `a third party shutting the door while the phone is away does not clear it`() {
-        assertFalse(clearsWhenShut(closureOpen = false, userPresent = false))
+    fun `all shut with the car locked clears it even when the phone is away`() {
+        assertTrue(clearsWhenShut(closureOpen = false, userPresent = false, locked = true))
     }
 
     @Test
-    fun `an open closure never clears it`() {
-        assertFalse(clearsWhenShut(closureOpen = true, userPresent = true))
-        assertFalse(clearsWhenShut(closureOpen = true, userPresent = false))
+    fun `all shut and unlocked while the phone is away does not clear it`() {
+        assertFalse(clearsWhenShut(closureOpen = false, userPresent = false, locked = false))
+    }
+
+    @Test
+    fun `an open closure never clears it, however secured the car claims to be`() {
+        assertFalse(clearsWhenShut(closureOpen = true, userPresent = true, locked = true))
+        assertFalse(clearsWhenShut(closureOpen = true, userPresent = false, locked = true))
     }
 }
