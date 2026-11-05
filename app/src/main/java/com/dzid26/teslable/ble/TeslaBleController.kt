@@ -1786,7 +1786,7 @@ class TeslaBleController(
 
             val status = runCatching { TeslaVcsec.parseStatusResponse(message) }.getOrNull()
             if (status != null) {
-                // Arms, or ends, the unlock-away alert; the link drop it fires on comes later.
+                // Arms, or ends, the open-closure alert; the link drop it fires on comes later.
                 closureAlert.onStatus(bleName, status)
                 // VCSEC replies carry no time: the phone's clock at receipt is
                 // the status log's timeline (ADR-0008).

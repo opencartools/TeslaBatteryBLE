@@ -7,8 +7,8 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * Follows the Bluetooth switch for the life of the process. Turning off and off are one event: a link
- * drop while the radio goes is the switch, not the owner walking away.
+ * Follows the Bluetooth switch for the life of the process. Turning off and being off are one event: a
+ * link drop while the radio goes is the switch, not the owner walking away.
  */
 internal class BluetoothStateReceiver(
     private val onState: (Boolean) -> Unit,
