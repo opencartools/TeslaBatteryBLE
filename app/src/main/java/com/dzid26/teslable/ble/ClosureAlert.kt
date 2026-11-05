@@ -5,8 +5,6 @@ import android.app.PendingIntent
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
-import android.os.Handler
-import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.dzid26.teslable.ClosureAlertStore
@@ -20,26 +18,24 @@ import com.tesla.generated.vcsec.VehicleStatus
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * The "closure left open" alert, start to finish: the per-car episode state, the owner's switch and the
- * heads-up. The controller feeds it each VCSEC status, each connection event and the two conditions only
- * it knows (tracking on, Bluetooth off).
+ * The "closure left open" alert, start to finish: the owner's switch, the posted notification and the
+ * conditions only the controller knows (tracking on, Bluetooth off). [ClosureAlertEpisodes] owns the
+ * per-car timing and the one-beep-per-stretch rule.
  *
  * A drop is routine, so this fires on the first drop after a status on that connection reported a door,
- * trunk or tonneau open. The same open stretch stays quiet across retries. A link that stays up for a
- * minute counts as a return, so a later departure beeps again; so does a status with every closure shut.
- * Its own notification, not part of the tracking service's ongoing one, so it can be dismissed and the
- * service's next update cannot take it away. The channel carries the importance and the car lock chirp.
+ * trunk or tonneau open. The same open stretch stays quiet across retries. A link that stayed up for a
+ * minute by the time of the next drop counts as a return, so a later departure beeps again; so does a
+ * status with every closure shut. Its own notification, not part of the tracking service's ongoing one,
+ * so it can be dismissed and the service's next update cannot take it away. The channel carries the
+ * importance and the car lock chirp.
  */
 internal class ClosureAlert(
     private val context: Context,
     private val state: StateFlow<BleUiState>,
     private val log: (String) -> Unit,
-    private val episodes: ClosureAlerts = ClosureAlerts(),
+    private val episodes: ClosureAlertEpisodes = ClosureAlertEpisodes(),
     private val store: ClosureAlertStore = ClosureAlertStore(context),
 ) {
-    private val handler = Handler(Looper.getMainLooper())
-    private val pendingRearm = mutableMapOf<String, Runnable>()
-
     /** Cars whose alert is in the shade, so a later all-closed status cancels instead of re-cancelling every 10 s. */
     private val posted = mutableSetOf<String>()
 
@@ -52,17 +48,9 @@ internal class ClosureAlert(
         if (clearsWhenShut(closureOpen, status.userPresent, status.locked)) clear(bleName)
     }
 
-    /** A new connection: nothing may arm until a status arrives on it, and staying up re-arms the alert. */
+    /** A new connection: only a status received on it may arm the alert, and its stable-up clock starts. */
     fun onLinkReady(bleName: String) {
-        episodes.onConnectionStarted(bleName)
-        pendingRearm.remove(bleName)?.let(handler::removeCallbacks)
-        val runnable =
-            Runnable {
-                pendingRearm.remove(bleName)
-                episodes.onLinkUpStable(bleName)
-            }
-        pendingRearm[bleName] = runnable
-        handler.postDelayed(runnable, REARM_MILLIS)
+        episodes.onConnectionStarted(bleName, System.currentTimeMillis())
     }
 
     /** Beeps now when the last status on this connection had a closure open; retries stay silent. */
@@ -70,17 +58,14 @@ internal class ClosureAlert(
         bleName: String,
         title: String,
     ) {
-        pendingRearm.remove(bleName)?.let(handler::removeCallbacks)
         val enabled = store.enabled() && state.value.trackingEnabled && !bluetoothOff()
-        if (!episodes.onLinkDropped(bleName, enabled)) return
+        if (!episodes.onLinkDropped(bleName, System.currentTimeMillis(), enabled)) return
         post(bleName, title)
         log("$title: a door or trunk is open; link dropped, alert posted")
     }
 
-    /** Forgets every episode and cancels every re-arm, for a deliberate teardown. */
+    /** Forgets every episode, for a deliberate teardown. */
     fun disarmAll() {
-        pendingRearm.values.forEach(handler::removeCallbacks)
-        pendingRearm.clear()
         episodes.disarmAll()
     }
 
@@ -116,7 +101,7 @@ internal class ClosureAlert(
         }
     }
 
-    /** Every closure is shut again: the warning has done its job. */
+    /** Every closure is shut and the car is secured: the warning has done its job. */
     private fun clear(bleName: String) {
         if (!posted.remove(bleName)) return
         NotificationManagerCompat.from(context).cancel(notificationId(bleName))
@@ -142,9 +127,6 @@ internal class ClosureAlert(
         /** Each car gets its own slot, away from the tracking notification ids. */
         const val NOTIFICATION_BASE = 2000
         const val ID_MASK = 0xFFFF
-
-        /** A link that stays up this long counts as a return; a later departure can beep again. */
-        const val REARM_MILLIS = 60_000L
     }
 }
 
