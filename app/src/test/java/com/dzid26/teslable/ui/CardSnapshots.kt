@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
-import com.android.ide.common.rendering.api.SessionParams
 import com.android.resources.Density
 import com.dzid26.teslable.ble.BleUiState
 import com.dzid26.teslable.ble.ConnectionPhase
@@ -770,23 +769,12 @@ class CardSnapshots {
      * One screen, two images: the full screen in NORMAL mode on a 1080x2400
      * phone at 420 dpi (the old emulator's size, 411x914 dp), so the PNGs
      * match the website images and scrolled content gets vertical room.
-     * Light and dark.
+     * Light and dark, plus the Jelly Star width in light.
      */
     private fun snapScreen(
         name: String,
         content: @Composable () -> Unit,
-    ) {
-        paparazzi.unsafeUpdateConfig(
-            deviceConfig = screenPhone,
-            renderingMode = SessionParams.RenderingMode.NORMAL,
-        )
-        paparazzi.snapshot(name + "_light") {
-            ScreenFrame(darkTheme = false, content = content)
-        }
-        paparazzi.snapshot(name + "_dark") {
-            ScreenFrame(darkTheme = true, content = content)
-        }
-    }
+    ) = paparazzi.snapFullScreen(name) { content() }
 
     companion object {
         internal const val NOW = 1_760_000_000_000L

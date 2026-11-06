@@ -60,6 +60,30 @@ internal fun Paparazzi.snapCard(
     }
 }
 
+/**
+ * One full screen, three images: the 1080x2400 phone of [screenPhone] in light and dark, plus the Jelly Star width in
+ * light. Paparazzi stores every image shrunk to 1000px on its longest side, so the Jelly Star canvas is 1200px tall, which
+ * keeps it near full size, and a scrolled screen passes its own offset for it: [content] gets `narrow` to pick one.
+ */
+internal fun Paparazzi.snapFullScreen(
+    name: String,
+    content: @Composable (narrow: Boolean) -> Unit,
+) {
+    unsafeUpdateConfig(
+        deviceConfig = screenPhone,
+        renderingMode = SessionParams.RenderingMode.NORMAL,
+    )
+    snapshot(name + "_light") { ScreenFrame(darkTheme = false) { content(false) } }
+    snapshot(name + "_dark") { ScreenFrame(darkTheme = true) { content(false) } }
+    unsafeUpdateConfig(
+        deviceConfig = jellyStar.copy(screenHeight = JELLY_SCREEN_HEIGHT_PX),
+        renderingMode = SessionParams.RenderingMode.NORMAL,
+    )
+    snapshot(name + "_jelly_light") { ScreenFrame(darkTheme = false) { content(true) } }
+}
+
+private const val JELLY_SCREEN_HEIGHT_PX = 1200
+
 /** A pinned 270-mile full range, so the trip cards can show the rated range an arrival level stands for. */
 internal val demoTripScale =
     FullRangeScale(milesPerPercent = 2.7f, offsetMiles = 0f, standardErrorMiles = 0.1f, samples = 40, pinned = true)
