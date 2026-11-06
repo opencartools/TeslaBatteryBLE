@@ -43,8 +43,8 @@ import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 
 /**
  * One plain orange line per trip with its gradient. The readings are drawn on top of it by [ReadingDots], so a
- * regenerating reading is green in its own time order. A regenerating reading that held the rated range is the
- * green gradient under the lines.
+ * green dot is in its own time order. The green gradient under the lines joins the moving readings between which
+ * the rated range did not fall, where one end is a green dot.
  */
 @Composable
 private fun rememberDriveLines(
@@ -106,9 +106,9 @@ internal fun RangeChart(
 ) {
     val axes = remember(points) { axisSpec(points) }
     val trips = remember(points) { points.groupBy { it.trip }.values.toList() }
-    // The gradient marks a regen reading with no drop in rated range from the previous or to the next reading;
-    // at one odometer value it has no width.
-    val regenBands = remember(points) { regenHolds(points).filter { it.first().distance != it.last().distance } }
+    // The gradient joins moving readings with no fall in rated range where one end is a green dot; at one odometer value
+    // it has no width.
+    val gainBands = remember(points) { gainBands(points).filter { it.first().distance != it.last().distance } }
     val unit = LocalDistanceUnit.current
     val distanceFormatter = remember(unit) { CartesianValueFormatter { _, value, _ -> formatDistance(value, unit) } }
     val yFormatter = remember { CartesianValueFormatter { _, value, _ -> formatWholePercent(value.toFloat()) } }
@@ -134,9 +134,9 @@ internal fun RangeChart(
                         itemPlacer = remember { InteriorLabels(HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = false)) },
                     ),
                 decorations =
-                    remember(regenBands, points, pin, cursor) {
+                    remember(gainBands, points, pin, cursor) {
                         listOf(
-                            RegenBands(regenBands, chargingChartColor),
+                            GainBands(gainBands, chargingChartColor),
                             ReadingDots(points, driveChartColor, chargingChartColor),
                             ScrubCursor(pin, cursor, points.map { it.distance to it.value.toDouble() }, driveChartColor),
                         )
@@ -163,18 +163,18 @@ private fun rangeModel(trips: List<List<Plotted>>): CartesianChartModel =
     )
 
 /**
- * Green gradient under each regen pair that held the rated range, filled from the battery curve down to the
- * axis, at its true width.
+ * Green gradient under each pair of moving readings with no fall in rated range where one end is a green dot, filled from
+ * the battery curve down to the axis, at its true width.
  */
-private class RegenBands(
+private class GainBands(
     private val gains: List<List<Plotted>>,
     private val color: Color,
 ) : Decoration {
     override fun drawUnderLayers(context: CartesianDrawingContext) {
         with(context) {
             // Hoisted: inside Paint().apply, `color` would resolve to Paint.color.
-            val top = color.copy(alpha = REGEN_TOP_ALPHA)
-            val bottom = color.copy(alpha = REGEN_BOTTOM_ALPHA)
+            val top = color.copy(alpha = GAIN_TOP_ALPHA)
+            val bottom = color.copy(alpha = GAIN_BOTTOM_ALPHA)
             val paint =
                 Paint().apply {
                     shader =
@@ -201,7 +201,8 @@ private class RegenBands(
 }
 
 /**
- * Every reading as a dot in time order, green when it was regenerating and orange otherwise. Drawn from the readings
+ * Every reading as a dot in time order, green when it was regenerating or the rated range rose
+ * from the previous reading, and orange otherwise. Drawn from the readings
  * themselves rather than by looking their position up, so two readings at one spot can never swap colours.
  */
 private class ReadingDots(
@@ -217,11 +218,12 @@ private class ReadingDots(
             val regen = regenColor
             val orange = Paint().apply { color = normal }
             val green = Paint().apply { color = regen }
-            points.forEach {
+            val gaining = gainingDots(points)
+            points.forEachIndexed { i, point ->
                 canvas.drawCircle(
-                    Offset(canvasX(it.distance), canvasY(it.value.toDouble())),
+                    Offset(canvasX(point.distance), canvasY(point.value.toDouble())),
                     radius,
-                    if (it.regenerating) green else orange,
+                    if (gaining[i]) green else orange,
                 )
             }
         }
@@ -244,8 +246,8 @@ private const val DRIVE_ORANGE_ARGB = 0xFFF28C28
 
 internal val driveChartColor = Color(DRIVE_ORANGE_ARGB)
 
-private const val REGEN_TOP_ALPHA = 0.45f
-private const val REGEN_BOTTOM_ALPHA = 0.05f
+private const val GAIN_TOP_ALPHA = 0.45f
+private const val GAIN_BOTTOM_ALPHA = 0.05f
 
 /**
  * The canvas x of a data x on the first layer, for decorations that draw between data points. Vico
