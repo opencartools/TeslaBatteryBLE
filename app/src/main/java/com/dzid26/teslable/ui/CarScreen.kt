@@ -1141,7 +1141,6 @@ internal fun formatPercent(value: Float): String {
     return if (rounded.toFloat() == value) "$rounded" else String.format(Locale.getDefault(), "%.1f", value)
 }
 
-<<<<<<< HEAD
 /**
  * One car's logs as one value, so the whole-history figures follow them together; compared by identity, so a
  * throttle never compares the lists themselves.
@@ -1157,6 +1156,4 @@ private class VehicleLogs(
 
 /** How often the whole-history figures follow new readings: about every third reading of an awake car. */
 private const val FIGURES_INTERVAL_MILLIS = 30_000L
-=======
 private const val MILLIS_PER_MINUTE = 60_000L
->>>>>>> f8c4168a (fix: charging sessions card review fixes)
