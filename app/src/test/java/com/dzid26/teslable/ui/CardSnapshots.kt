@@ -762,6 +762,8 @@ class CardSnapshots {
                 onOpenSettings = {},
                 onToggleTracking = {},
                 nowMillis = NOW,
+                // A home price, so the charge costs show instead of the energy alone.
+                homePrice = 0.30f,
             )
         }
     }
