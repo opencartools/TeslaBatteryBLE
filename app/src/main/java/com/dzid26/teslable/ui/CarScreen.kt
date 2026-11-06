@@ -391,6 +391,15 @@ internal fun CarScreen(
                         ratedKwhPerMile = health?.ratedKwhPerMile,
                         pricePerKwh = pricePerKwh,
                     )
+                    // Keyed on the minute as well, so a charge that ended while no sample came in stops saying "charging".
+                    val sessionsMinute = (nowMillis ?: rememberNowMillis()) / MILLIS_PER_MINUTE
+                    ChargeSessionsCard(
+                        remember(logs, vehicleCharges, sessionsMinute) {
+                            withLiveTail(vehicleCharges) { from ->
+                                chargeSessions(logs.battery.fromTime(from) { it.timestampMillis }, sessionsMinute * MILLIS_PER_MINUTE)
+                            }
+                        },
+                    )
                     rest?.let { DrainStatsCard(it, current) }
                     health?.let { BatteryHealthCard(it) }
                 }
@@ -1147,3 +1156,4 @@ private class VehicleLogs(
 
 /** How often the whole-history figures follow new readings: about every third reading of an awake car. */
 private const val FIGURES_INTERVAL_MILLIS = 30_000L
+private const val MILLIS_PER_MINUTE = 60_000L
