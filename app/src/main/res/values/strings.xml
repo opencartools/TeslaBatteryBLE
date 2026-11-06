@@ -203,10 +203,12 @@
     <string name="trip_arrival">Arrive with %1$d%%</string>
     <string name="drive_efficiency_cycle">Change the efficiency unit</string>
     <string name="charge_session_average_label">average</string>
+    <string name="charge_session_cost_label">%1$skWh added</string>
     <string name="charge_session_duration_label">duration</string>
     <string name="charge_session_energy_label">added</string>
     <string name="charge_session_miles_added">%1$s of rated range added</string>
     <string name="charge_session_option">%1$s · %2$skWh</string>
+    <string name="charge_session_option_cost">%1$s · %2$s</string>
     <string name="charge_session_option_live">Charging · %1$s</string>
     <string name="charge_session_percent_range">%1$d%% to %2$d%%</string>
     <string name="charge_session_selector_description">Choose a charging session</string>

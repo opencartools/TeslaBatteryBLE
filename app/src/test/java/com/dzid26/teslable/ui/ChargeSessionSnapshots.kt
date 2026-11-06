@@ -2,8 +2,10 @@
 
 package com.dzid26.teslable.ui
 
+import androidx.compose.runtime.CompositionLocalProvider
 import app.cash.paparazzi.Paparazzi
 import com.dzid26.teslable.core.health.ChargeSession
+import com.dzid26.teslable.core.health.PriceChange
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -34,10 +36,22 @@ class ChargeSessionSnapshots {
     fun chargeSessionsCardNoEnergy() =
         snap("charge-sessions-card_no-energy", listOf(finished.copy(energyAddedKwh = null, milesAddedRated = null)))
 
+    @Test
+    fun chargeSessionsCardNoPrice() = snap("charge-sessions-card_no-price", listOf(earlier, finished), price = null)
+
+    // A home price set before both sessions, so each one shows its cost.
     private fun snap(
         name: String,
         sessions: List<ChargeSession>,
-    ) = paparazzi.snapCard(name) { ChargeSessionsCard(sessions) }
+        price: Float? = 0.15f,
+    ) = paparazzi.snapCard(name) {
+        CompositionLocalProvider(
+            LocalPriceChanges provides listOfNotNull(price?.let { PriceChange(0L, it) }),
+            LocalCurrencyCode provides "USD",
+        ) {
+            ChargeSessionsCard(sessions)
+        }
+    }
 
     private companion object {
         const val NOW = 1_760_000_000_000L
