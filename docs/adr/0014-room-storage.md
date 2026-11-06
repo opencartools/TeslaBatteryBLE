@@ -186,8 +186,10 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   sessions core cuts (`chargeSessions`, `driveSessions`) from `derived.db`'s own samples, so they outlive the raw
   records. The sample builder lowers a per-car `session_dirty` mark to the oldest sample it stored, in the same
   transaction; `SessionBuilder` then re-cuts (`recutSessions`) from the start of the newest session that starts
-  before it, however old, since a charge joins across a hole in the reads of any length, and replaces every stored
-  session from there. Levels are stored
+  before it, however old, since a charge joins across a hole in the reads of any length, unless a later sample
+  already closed that session (a disconnect, a long pause, a parked reading well after a drive), and then from that
+  sample; it replaces every stored session from there. A build so reads only back to where a session could still
+  grow. Levels are stored
   as the car reported them, so a reader applies the current full-range scale. The screen joins the stored sessions
   with a live cut of the readings since the newest stored start (`withLiveTail`); the health card reads them that
   way. Replayed on R's logs with builds every 5min, 1h and 10h, the stored sessions equal a cut of all the samples,

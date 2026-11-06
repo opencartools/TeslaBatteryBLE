@@ -207,7 +207,7 @@ private const val MIN_AVERAGE_MILLIS = 5 * 60_000L
 private const val MILLIS_PER_HOUR = 3_600_000f
 
 /** A pause (Stopped or NoPower) shorter than this does not end a session. */
-private const val MAX_PAUSE_MILLIS = 10 * 60_000L
+internal const val MAX_PAUSE_MILLIS = 10 * 60_000L
 
 /** When each charge that had begun by [byMillis] began, oldest first: the time of its first charging sample. */
 fun chargeStartsBy(
