@@ -2,7 +2,10 @@
 
 package com.dzid26.teslable.ui
 
-/** One point on the chart: distance in the display unit, battery percent, regeneration, trip and when it was read. */
+/**
+ * One point on the chart: distance in the display unit, battery percent, regeneration, trip, when it was read and the
+ * rated range in miles, whose changes decide the green dots and the gradient.
+ */
 internal class Plotted(
     val distance: Double,
     val value: Float,
@@ -13,11 +16,32 @@ internal class Plotted(
 )
 
 /**
- * The pairs of adjacent readings of one trip that at least one regenerates, with the rated range not lower at the second: the
- * regeneration held the range up between them.
+ * The pairs of adjacent readings of one trip that the car drove between with the rated range not falling, and at least one
+ * of them is a green dot ([gainingDots]): the regeneration held the charge up between them.
  */
-internal fun regenHolds(points: List<Plotted>): List<List<Plotted>> =
-    points.zipWithNext().filter { (a, b) -> a.trip == b.trip && (a.regenerating || b.regenerating) && b.holds(a) }.map { it.toList() }
+internal fun gainBands(points: List<Plotted>): List<List<Plotted>> {
+    val green = gainingDots(points)
+    return points
+        .zipWithNext()
+        .withIndex()
+        .filter { (i, pair) ->
+            val (a, b) = pair
+            a.trip == b.trip && b.distance > a.distance && b.ratedMiles.notBelow(a.ratedMiles) && (green[i] || green[i + 1])
+        }.map { it.value.toList() }
+}
 
-/** True when both readings carry a rated range and this one is not lower than [earlier]. */
-private fun Plotted.holds(earlier: Plotted): Boolean = ratedMiles != null && earlier.ratedMiles != null && ratedMiles >= earlier.ratedMiles
+/**
+ * For each reading, whether its dot is green: it regenerates, or the car moved and the rated range rose from the previous
+ * reading of the same trip. A rise while standing is the estimate settling, not regeneration.
+ */
+internal fun gainingDots(points: List<Plotted>): List<Boolean> =
+    points.mapIndexed { i, p ->
+        val previous = points.getOrNull(i - 1)?.takeIf { it.trip == p.trip }
+        p.regenerating || (previous != null && p.distance > previous.distance && p.ratedMiles.above(previous.ratedMiles))
+    }
+
+/** True when both ranges are known and this one is above [earlier]. */
+private fun Float?.above(earlier: Float?): Boolean = this != null && earlier != null && this > earlier
+
+/** True when both ranges are known and this one is not below [earlier]. */
+private fun Float?.notBelow(earlier: Float?): Boolean = this != null && earlier != null && this >= earlier

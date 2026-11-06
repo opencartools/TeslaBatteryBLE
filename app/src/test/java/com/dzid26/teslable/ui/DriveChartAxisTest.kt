@@ -43,28 +43,50 @@ class DriveChartAxisTest {
     }
 
     @Test
-    fun aGradientMarksARegeneratingReadingThatHeldTheRatedRange() {
+    fun aGainBandJoinsMovingReadingsWithAGreenDotAndNoFallingRange() {
         fun at(
             i: Int,
             miles: Float?,
-            regen: Boolean = true,
+            regen: Boolean = false,
             trip: Int = 0,
-        ) = Plotted(i * 10.0, 60f, regenerating = regen, trip = trip, timestampMillis = 0, ratedMiles = miles)
+            distance: Double = i * 10.0,
+        ) = Plotted(distance, 60f, regenerating = regen, trip = trip, timestampMillis = 0, ratedMiles = miles)
         val points =
             listOf(
-                at(0, 200f),
-                at(1, 199f), // drops
-                at(2, 199f), // holds
-                at(3, 199.5f), // rises
-                at(4, 199.5f, regen = false), // held, one end regenerates
-                at(5, 199.5f), // held, one end regenerates
-                at(6, null), // no rated range
-                at(7, 205f),
-                at(8, 205f, trip = 1), // new trip
+                at(0, 60f),
+                at(1, 59f, regen = true), // regenerates, but fell
+                at(2, 59f), // level after a green dot
+                at(3, 59.5f), // rises: green
+                at(4, 59.5f), // level after a green dot
+                at(5, 59.5f), // level, neither end green
+                at(6, 59.6f, distance = 50.0), // rises while standing
+                at(7, 61f, trip = 1), // new trip
             )
         assertEquals(
-            listOf(listOf(points[1], points[2]), listOf(points[2], points[3]), listOf(points[3], points[4]), listOf(points[4], points[5])),
-            regenHolds(points),
+            listOf(listOf(points[1], points[2]), listOf(points[2], points[3]), listOf(points[3], points[4])),
+            gainBands(points),
         )
+    }
+
+    @Test
+    fun aDotIsGreenWhenRegeneratingOrWhenTheRatedRangeRoseWhileMovingWithinTheTrip() {
+        fun at(
+            i: Int,
+            miles: Float?,
+            regen: Boolean = false,
+            trip: Int = 0,
+            distance: Double = i * 10.0,
+        ) = Plotted(distance, 60f, regenerating = regen, trip = trip, timestampMillis = 0, ratedMiles = miles)
+        val points =
+            listOf(
+                at(0, 60f),
+                at(1, 59f), // drops
+                at(2, 59.5f), // rises
+                at(3, 59.5f), // level
+                at(4, 58f, regen = true), // regenerates
+                at(5, 70f, trip = 1), // first of a new trip
+                at(6, 71f, trip = 1, distance = 50.0), // rises while standing
+            )
+        assertEquals(listOf(false, false, true, false, true, false, false), gainingDots(points))
     }
 }
