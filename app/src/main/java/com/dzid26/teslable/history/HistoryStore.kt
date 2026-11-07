@@ -89,6 +89,7 @@ class HistoryStore internal constructor(
     private val scope: CoroutineScope,
     private val derivedProvider: Lazy<DerivedDatabase?> = lazy { null },
     private val ownerProvider: Lazy<OwnerDatabase?> = lazy { null },
+    private val log: (String) -> Unit = {},
 ) {
     constructor(context: Context) : this(
         File(context.filesDir, HISTORY_DIR_NAME),
@@ -96,6 +97,7 @@ class HistoryStore internal constructor(
         CoroutineScope(SupervisorJob() + Dispatchers.IO),
         lazy { DerivedDatabase.open(context) },
         lazy { OwnerDatabase.open(context) },
+        defaultLog(),
     )
 
     private val mutex = Mutex()
@@ -227,22 +229,31 @@ class HistoryStore internal constructor(
                 runCatching { sessionBuilder?.build() }
                 loadSessions()
                 // A re-cut can move a session by a reading; the owner's price follows it.
-                runCatching { chargePrices?.follow(_chargeSessions.value) }
+                runCatching { chargePrices?.follow(_chargeSessions.value) }.onFailure { log("charge prices: follow failed: $it") }
             }.isSuccess
         }
 
-    /** Sets the owner's [price] in [currencyCode] for [session] in `owner.db`. */
+    /**
+     * Sets the owner's [price] for [session] in `owner.db`, in [currencyCode]: an ISO 4217 code resolved now
+     * (`resolvedCurrencyCode`), never left to the locale, so a backup restored elsewhere keeps its meaning.
+     */
     fun setChargePrice(
         session: ChargeSession,
         price: SessionPrice,
-        currencyCode: String?,
+        currencyCode: String,
     ) {
-        scope.launch { buildMutex.withLock { runCatching { chargePrices?.set(session, price, currencyCode) } } }
+        scope.launch {
+            buildMutex.withLock {
+                runCatching { chargePrices?.set(session, price, currencyCode) }.onFailure { log("charge prices: set failed: $it") }
+            }
+        }
     }
 
     /** Takes [session] back to its automatic price. */
     fun clearChargePrice(session: ChargeSession) {
-        scope.launch { buildMutex.withLock { runCatching { chargePrices?.clear(session) } } }
+        scope.launch {
+            buildMutex.withLock { runCatching { chargePrices?.clear(session) }.onFailure { log("charge prices: clear failed: $it") } }
+        }
     }
 
     /** Publishes the stored sessions. */

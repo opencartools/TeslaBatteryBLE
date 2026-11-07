@@ -48,7 +48,7 @@ class ChargePriceStoreTest {
     fun `clearing takes the session back to the automatic price`() {
         val store = ChargePriceStore(db, overrides)
         val charge = session(HOUR, 3 * HOUR)
-        store.set(charge, SessionPrice.PerKwh(0.30f), null)
+        store.set(charge, SessionPrice.PerKwh(0.30f), "EUR")
 
         store.clear(charge)
 
@@ -60,7 +60,7 @@ class ChargePriceStoreTest {
         val store = ChargePriceStore(db, overrides)
         store.set(session(HOUR, 3 * HOUR), SessionPrice.PerKwh(0.30f), "EUR")
         store.set(session(10 * HOUR, 11 * HOUR), SessionPrice.Total(5f), "EUR")
-        store.set(session(HOUR, 2 * HOUR, car = "carB"), SessionPrice.Total(9f), null)
+        store.set(session(HOUR, 2 * HOUR, car = "carB"), SessionPrice.Total(9f), "PLN")
 
         store.follow(listOf(session(HOUR + MINUTE, 4 * HOUR), session(HOUR, 2 * HOUR, car = "carB")))
 
@@ -68,7 +68,7 @@ class ChargePriceStoreTest {
             setOf(
                 ChargePriceOverride("carA", HOUR + MINUTE, 4 * HOUR, SessionPrice.PerKwh(0.30f), "EUR"),
                 ChargePriceOverride("carA", 10 * HOUR, 11 * HOUR, SessionPrice.Total(5f), "EUR"),
-                ChargePriceOverride("carB", HOUR, 2 * HOUR, SessionPrice.Total(9f), null),
+                ChargePriceOverride("carB", HOUR, 2 * HOUR, SessionPrice.Total(9f), "PLN"),
             ),
             overrides.value.toSet(),
         )

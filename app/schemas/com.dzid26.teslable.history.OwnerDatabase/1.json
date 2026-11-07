@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "fe723395012bfe2e766a533bc0ba3ff2",
+    "identityHash": "da1491b633f82983e5614bc3ad0c36c5",
     "entities": [
       {
         "tableName": "charge_price_overrides",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `startTime` INTEGER NOT NULL, `endTime` INTEGER NOT NULL, `kind` TEXT NOT NULL, `value` REAL NOT NULL, `currency` TEXT, PRIMARY KEY(`vehicleId`, `startTime`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `startTime` INTEGER NOT NULL, `endTime` INTEGER NOT NULL, `kind` TEXT NOT NULL, `value` REAL NOT NULL, `currency` TEXT NOT NULL, PRIMARY KEY(`vehicleId`, `startTime`))",
         "fields": [
           {
             "fieldPath": "vehicleId",
@@ -41,7 +41,8 @@
           {
             "fieldPath": "currency",
             "columnName": "currency",
-            "affinity": "TEXT"
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -55,7 +56,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fe723395012bfe2e766a533bc0ba3ff2')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'da1491b633f82983e5614bc3ad0c36c5')"
     ]
   }
 }

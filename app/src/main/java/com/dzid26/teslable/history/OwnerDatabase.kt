@@ -18,7 +18,7 @@ import com.dzid26.teslable.core.health.SessionPrice
 
 /**
  * The price the owner set for one charge session ([ChargePriceOverride]): [kind] is `PerKwh` or `Total`, [value]
- * the price per kWh or the total, in [currency] (an ISO 4217 code; null for the locale's). Keyed by car and the
+ * the price per kWh or the total, in [currency] (an ISO 4217 code, resolved when it was set). Keyed by car and the
  * session's start as last cut; readers match a row to a session by overlap.
  */
 @Entity(tableName = "charge_price_overrides", primaryKeys = ["vehicleId", "startTime"])
@@ -28,7 +28,7 @@ internal data class ChargePriceOverrideRow(
     val endTime: Long,
     val kind: String,
     val value: Float,
-    val currency: String?,
+    val currency: String,
 )
 
 @Dao

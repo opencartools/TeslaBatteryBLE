@@ -61,7 +61,9 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   - `owner.db` (backed up, journal mode TRUNCATE so the backed-up file is whole): what the owner entered,
     the only data that cannot be rebuilt. Schema export is binding from the first normal release. It holds
     only the owner's edits, such as a charge session's price, matched to the derived session by time overlap
-    because a re-cut can shift a session's start; the automatic price is worked out when it is read.
+    because a re-cut can shift a session's start; the automatic price is worked out when it is read. The readings
+    are not backed up, so on a new phone the restored edits wait, kept, until the logs are imported; restored
+    costs do not show before that. A currency is stored as its code, never as "the locale's".
   - `derived.db` (not backed up, versioned): the thinned long-term samples the charts and stats read, and later
     session and day summaries per ADR-0012, stored as plain columns. Rebuildable from the raw records only while they cover the period; once raw ages out, the
     summaries are the only copy.

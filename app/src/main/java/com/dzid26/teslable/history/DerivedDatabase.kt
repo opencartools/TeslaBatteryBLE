@@ -35,6 +35,7 @@ internal data class BatterySampleRow(
     val chargerVoltage: Int?,
     val chargeRateMph: Float?,
     val readAt: Long?,
+    val fastChargerPresent: Boolean? = null,
 )
 
 /** One kept [com.dzid26.teslable.core.history.DriveSample]; [shiftState] is the `ShiftStateKind` name. */

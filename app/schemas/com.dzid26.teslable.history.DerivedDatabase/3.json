@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "d99f81f46ddad670292522f21c04ed65",
+    "identityHash": "b948c350ec146c20c625cce1c9e68a53",
     "entities": [
       {
         "tableName": "battery_samples",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `time` INTEGER NOT NULL, `level` INTEGER NOT NULL, `usableLevel` INTEGER NOT NULL, `chargingState` TEXT, `chargeLimit` INTEGER, `ratedRangeMiles` REAL, `chargeEnergyAdded` REAL, `chargeMilesAddedRated` REAL, `chargerVoltage` INTEGER, `chargeRateMph` REAL, `readAt` INTEGER, PRIMARY KEY(`vehicleId`, `time`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `time` INTEGER NOT NULL, `level` INTEGER NOT NULL, `usableLevel` INTEGER NOT NULL, `chargingState` TEXT, `chargeLimit` INTEGER, `ratedRangeMiles` REAL, `chargeEnergyAdded` REAL, `chargeMilesAddedRated` REAL, `chargerVoltage` INTEGER, `chargeRateMph` REAL, `readAt` INTEGER, `fastChargerPresent` INTEGER, PRIMARY KEY(`vehicleId`, `time`))",
         "fields": [
           {
             "fieldPath": "vehicleId",
@@ -70,6 +70,11 @@
           {
             "fieldPath": "readAt",
             "columnName": "readAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fastChargerPresent",
+            "columnName": "fastChargerPresent",
             "affinity": "INTEGER"
           }
         ],
@@ -398,7 +403,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd99f81f46ddad670292522f21c04ed65')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b948c350ec146c20c625cce1c9e68a53')"
     ]
   }
 }

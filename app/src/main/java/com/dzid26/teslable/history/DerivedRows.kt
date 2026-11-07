@@ -27,6 +27,7 @@ internal fun BatterySample.toRow(): BatterySampleRow =
         chargerVoltage = chargerVoltage,
         chargeRateMph = chargeRateMph,
         readAt = readAtMillis,
+        fastChargerPresent = fastChargerPresent,
     )
 
 internal fun BatterySampleRow.toSample(): BatterySample =
@@ -43,6 +44,7 @@ internal fun BatterySampleRow.toSample(): BatterySample =
         chargeRateMph = chargeRateMph,
         usableLevel = usableLevel,
         readAtMillis = readAt,
+        fastChargerPresent = fastChargerPresent,
     )
 
 internal fun DriveSample.toRow(): DriveSampleRow =

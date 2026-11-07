@@ -136,18 +136,21 @@ private fun List<BatterySample>.toSession(): ChargeSession =
     ).let { it.copy(chargerKind = chargerKindOf(this, it.averageKw)) }
 
 /**
- * How a run of charging samples charged. The car reports the AC supply voltage of its own charger, so a run that
- * read mains voltage was AC; a DC fast charger bypasses that charger, which then reads a few volts. A run with no
- * voltage at all is told by its [averageKw]: faster than any AC supply is DC; anything else is not known.
+ * How a run of charging samples charged, by the car's own `fast_charger_present`: DC when any sample had a fast
+ * charger, AC when the samples say it had none. Samples without the flag (stored before it was kept) are told by
+ * [averageKw], since faster than any AC supply is DC, then by an AC supply voltage; anything else is not known.
+ * Voltage alone never says DC: some firmwares report the DC bus voltage while fast charging.
  */
 internal fun chargerKindOf(
     run: List<BatterySample>,
     averageKw: Float?,
 ): ChargerKind? {
-    val volts = run.mapNotNull { it.chargerVoltage }.maxOrNull()
+    val flags = run.mapNotNull { it.fastChargerPresent }
     return when {
-        volts != null -> if (volts >= AC_MIN_VOLTS) ChargerKind.AC else ChargerKind.DC
+        flags.any { it } -> ChargerKind.DC
+        flags.isNotEmpty() -> ChargerKind.AC
         (averageKw ?: 0f) > AC_MAX_KW -> ChargerKind.DC
+        run.any { (it.chargerVoltage ?: 0) >= AC_MIN_VOLTS } -> ChargerKind.AC
         else -> null
     }
 }

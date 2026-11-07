@@ -33,7 +33,7 @@ internal class ChargePriceStore(
     fun set(
         session: ChargeSession,
         price: SessionPrice,
-        currencyCode: String?,
+        currencyCode: String,
     ) {
         overrideOf(session)?.let { dao.delete(it.vehicleId, it.startMillis) }
         dao.put(ChargePriceOverride(session.vehicleId, session.startMillis, session.endMillis, price, currencyCode).toRow())

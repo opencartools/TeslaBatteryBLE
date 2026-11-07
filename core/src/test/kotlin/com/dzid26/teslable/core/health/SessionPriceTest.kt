@@ -56,6 +56,22 @@ class SessionPriceTest {
     }
 
     @Test
+    fun `each session takes its own edit, else the home price in effect for it`() {
+        val sessions = listOf(session(0, 60), session(600, 700), session(1200, 1300, kind = ChargerKind.DC))
+        val homeChanges = listOf(PriceChange(-10 * MINUTE, 0.2f), PriceChange(650 * MINUTE, 0.4f))
+
+        assertEquals(
+            listOf(SessionPrice.PerKwh(0.2f), SessionPrice.Total(9f), null),
+            sessionPrices(
+                sessions,
+                listOf(ChargePriceOverride("car", 600 * MINUTE, 700 * MINUTE, SessionPrice.Total(9f), "EUR")),
+                homeChanges,
+            ),
+        )
+        assertEquals(listOf(SessionPrice.PerKwh(0.2f), SessionPrice.PerKwh(0.4f), null), sessionPrices(sessions, emptyList(), homeChanges))
+    }
+
+    @Test
     fun `a total is the cost whatever the energy, a per kWh price needs it`() {
         assertEquals(12f, SessionPrice.Total(12f).cost(null))
         assertEquals(8f, SessionPrice.PerKwh(0.2f).cost(40f))
@@ -63,17 +79,42 @@ class SessionPriceTest {
     }
 
     @Test
-    fun `the charger kind comes from the supply voltage, or from a power no AC supply reaches`() {
+    fun `the charger kind comes from the car's fast charger flag, else from a power no AC supply reaches`() {
         fun charging(
             minutes: Long,
             volts: Int?,
             energy: Float,
-        ) = BatterySample(minutes * MINUTE, 50, ChargingStateKind.Charging, 80, chargeEnergyAdded = energy, chargerVoltage = volts)
+            fast: Boolean? = null,
+        ) = BatterySample(
+            minutes * MINUTE,
+            50,
+            ChargingStateKind.Charging,
+            80,
+            chargeEnergyAdded = energy,
+            chargerVoltage = volts,
+            fastChargerPresent = fast,
+        )
 
+        assertEquals(
+            ChargerKind.AC,
+            chargeSessions(listOf(charging(0, 230, 0f, false), charging(60, 231, 11f, false))).single().chargerKind,
+        )
+        // Some firmwares report the DC bus voltage while fast charging: the flag wins over it.
+        assertEquals(ChargerKind.DC, chargeSessions(listOf(charging(0, 400, 0f, true), charging(30, 390, 40f, true))).single().chargerKind)
+        assertEquals(ChargerKind.DC, chargeSessions(listOf(charging(0, 400, 0f), charging(30, 390, 40f))).single().chargerKind)
         assertEquals(ChargerKind.AC, chargeSessions(listOf(charging(0, 230, 0f), charging(60, 231, 11f))).single().chargerKind)
-        assertEquals(ChargerKind.DC, chargeSessions(listOf(charging(0, 2, 0f), charging(30, 3, 40f))).single().chargerKind)
-        assertEquals(ChargerKind.DC, chargeSessions(listOf(charging(0, null, 0f), charging(30, null, 40f))).single().chargerKind)
+        assertNull(chargeSessions(listOf(charging(0, 2, 0f), charging(60, 3, 7f))).single().chargerKind)
         assertNull(chargeSessions(listOf(charging(0, null, 0f), charging(60, null, 7f))).single().chargerKind)
+    }
+
+    @Test
+    fun `two charges minutes apart each keep their own override`() {
+        val sessions = listOf(session(0, 60), session(63, 200))
+        val overrides = listOf(override(0, 60, 0.3f), override(63, 200, 0.5f))
+
+        assertEquals(overrides, matchOverrides(sessions, overrides))
+        // The first session overlaps the second override too, through the slack; the better pair still wins.
+        assertEquals(listOf(null, overrides[1]), matchOverrides(sessions, listOf(overrides[1])))
     }
 
     private companion object {
