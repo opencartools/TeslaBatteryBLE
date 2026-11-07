@@ -52,13 +52,6 @@ internal class ChargePriceStore(
         load()
     }
 
-    /** Takes [session] back to the automatic price: the next build freezes it again, at the price of its time. */
-    fun clear(session: ChargeSession) {
-        storedFor(session)?.let { dao.replace(listOf(it.toRow()), emptyList()) }
-        followed = null
-        load()
-    }
-
     /**
      * Brings the stored prices in step with a build's [sessions] (every car's, by car and oldest first): see
      * [reconcilePrices]. Only what changed is written.

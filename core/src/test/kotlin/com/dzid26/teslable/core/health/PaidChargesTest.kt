@@ -4,6 +4,8 @@ package com.dzid26.teslable.core.health
 import com.dzid26.teslable.protocol.LastPaidCharge
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class PaidChargesTest {
     private fun session(
@@ -56,7 +58,17 @@ class PaidChargesTest {
     fun `the screens show the car's cost before a build stores it`() {
         val shown = sessionPrices(listOf(session(60, 66)), emptyList(), emptyList(), listOf(paid)).single()
 
-        assertEquals(ChargeSessionPrice(SessionPrice.Total(4.22f), "EUR", byOwner = false, place = null), shown)
+        assertEquals(ChargeSessionPrice(SessionPrice.Total(4.22f), "EUR", byOwner = false, place = null, fromCar = true), shown)
+    }
+
+    @Test
+    fun `a stored car cost still shows as the car's, a home price and an edit do not`() {
+        val sessions = listOf(session(60, 66))
+        assertTrue(sessionPrices(sessions, listOf(supercharged), emptyList()).single().fromCar)
+        val home = reconcilePrices(listOf(session(60, 66, kind = null)), emptyList(), defaults)
+        assertFalse(sessionPrices(listOf(session(60, 66, kind = null)), home, emptyList()).single().fromCar)
+        val edited = supercharged.copy(byOwner = true)
+        assertFalse(sessionPrices(sessions, listOf(edited), emptyList(), listOf(paid)).single().fromCar)
     }
 
     private companion object {

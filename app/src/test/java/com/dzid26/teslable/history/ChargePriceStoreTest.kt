@@ -52,22 +52,6 @@ class ChargePriceStoreTest {
     }
 
     @Test
-    fun `clearing an edit freezes the automatic price again at the next build`() {
-        val store = ChargePriceStore(db, prices)
-        val first = session(HOUR, 3 * HOUR)
-        val sessions = listOf(first, session(10 * HOUR, 11 * HOUR))
-        store.set(first, null, "EUR", null)
-
-        store.clear(first)
-        store.follow(sessions, defaults)
-
-        assertEquals(
-            listOf(StoredChargePrice("carA", HOUR, 3 * HOUR, SessionPrice.PerKwh(0.2f), "PLN", byOwner = false)),
-            prices.value,
-        )
-    }
-
-    @Test
     fun `a re-cut moves stored prices, keeps one with no session and leaves other cars alone`() {
         val store = ChargePriceStore(db, prices)
         store.set(session(HOUR, 3 * HOUR), SessionPrice.PerKwh(0.30f), "EUR", ChargePlace.WORK)
