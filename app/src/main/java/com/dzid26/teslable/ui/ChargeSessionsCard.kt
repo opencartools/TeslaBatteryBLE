@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -138,42 +139,43 @@ private fun ChargeSessionStats(
             session.averageKw?.let { TripStat("${formatKw(it)}kW", stringResource(R.string.charge_session_average_label)) }
             compactDuration(session.durationMillis)?.let { TripStat(it, stringResource(R.string.charge_session_duration_label)) }
             // Last, like the trip card: its cost (or energy) closes the row.
-            // Edit price sits under the price it changes.
-            Column {
-                val kwh = session.energyAddedKwh?.let(::formatKwh)
-                when {
-                    cost != null && priced.price is SessionPrice.Total ->
-                        TripStat(
-                            formatMoney(cost, currencyCode),
-                            kwh?.let { stringResource(R.string.charge_session_total_kwh_label, it) }
-                                ?: stringResource(R.string.charge_session_total_label),
-                        )
-                    cost != null && kwh != null ->
-                        TripStat(
-                            formatMoney(cost, currencyCode),
-                            stringResource(R.string.charge_session_cost_label, kwh),
-                        )
-                    kwh != null -> TripStat("${kwh}kWh", stringResource(R.string.charge_session_energy_label))
-                }
-                onEdit?.let {
-                    TextButton(
-                        onClick = it,
-                        contentPadding = PaddingValues(0.dp),
-                    ) { Text(stringResource(R.string.charge_session_edit_price)) }
-                }
+            val kwh = session.energyAddedKwh?.let(::formatKwh)
+            when {
+                cost != null && priced.price is SessionPrice.Total ->
+                    TripStat(
+                        formatMoney(cost, currencyCode),
+                        kwh?.let { stringResource(R.string.charge_session_total_kwh_label, it) }
+                            ?: stringResource(R.string.charge_session_total_label),
+                    )
+                cost != null && kwh != null ->
+                    TripStat(
+                        formatMoney(cost, currencyCode),
+                        stringResource(R.string.charge_session_cost_label, kwh),
+                    )
+                kwh != null -> TripStat("${kwh}kWh", stringResource(R.string.charge_session_energy_label))
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text(
-            stringResource(R.string.charge_session_percent_range, session.startPercent.roundToInt(), session.endPercent.roundToInt()),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        session.milesAddedRated?.let {
-            Text(
-                stringResource(R.string.charge_session_miles_added, unit.format(it)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        // Edit price shares the line of the level range, at the right.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(
+                        R.string.charge_session_percent_range,
+                        session.startPercent.roundToInt(),
+                        session.endPercent.roundToInt(),
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                session.milesAddedRated?.let {
+                    Text(
+                        stringResource(R.string.charge_session_miles_added, unit.format(it)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            onEdit?.let { TextButton(onClick = it) { Text(stringResource(R.string.charge_session_edit_price)) } }
         }
     }
 }
