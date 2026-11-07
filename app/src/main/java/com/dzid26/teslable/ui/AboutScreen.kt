@@ -97,6 +97,15 @@ private fun AppCard() {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (BuildConfig.PR_NUMBER.isNotEmpty()) {
+                val context = LocalContext.current
+                Text(
+                    text = stringResource(R.string.about_pr_build, BuildConfig.PR_NUMBER),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { openUrl(context, "$SOURCE_URL/pull/${BuildConfig.PR_NUMBER}") },
+                )
+            }
             Spacer(Modifier.height(12.dp))
             Text(
                 text = stringResource(R.string.about_description),
