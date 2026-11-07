@@ -43,13 +43,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
+import com.dzid26.teslable.core.health.ChargePlace
 import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.health.ChargeSessionPrice
 import com.dzid26.teslable.core.health.ChargerKind
+import com.dzid26.teslable.core.health.PriceChange
 import com.dzid26.teslable.core.health.SessionPrice
 import com.dzid26.teslable.core.health.cost
 import com.dzid26.teslable.core.health.sessionPrices
 import com.dzid26.teslable.core.history.compactDuration
+import com.dzid26.teslable.protocol.LastPaidCharge
 import com.dzid26.teslable.resolvedCurrencyCode
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -74,10 +77,11 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
     val priceChanges = LocalPriceChanges.current
     val pricing = LocalChargePricing.current
     val stored = pricing?.stored.orEmpty()
+    val paid = pricing?.paid?.get(sessions.first().vehicleId).orEmpty()
     // Each session's price, owner's edit first; an edited one stays in the currency it was set in.
     val priced =
-        remember(sessions, priceChanges, stored) {
-            sessions.zip(sessionPrices(sessions, stored, priceChanges)) { session, price -> PricedSession(session, price) }
+        remember(sessions, priceChanges, stored, paid) {
+            sessions.zip(sessionPrices(sessions, stored, priceChanges, paid)) { session, price -> PricedSession(session, price) }
         }
     val currencyCode = priced[selectedIndex].currencyCode ?: settingsCurrency
     // Saved, so the dialog stays open when the phone turns.
@@ -99,11 +103,10 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
         EditPriceDialog(
             picked = picked,
             currencyCode = picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency),
-            // A fast charge is never at home: no home price to offer there.
-            homePerKwh = priceChanges.lastOrNull()?.pricePerKwh?.takeIf { session.chargerKind != ChargerKind.DC },
-            onSave = { price ->
+            suggestion = priceSuggestion(session, priceChanges, paid, settingsCurrency),
+            onSave = { price, currency ->
                 editing = false
-                pricing.onSet(session, price, picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency), null)
+                pricing.onSet(session, price, currency, keptPlace(picked))
             },
             onDismiss = { editing = false },
         )
@@ -185,14 +188,14 @@ internal fun parseEdit(text: String): Float? =
 
 /**
  * Sets a session's price per kWh or its total. Each has its own box, filled from the session's current price: the
- * total box holds its cost. [homePerKwh] (the home price set now) fills the per-kWh box from a button that names it ("Home $0.30").
+ * total box holds its cost. [homePerKwh] ([suggestion]) fills the per-kWh box from a button that names it ("Home $0.30").
  */
 @Composable
 private fun EditPriceDialog(
     picked: PricedSession,
     currencyCode: String,
-    homePerKwh: Float?,
-    onSave: (SessionPrice) -> Unit,
+    suggestion: PriceSuggestion?,
+    onSave: (SessionPrice, String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val current = picked.price
@@ -201,6 +204,8 @@ private fun EditPriceDialog(
     var perKwhText by rememberSaveable {
         mutableStateOf(editText((current as? SessionPrice.PerKwh)?.pricePerKwh ?: kwh?.let { picked.cost?.div(it) }))
     }
+    // A suggestion in another currency (the car bills in its own) switches the edit to it.
+    var currency by rememberSaveable { mutableStateOf(currencyCode) }
     var totalText by rememberSaveable { mutableStateOf(editText(picked.cost)) }
     val value = parseEdit(if (total) totalText else perKwhText)
     AlertDialog(
@@ -228,7 +233,7 @@ private fun EditPriceDialog(
                     onValueChange = { if (total) totalText = it else perKwhText = it },
                     singleLine = true,
                     isError = value == null && (if (total) totalText else perKwhText).isNotBlank(),
-                    suffix = { Text(if (total) currencyCode else "$currencyCode/kWh") },
+                    suffix = { Text(if (total) currency else "$currency/kWh") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
@@ -236,16 +241,17 @@ private fun EditPriceDialog(
         confirmButton = {
             TextButton(
                 enabled = value != null,
-                onClick = { value?.let { onSave(if (total) SessionPrice.Total(it) else SessionPrice.PerKwh(it)) } },
+                onClick = { value?.let { onSave(if (total) SessionPrice.Total(it) else SessionPrice.PerKwh(it), currency) } },
             ) { Text(stringResource(R.string.charge_session_price_save)) }
         },
         dismissButton = {
             Row {
-                homePerKwh?.let { latest ->
+                suggestion?.let {
                     TextButton(onClick = {
                         total = false
-                        perKwhText = editText(latest)
-                    }) { Text(stringResource(R.string.charge_session_price_use_home, formatMoney(latest, currencyCode))) }
+                        currency = it.currencyCode
+                        perKwhText = editText(it.pricePerKwh)
+                    }) { Text(it.label()) }
                 }
                 TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
             }
@@ -254,6 +260,43 @@ private fun EditPriceDialog(
 }
 
 private const val EDIT_DECIMALS = 4
+
+/** A per-kWh price the dialog offers to fill in, named by where it comes from. */
+private class PriceSuggestion(
+    val supercharger: Boolean,
+    val pricePerKwh: Float,
+    val currencyCode: String,
+) {
+    @Composable
+    fun label(): String =
+        stringResource(
+            if (supercharger) R.string.charge_session_price_use_supercharger else R.string.charge_session_price_use_home,
+            formatMoney(pricePerKwh, currencyCode),
+        )
+}
+
+/**
+ * What to offer for [session]: the price per kWh of the car's last paid charge for a fast charge (a fast charger is
+ * never at home), else the home price set now.
+ */
+private fun priceSuggestion(
+    session: ChargeSession,
+    homeChanges: List<PriceChange>,
+    paid: List<LastPaidCharge>,
+    settingsCurrency: String?,
+): PriceSuggestion? =
+    if (session.chargerKind == ChargerKind.DC) {
+        paid.lastOrNull { it.pricePerKwh != null }?.let { charge ->
+            charge.pricePerKwh?.let { PriceSuggestion(true, it, charge.currencyCode) }
+        }
+    } else {
+        homeChanges.lastOrNull()?.pricePerKwh?.let { PriceSuggestion(false, it, resolvedCurrencyCode(settingsCurrency)) }
+    }
+
+/** The place an edit keeps: the stored one, or Supercharger for a price the car set (it stores none for those). */
+private fun keptPlace(picked: PricedSession): String? =
+    picked.place
+        ?: ChargePlace.SUPERCHARGER.takeIf { picked.session.chargerKind == ChargerKind.DC && !picked.edited && picked.price != null }
 
 /** The chosen session as a button; a tap lists every session (with its cost, or null) by start time and cost, newest first. */
 @Composable

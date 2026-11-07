@@ -81,10 +81,12 @@ class MainActivity : ComponentActivity() {
                 val trips by controller.trips.collectAsState()
                 val chargeSessions by controller.chargeSessions.collectAsState()
                 val chargePrices by controller.chargePriceEditor.chargePrices.collectAsState()
+                val paidCharges by controller.chargePriceEditor.paidCharges.collectAsState()
                 val chargePricing =
-                    remember(chargePrices) {
+                    remember(chargePrices, paidCharges) {
                         ChargePricing(
                             chargePrices,
+                            paidCharges,
                             controller.chargePriceEditor::setChargePrice,
                         )
                     }

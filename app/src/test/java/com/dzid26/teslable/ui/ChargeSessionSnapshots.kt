@@ -50,17 +50,19 @@ class ChargeSessionSnapshots {
             listOf(earlier, finished),
             pricing =
                 ChargePricing(
-                    listOf(
-                        StoredChargePrice(
-                            "",
-                            finished.startMillis,
-                            finished.endMillis,
-                            SessionPrice.Total(18.4f),
-                            "EUR",
-                            byOwner = true,
-                            null,
+                    paid = emptyMap(),
+                    stored =
+                        listOf(
+                            StoredChargePrice(
+                                "",
+                                finished.startMillis,
+                                finished.endMillis,
+                                SessionPrice.Total(18.4f),
+                                "EUR",
+                                byOwner = true,
+                                null,
+                            ),
                         ),
-                    ),
                 ) { _, _, _, _ -> },
         )
 
