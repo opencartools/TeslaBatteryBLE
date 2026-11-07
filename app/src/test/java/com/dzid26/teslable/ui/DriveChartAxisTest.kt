@@ -13,6 +13,29 @@ class DriveChartAxisTest {
         )
 
     @Test
+    fun aZoomedViewFitsThePercentAxisToWhatIsOnScreen() {
+        // 0 to 100 km falling from 90% to 40%; the middle fifth (40-60 km, about 70-60%) on screen.
+        val points = (0..10).map { Plotted(it * 10.0, 90f - it * 5f, regenerating = false, trip = 0, timestampMillis = 0) }
+        val viewport = ChartViewport().apply { layerWidth = 100f }
+        viewport.transform(previousX = 50f, x = 50f, previousSpan = 10f, span = 50f, minFingerSpan = 8f)
+        val full = axisSpec(points)
+        val view = full.view(points, points.map { it.distance }, viewport)
+        assertEquals(40.0, view.xMin, 1e-9)
+        assertEquals(60.0, view.xMax, 1e-9)
+        // The points at 30 and 70 km, just past the edges, are in the fit: 75% down to 55%, padded to whole steps.
+        assertTrue(view.yMin in 50.0..55.0)
+        assertTrue(view.yMax in 75.0..80.0)
+        assertTrue(view.yMax - view.yMin < full.yMax - full.yMin)
+    }
+
+    @Test
+    fun theFullViewKeepsTheWholeChartsAxes() {
+        val points = (0..4).map { Plotted(it * 10.0, 80f - it, regenerating = false, trip = 0, timestampMillis = 0) }
+        val full = axisSpec(points)
+        assertTrue(full.view(points, points.map { it.distance }, ChartViewport()) === full)
+    }
+
+    @Test
     fun aRangeTopsOutAt100WithHeadroomAboveItAndLabelsOnTheBound() {
         val spec = axes(96f, 100f)
         assertEquals(100.0, spec.yMax, 0.0)

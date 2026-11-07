@@ -27,6 +27,7 @@ import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.component.LineComponent
 import com.patrykandpatrick.vico.compose.common.component.TextComponent
 import com.patrykandpatrick.vico.compose.common.data.ExtraStore
+import kotlin.math.ceil
 
 @Composable
 internal fun rememberBatteryLines(
@@ -174,7 +175,11 @@ internal fun labelsAt(values: List<Double>): VerticalAxis.ItemPlacer {
 
 /** Two labels, a quarter in from each end: at the very edges a date label would need a wide margin to fit. */
 @Composable
-internal fun rememberTimeAxis(formatter: CartesianValueFormatter): HorizontalAxis<Axis.Position.Horizontal.Bottom> {
+internal fun rememberTimeAxis(
+    formatter: CartesianValueFormatter,
+    // Zoomed in, the labels sit on round clock times; null at full view, where they split the window in quarters.
+    clock: ClockSteps? = null,
+): HorizontalAxis<Axis.Position.Horizontal.Bottom> {
     val style = rememberAxisStyle()
     return HorizontalAxis.rememberBottom(
         valueFormatter = formatter,
@@ -182,7 +187,11 @@ internal fun rememberTimeAxis(formatter: CartesianValueFormatter): HorizontalAxi
         line = style.line,
         tick = style.tick,
         guideline = style.guideline,
-        itemPlacer = remember { HorizontalAxis.ItemPlacer.aligned(spacing = { 2 }, offset = { 1 }, addExtremeLabelPadding = false) },
+        itemPlacer =
+            remember(clock) {
+                val aligned = HorizontalAxis.ItemPlacer.aligned(spacing = { 2 }, offset = { 1 }, addExtremeLabelPadding = false)
+                if (clock == null) aligned else ClockLabels(aligned, clock)
+            },
     )
 }
 
@@ -209,7 +218,7 @@ internal class InteriorLabels(
         visibleXRange: ClosedFloatingPointRange<Double>,
         fullXRange: ClosedFloatingPointRange<Double>,
         maxLabelWidth: Float,
-    ): List<Double> = placer.getLabelValues(context, visibleXRange, fullXRange, maxLabelWidth).interior()
+    ): List<Double> = roundSteps(context.ranges.minX..context.ranges.maxX, context.ranges.xStep)
 
     override fun getWidthMeasurementLabelValues(
         context: CartesianMeasuringContext,
@@ -224,8 +233,27 @@ internal class InteriorLabels(
         maxLabelWidth: Float,
     ): List<Double>? =
         placer.getLineValues(context, visibleXRange, fullXRange, maxLabelWidth)
-            ?: placer.getLabelValues(context, visibleXRange, fullXRange, maxLabelWidth)
+            ?: roundSteps(context.ranges.minX..context.ranges.maxX, context.ranges.xStep, withEdges = true)
 
-    // The drive chart's range starts at 0 and ends on a label step, so the outer two labels are the edges.
+    // The drive chart's full range starts at 0 and ends on a label step, so the outer two labels are the edges. A
+    // zoomed range ends anywhere, so the drawn labels are the whole steps strictly inside it (roundSteps). Inside the
+    // plotted x range, not Vico's visible range, which reaches into the edge padding and would label the edges.
     private fun List<Double>.interior() = sorted().drop(1).dropLast(1)
 }
+
+/** The multiples of [step] strictly inside [range], or also on its ends [withEdges] (the gridlines there). */
+internal fun roundSteps(
+    range: ClosedFloatingPointRange<Double>,
+    step: Double,
+    withEdges: Boolean = false,
+): List<Double> {
+    if (step <= 0.0) return emptyList()
+    val edge = step * EDGE_TOLERANCE * if (withEdges) -1 else 1
+    // Adding 0.0 turns the -0.0 that ceil gives just under zero into 0.0.
+    return generateSequence(ceil((range.start + edge) / step) * step + 0.0) { it + step }
+        .takeWhile { it < range.endInclusive - edge }
+        .toList()
+}
+
+/** How close to an edge, in steps, a label counts as on it: float sums of steps land a hair off. */
+private const val EDGE_TOLERANCE = 1e-6

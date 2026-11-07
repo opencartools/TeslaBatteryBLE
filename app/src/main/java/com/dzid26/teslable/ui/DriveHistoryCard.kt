@@ -14,10 +14,10 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -50,14 +50,16 @@ import java.util.Locale
 internal fun DistanceHistory(
     samples: List<BatterySample>,
     drives: List<DriveSample>,
-    // Injectable for the Paparazzi snapshots; production opens on the middle window.
-    initialWindow: DriveWindow = DriveWindow.MEDIUM,
+    // The chosen window, held by the history card so it survives a switch of axis; production opens on the middle one.
+    windowState: MutableState<DriveWindow> = remember { mutableStateOf(DriveWindow.MEDIUM) },
     // The fitted full-range scale; the car screen fits it once for all its cards.
     scale: FullRangeScale? = remember(samples) { FullRangeScales.of(samples) },
     // The learned rated constant (kWh per rated mile); null hides the energy and efficiency stats.
     ratedKwhPerMile: Float? = null,
 ) {
-    var window by rememberSaveable { mutableStateOf(initialWindow) }
+    var window by windowState
+    // A new window starts unzoomed; a tap on the window already chosen zooms back out.
+    val viewport = rememberChartViewport(window)
     val unit = LocalDistanceUnit.current
     val pricePerKwh = LocalPricePerKwh.current
     // Up to 20k samples: matched off the main thread, and only when the data or the window changes. The card shows once
@@ -84,7 +86,7 @@ internal fun DistanceHistory(
     val plotted = figures.plotted
 
     Column {
-        DriveChips(window, unit) { window = it }
+        DriveChips(window, unit) { if (window == it) viewport.reset() else window = it }
         Spacer(Modifier.height(8.dp))
         if (plotted.size < 2 || plotted.last().distance <= 0.0) {
             Text(
@@ -93,7 +95,7 @@ internal fun DistanceHistory(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            RangeChart(points = plotted, modifier = Modifier.fillMaxWidth().height(160.dp))
+            RangeChart(points = plotted, modifier = Modifier.fillMaxWidth().height(160.dp), viewport = viewport)
             Spacer(Modifier.height(6.dp))
             Legend()
             Spacer(Modifier.height(6.dp))

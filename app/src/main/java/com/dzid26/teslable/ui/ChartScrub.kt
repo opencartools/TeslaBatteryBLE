@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
@@ -100,33 +101,53 @@ internal fun scrubStep(
 }
 
 /** The chart's own touch handling; see the notes at the top of this file. */
-internal fun Modifier.scrubbing(pin: CursorPin): Modifier =
-    pointerInput(pin) {
+internal fun Modifier.scrubbing(
+    pin: CursorPin,
+    // Two fingers pan and zoom it sideways (ChartViewport.kt); null keeps one-finger handling only.
+    viewport: ChartViewport? = null,
+): Modifier =
+    pointerInput(pin, viewport) {
         val slop = viewConfiguration.touchSlop
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             CursorDismiss.chartGesture = CursorDismiss.gesture
             val before = pin.canvasX
             val restoredBefore = pin.restoredX
+            // The point the cursor stood on, which a pan or zoom keeps it on.
+            val shownBefore = pin.shownX?.takeIf { before != null || restoredBefore != null }
             pin.canvasX = down.position.x
             pin.restoredX = null
-            if (!followScrub(pin, down, slop)) {
-                pin.canvasX = before
-                pin.restoredX = restoredBefore
+            val (step, pinch) = followScrub(pin, down, slop, viewport)
+            when {
+                pinch != null && viewport != null -> {
+                    pin.canvasX = null
+                    pin.restoredX = shownBefore
+                    followPinch(viewport, pinch, slop)
+                }
+                step == ScrubStep.SCROLL -> {
+                    pin.canvasX = before
+                    pin.restoredX = restoredBefore
+                }
             }
         }
     }
 
-/** Follows one gesture; false when it turned out to be a page scroll. */
+/**
+ * Follows one gesture to its end, or to a second finger landing: the step it ended on ([ScrubStep.UNDECIDED] for a
+ * tap), and the event that brought the second finger, which starts a pinch, or null.
+ */
 private suspend fun AwaitPointerEventScope.followScrub(
     pin: CursorPin,
     down: PointerInputChange,
     slop: Float,
-): Boolean {
+    viewport: ChartViewport?,
+): Pair<ScrubStep, PointerEvent?> {
     var step = ScrubStep.UNDECIDED
     var change: PointerInputChange? = down
     while (change != null && change.pressed && step != ScrubStep.SCROLL) {
-        change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
+        val event = awaitPointerEvent()
+        if (viewport != null && event.changes.count { it.pressed } >= 2) return step to event
+        change = event.changes.firstOrNull { it.id == down.id }
         if (change == null || !change.pressed) break
         step =
             when {
@@ -140,7 +161,7 @@ private suspend fun AwaitPointerEventScope.followScrub(
             change.consume()
         }
     }
-    return step != ScrubStep.SCROLL
+    return step to null
 }
 
 /** Draws Vico's marker at the cursor, snapped to the nearest plotted point. */

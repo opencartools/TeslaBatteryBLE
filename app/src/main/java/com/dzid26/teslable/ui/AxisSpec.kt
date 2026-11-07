@@ -15,26 +15,58 @@ internal class AxisSpec(
     val yStep: Double,
     val yMin: Double,
     val yMax: Double,
+    /** Where the x axis starts: 0 at full view, further in once two fingers zoom it. */
+    val xMin: Double = 0.0,
 ) {
     val range = paddedRange(yMin, yMax)
     val gridlines = generateSequence(yMin) { it + yStep }.takeWhile { it <= yMax + yStep / 2 }.toList()
 
-    fun rangeProvider() = CartesianLayerRangeProvider.fixed(minX = 0.0, maxX = xMax, minY = range.start, maxY = range.endInclusive)
+    fun rangeProvider() = CartesianLayerRangeProvider.fixed(minX = xMin, maxX = xMax, minY = range.start, maxY = range.endInclusive)
 }
 
 internal fun axisSpec(points: List<Plotted>): AxisSpec {
     val span = points.last().distance
     val xStep = niceStep(span / X_LABELS)
-    val lowest = points.minOf { it.value.toDouble() } - Y_PAD
-    val highest = points.maxOf { it.value.toDouble() } + Y_PAD
+    return fitted(points.map { it.value.toDouble() }, xMin = 0.0, xMax = ceil(span / xStep) * xStep, xStep = xStep)
+}
+
+/**
+ * What [viewport] shows of the full axes [this], over [points] (by ascending distance, [distances] theirs): the
+ * distances on screen, labelled in round steps, and a percent axis fitted to the points there and the nearest one past
+ * each edge, which the line runs to. At full view, [this] unchanged.
+ */
+internal fun AxisSpec.view(
+    points: List<Plotted>,
+    distances: List<Double>,
+    viewport: ChartViewport,
+): AxisSpec {
+    if (viewport.isFull) return this
+    val shown = viewport.visible(0.0, xMax)
+    val from = (distances.insertionPoint(shown.start, after = false) - 1).coerceAtLeast(0)
+    val to = distances.insertionPoint(shown.endInclusive, after = true).coerceAtMost(points.lastIndex)
+    val values = points.subList(from, to + 1).map { it.value.toDouble() }
+    val xStep = niceStep((shown.endInclusive - shown.start) / X_LABELS)
+    return fitted(values, xMin = shown.start, xMax = shown.endInclusive, xStep = xStep)
+}
+
+/** Axes over [xMin] to [xMax] with labels every [xStep], and a percent axis in round steps around [values]. */
+private fun fitted(
+    values: List<Double>,
+    xMin: Double,
+    xMax: Double,
+    xStep: Double,
+): AxisSpec {
+    val lowest = values.min() - Y_PAD
+    val highest = values.max() + Y_PAD
     val yStep = maxOf(niceStep((highest - lowest) / Y_LABELS), Y_MIN_STEP)
     val yMaxRaw = ceil(highest / yStep) * yStep
     return AxisSpec(
         xStep = xStep,
-        xMax = ceil(span / xStep) * xStep,
+        xMax = xMax,
         yStep = yStep,
         yMin = (floor(lowest / yStep) * yStep).coerceAtLeast(0.0),
         yMax = minOf(yMaxRaw, PERCENT_FULL),
+        xMin = xMin,
     )
 }
 
