@@ -107,13 +107,9 @@ private fun AppCard() {
 }
 
 @Composable
-internal fun LinksCard(prNumber: String = BuildConfig.PR_NUMBER) {
+private fun LinksCard() {
     SectionCard(title = stringResource(R.string.about_links)) {
-        // Only a CI pull request build knows its PR.
-        if (prNumber.isNotEmpty()) {
-            LinkRow(stringResource(R.string.about_pr_build, prNumber), "$SOURCE_URL/pull/$prNumber")
-        }
-        LinkRow(stringResource(R.string.about_source_code), SOURCE_URL)
+        LinkRow(stringResource(R.string.about_source_code), sourceUrl(BuildConfig.PR_NUMBER))
         LinkRow(stringResource(R.string.about_releases), RELEASES_URL)
         LinkRow(stringResource(R.string.about_privacy), PRIVACY_URL)
     }
@@ -204,6 +200,9 @@ internal fun openUrl(
         Toast.makeText(context, R.string.about_no_browser, Toast.LENGTH_SHORT).show()
     }
 }
+
+/** The repository, or the pull request of a CI pull request build, which is the source that build was made from. */
+internal fun sourceUrl(prNumber: String): String = if (prNumber.isEmpty()) SOURCE_URL else "$SOURCE_URL/pull/$prNumber"
 
 private const val SOURCE_URL = "https://github.com/opencartools/TeslaBatteryBLE"
 private const val LICENSE_URL = "$SOURCE_URL/blob/main/LICENSE"
