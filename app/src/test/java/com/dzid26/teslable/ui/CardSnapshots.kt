@@ -428,10 +428,10 @@ class CardSnapshots {
     @Test
     fun historyCardCharged() {
         snapCard("history-card_charged") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = screenSamples,
                 drives = emptyList(),
-                nowMillis = NOW,
+                view = HistoryView(nowMillis = NOW),
             )
         }
     }
@@ -440,10 +440,10 @@ class CardSnapshots {
     fun historyCardChargeCost() {
         snapCard("history-card_charge-cost") {
             CompositionLocalProvider(LocalPriceChanges provides listOf(PriceChange(0L, 0.20f))) {
-                BatteryHistoryCard(
+                HistoryCard(
                     samples = screenSamples,
                     drives = emptyList(),
-                    nowMillis = NOW,
+                    view = HistoryView(nowMillis = NOW),
                 )
             }
         }
@@ -452,11 +452,10 @@ class CardSnapshots {
     @Test
     fun historyCardGap() {
         snapCard("history-card_gap") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = gapSamples,
                 drives = emptyList(),
-                nowMillis = NOW,
-                initialRange = HistoryRange.ALL,
+                view = HistoryView(nowMillis = NOW, range = HistoryRange.ALL),
             )
         }
     }
@@ -464,11 +463,10 @@ class CardSnapshots {
     @Test
     fun historyCardPrecise() {
         snapCard("history-card_precise") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = preciseSamples,
                 drives = emptyList(),
-                nowMillis = NOW,
-                initialRange = HistoryRange.DAY,
+                view = HistoryView(nowMillis = NOW, range = HistoryRange.DAY),
             )
         }
     }
@@ -478,10 +476,10 @@ class CardSnapshots {
         // A parked car losing a point every few hours: the "Parked" projection
         // line and its rate, no charge in sight.
         snapCard("history-card_parked-drain") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = parkedSamples,
                 drives = parkedSamples.map { parkedDrive(it) },
-                nowMillis = NOW,
+                view = HistoryView(nowMillis = NOW),
             )
         }
     }
@@ -490,10 +488,10 @@ class CardSnapshots {
     fun historyCardChargingProjection() {
         // Charging toward the limit: the green line up, the parked drain dashed in the measured line blue.
         snapCard("history-card_charging-projection") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = chargingSamples,
                 drives = parkedSamples.map { parkedDrive(it) },
-                nowMillis = NOW,
+                view = HistoryView(nowMillis = NOW),
             )
         }
     }
@@ -504,11 +502,10 @@ class CardSnapshots {
         // big enough to see: the beam and the line must still meet.
         snapCard("history-card_charging-projection-rtl") {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                BatteryHistoryCard(
+                HistoryCard(
                     samples = wideBeamSamples,
                     drives = parkedSamples.map { parkedDrive(it) },
-                    nowMillis = NOW,
-                    initialRange = HistoryRange.SIX_HOURS,
+                    view = HistoryView(nowMillis = NOW, range = HistoryRange.SIX_HOURS),
                 )
             }
         }
@@ -519,10 +516,10 @@ class CardSnapshots {
         // A slow parked drain (about 1.6 %/day) read on the rated range: a fitted scale turns
         // the level steps into sub-percent readings, so the line is smooth and the beam is thin.
         snapCard("history-card_parked-drain-range") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = rangeParkedSamples,
                 drives = rangeParkedSamples.map { parkedDrive(it) },
-                nowMillis = NOW,
+                view = HistoryView(nowMillis = NOW),
             )
         }
     }
@@ -533,11 +530,11 @@ class CardSnapshots {
         // between them (no unlocked or present status inside a gap): the line follows the sleep rate, the text
         // adds the mixed rate, and the beam reaches down to the mixed line.
         snapCard("history-card_parked-sleep") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = sleepParkedSamples,
                 drives = sleepParkedSamples.map { parkedDrive(it) },
-                nowMillis = NOW,
-                sleepLogs = ProjectionContext(activity = sleepActivity),
+                context = ProjectionContext(activity = sleepActivity),
+                view = HistoryView(nowMillis = NOW),
             )
         }
     }
@@ -547,10 +544,10 @@ class CardSnapshots {
         // The same car plugged in: the charge fit reads sub-percent too, and the beam
         // comes from the slope's own scatter plus the supply voltage.
         snapCard("history-card_charging-range") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = rangeChargingSamples,
                 drives = rangeParkedSamples.map { parkedDrive(it) },
-                nowMillis = NOW,
+                view = HistoryView(nowMillis = NOW),
             )
         }
     }
@@ -560,11 +557,10 @@ class CardSnapshots {
         // The short range puts the chart's right edge only 3 h ahead, so the beam is
         // cut near the line's start: it must stay a visible sliver, not round away.
         snapCard("history-card_charging-6h") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = chargingSamples,
                 drives = parkedSamples.map { parkedDrive(it) },
-                nowMillis = NOW,
-                initialRange = HistoryRange.SIX_HOURS,
+                view = HistoryView(nowMillis = NOW, range = HistoryRange.SIX_HOURS),
             )
         }
     }
@@ -573,10 +569,10 @@ class CardSnapshots {
     fun historyCardFullBattery() {
         // Readings at 100%: the dots sit on the top edge and must be drawn whole.
         snapCard("history-card_full-battery") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = fullSamples,
                 drives = emptyList(),
-                nowMillis = NOW,
+                view = HistoryView(nowMillis = NOW),
             )
         }
     }
@@ -586,10 +582,10 @@ class CardSnapshots {
         // The whole-number level has not ticked for a while but the rated range
         // climbs: the charge line still draws, from the miles.
         snapCard("history-card_charging-stalled-level") {
-            BatteryHistoryCard(
+            HistoryCard(
                 samples = stalledSamples,
                 drives = parkedSamples.map { parkedDrive(it) },
-                nowMillis = NOW,
+                view = HistoryView(nowMillis = NOW),
             )
         }
     }
@@ -629,13 +625,13 @@ class CardSnapshots {
             LocalDriveCursor provides cursor,
             LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
         ) {
-            DriveHistoryCard(
+            HistoryCard(
                 samples = driveSamples(),
                 drives = driveReadings(power = if (rtl) regenFirstPower else drivePower),
-                initialWindow = DriveWindow.SINCE_CHARGE,
-                scale = scale,
+                context = ProjectionContext(scale = scale),
                 // The rated constant is learnt along with the scale.
                 ratedKwhPerMile = if (scale != null) 0.25f else null,
+                view = HistoryView(axis = HistoryAxis.DISTANCE, window = DriveWindow.SINCE_CHARGE),
             )
         }
     }
