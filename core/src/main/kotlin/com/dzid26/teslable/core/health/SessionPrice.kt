@@ -76,6 +76,8 @@ data class ChargeSessionPrice(
     val currencyCode: String?,
     val byOwner: Boolean,
     val place: String?,
+    /** The car's own paid-charge cost (a Supercharger session), not the owner's or the home price. */
+    val fromCar: Boolean = false,
 )
 
 /**
@@ -111,8 +113,11 @@ fun sessionPrices(
         val session = sessions[i]
         val row = byShape[Triple(session.vehicleId, session.startMillis, session.endMillis)]
         val automatic = row == null || !row.byOwner
-        val shown = paidFor[i]?.takeIf { automatic }?.let { paidPrice(session, it) } ?: row
-        shown?.let { ChargeSessionPrice(it.price, it.currencyCode, it.byOwner, it.place) }
+        val fromPaid = paidFor[i]?.takeIf { automatic }?.let { paidPrice(session, it) }
+        val shown = fromPaid ?: row
+        // A stored automatic total can only be the car's: the home price is per kWh.
+        val fromCar = fromPaid != null || (row != null && !row.byOwner && row.price is SessionPrice.Total)
+        shown?.let { ChargeSessionPrice(it.price, it.currencyCode, it.byOwner, it.place, fromCar) }
             ?: ChargeSessionPrice(automaticPrice(session, home[i]), null, byOwner = false, place = null)
     }
 }

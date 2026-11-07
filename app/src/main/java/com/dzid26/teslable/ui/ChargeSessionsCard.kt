@@ -17,15 +17,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -161,7 +164,7 @@ private fun ChargeSessionStats(
 }
 
 /** A session with the price it is billed at (and the currency of an edit or stored price; null is the settings one). */
-private class PricedSession(
+internal class PricedSession(
     val session: ChargeSession,
     private val billed: ChargeSessionPrice,
 ) {
@@ -169,6 +172,7 @@ private class PricedSession(
     val currencyCode get() = billed.currencyCode
     val place get() = billed.place
     val edited get() = billed.byOwner
+    val fromCar get() = billed.fromCar
     val cost get() = price?.cost(session.energyAddedKwh)
 }
 
@@ -190,8 +194,21 @@ internal fun parseEdit(text: String): Float? =
  * Sets a session's price per kWh or its total. Each has its own box, filled from the session's current price: the
  * total box holds its cost. [homePerKwh] ([suggestion]) fills the per-kWh box from a button that names it ("Home $0.30").
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditPriceDialog(
+    picked: PricedSession,
+    currencyCode: String,
+    suggestion: PriceSuggestion?,
+    onSave: (SessionPrice, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    BasicAlertDialog(onDismissRequest = onDismiss) { EditPricePanel(picked, currencyCode, suggestion, onSave, onDismiss) }
+}
+
+/** The dialog's own surface, apart from its window, so a snapshot can render it. */
+@Composable
+internal fun EditPricePanel(
     picked: PricedSession,
     currencyCode: String,
     suggestion: PriceSuggestion?,
@@ -208,61 +225,62 @@ private fun EditPriceDialog(
     var currency by rememberSaveable { mutableStateOf(currencyCode) }
     var totalText by rememberSaveable { mutableStateOf(editText(picked.cost)) }
     val value = parseEdit(if (total) totalText else perKwhText)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.charge_session_edit_price)) },
-        text = {
-            Column {
-                Row {
-                    FilterChip(
-                        selected = !total,
-                        onClick = { total = false },
-                        label = { Text(stringResource(R.string.charge_session_price_per_kwh)) },
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    FilterChip(
-                        selected = total,
-                        onClick = { total = true },
-                        label = { Text(stringResource(R.string.charge_session_price_total)) },
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                // Two boxes, one shown: switching keeps what was typed in each.
-                OutlinedTextField(
-                    value = if (total) totalText else perKwhText,
-                    onValueChange = { if (total) totalText = it else perKwhText = it },
-                    singleLine = true,
-                    isError = value == null && (if (total) totalText else perKwhText).isNotBlank(),
-                    suffix = { Text(if (total) currency else "$currency/kWh") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+    Surface(
+        shape = AlertDialogDefaults.shape,
+        color = AlertDialogDefaults.containerColor,
+        tonalElevation = AlertDialogDefaults.TonalElevation,
+    ) {
+        Column(Modifier.padding(24.dp)) {
+            Text(stringResource(R.string.charge_session_edit_price), style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(16.dp))
+            Row {
+                FilterChip(
+                    selected = !total,
+                    onClick = { total = false },
+                    label = { Text(stringResource(R.string.charge_session_price_per_kwh)) },
+                )
+                Spacer(Modifier.width(8.dp))
+                FilterChip(
+                    selected = total,
+                    onClick = { total = true },
+                    label = { Text(stringResource(R.string.charge_session_price_total)) },
                 )
             }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = value != null,
-                onClick = { value?.let { onSave(if (total) SessionPrice.Total(it) else SessionPrice.PerKwh(it), currency) } },
-            ) { Text(stringResource(R.string.charge_session_price_save)) }
-        },
-        dismissButton = {
-            Row {
+            Spacer(Modifier.height(8.dp))
+            // Two boxes, one shown: switching keeps what was typed in each.
+            OutlinedTextField(
+                value = if (total) totalText else perKwhText,
+                onValueChange = { if (total) totalText = it else perKwhText = it },
+                singleLine = true,
+                isError = value == null && (if (total) totalText else perKwhText).isNotBlank(),
+                suffix = { Text(if (total) currency else "$currency/kWh") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            )
+            Spacer(Modifier.height(24.dp))
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 suggestion?.let {
                     TextButton(onClick = {
                         total = false
+                        // A total typed in the old currency would be saved as the new one.
+                        if (currency != it.currencyCode) totalText = ""
                         currency = it.currencyCode
                         perKwhText = editText(it.pricePerKwh)
                     }) { Text(it.label()) }
                 }
                 TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(
+                    enabled = value != null,
+                    onClick = { value?.let { onSave(if (total) SessionPrice.Total(it) else SessionPrice.PerKwh(it), currency) } },
+                ) { Text(stringResource(R.string.charge_session_price_save)) }
             }
-        },
-    )
+        }
+    }
 }
 
 private const val EDIT_DECIMALS = 4
 
 /** A per-kWh price the dialog offers to fill in, named by where it comes from. */
-private class PriceSuggestion(
+internal class PriceSuggestion(
     val supercharger: Boolean,
     val pricePerKwh: Float,
     val currencyCode: String,
@@ -296,7 +314,7 @@ private fun priceSuggestion(
 /** The place an edit keeps: the stored one, or Supercharger for a price the car set (it stores none for those). */
 private fun keptPlace(picked: PricedSession): String? =
     picked.place
-        ?: ChargePlace.SUPERCHARGER.takeIf { picked.session.chargerKind == ChargerKind.DC && !picked.edited && picked.price != null }
+        ?: ChargePlace.SUPERCHARGER.takeIf { picked.fromCar }
 
 /** The chosen session as a button; a tap lists every session (with its cost, or null) by start time and cost, newest first. */
 @Composable

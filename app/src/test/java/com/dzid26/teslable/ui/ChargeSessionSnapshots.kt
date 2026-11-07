@@ -5,9 +5,12 @@ package com.dzid26.teslable.ui
 import androidx.compose.runtime.CompositionLocalProvider
 import app.cash.paparazzi.Paparazzi
 import com.dzid26.teslable.core.health.ChargeSession
+import com.dzid26.teslable.core.health.ChargeSessionPrice
+import com.dzid26.teslable.core.health.ChargerKind
 import com.dzid26.teslable.core.health.PriceChange
 import com.dzid26.teslable.core.health.SessionPrice
 import com.dzid26.teslable.core.health.StoredChargePrice
+import com.dzid26.teslable.protocol.LastPaidCharge
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -66,6 +69,36 @@ class ChargeSessionSnapshots {
                 ) { _, _, _, _ -> },
         )
 
+    // A Supercharger session the car reported its cost for, before any build stored it: the card shows the car's
+    // total in its own currency.
+    @Test
+    fun chargeSessionsCardSupercharger() =
+        snap(
+            "charge-sessions-card_supercharger",
+            listOf(earlier, fast),
+            pricing =
+                ChargePricing(
+                    stored = emptyList(),
+                    paid = mapOf("" to listOf(LastPaidCharge(fast.endMillis, 12.9f, "EUR", 0.48f))),
+                ) { _, _, _, _ -> },
+        )
+
+    // The edit dialog's own surface (Paparazzi renders no dialog window): a home-priced session, per kWh, with the
+    // "Home" price offered.
+    @Test
+    fun editPriceDialog() =
+        paparazzi.snapCard("edit-price-dialog") {
+            CompositionLocalProvider(LocalCurrencyCode provides "USD") {
+                EditPricePanel(
+                    PricedSession(finished, ChargeSessionPrice(SessionPrice.PerKwh(0.15f), null, byOwner = false, place = null)),
+                    currencyCode = "USD",
+                    suggestion = PriceSuggestion(supercharger = false, pricePerKwh = 0.3f, currencyCode = "USD"),
+                    onSave = { _, _ -> },
+                    onDismiss = {},
+                )
+            }
+        }
+
     // A home price set before both sessions, so each one shows its cost.
     private fun snap(
         name: String,
@@ -90,5 +123,15 @@ class ChargeSessionSnapshots {
             ChargeSession(NOW - 30 * HOUR, NOW - 28 * HOUR, 22f, 61f, energyAddedKwh = 29.4f, milesAddedRated = 131f)
         val finished =
             ChargeSession(NOW - 9 * HOUR, NOW - 5 * HOUR, 18f, 80f, energyAddedKwh = 46.1f, milesAddedRated = 207f)
+        val fast =
+            ChargeSession(
+                NOW - 3 * HOUR,
+                NOW - 3 * HOUR + 25 * 60_000L,
+                12f,
+                64f,
+                energyAddedKwh = 38.7f,
+                milesAddedRated = 174f,
+                chargerKind = ChargerKind.DC,
+            )
     }
 }
