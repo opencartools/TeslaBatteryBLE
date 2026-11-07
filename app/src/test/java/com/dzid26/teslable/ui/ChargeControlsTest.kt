@@ -16,6 +16,10 @@ class ChargeControlsTest {
         assertEquals(75, nextChargeLimit(80, -1, 50..100))
         assertEquals(50, nextChargeLimit(50, -1, 50..100))
         assertEquals(100, nextChargeLimit(98, 1, 50..100))
+        // A limit the car reports off the 5% grid snaps to the next boundary.
+        assertEquals(90, nextChargeLimit(88, 1, 50..100))
+        assertEquals(85, nextChargeLimit(88, -1, 50..100))
+        assertEquals(90, nextChargeLimit(92, -1, 50..100))
     }
 
     @Test

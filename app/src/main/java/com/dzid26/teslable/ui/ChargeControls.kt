@@ -44,7 +44,15 @@ internal fun nextChargeLimit(
     current: Int,
     delta: Int,
     range: IntRange,
-): Int = (current + delta * CHARGE_LIMIT_STEP).coerceIn(range.first, range.last)
+): Int {
+    val next =
+        if (delta > 0) {
+            (current / CHARGE_LIMIT_STEP + 1) * CHARGE_LIMIT_STEP
+        } else {
+            ((current - 1) / CHARGE_LIMIT_STEP) * CHARGE_LIMIT_STEP
+        }
+    return next.coerceIn(range.first, range.last)
+}
 
 internal fun nextChargingAmps(
     current: Int,
