@@ -921,6 +921,18 @@ private fun ChargeProjectionLine(
     )
 }
 
+/**
+ * What the time axis keeps while the distance axis is shown: the chosen range and its last figures, so switching back
+ * draws the chart at once and works the figures out again only if the data or the clock moved meanwhile.
+ */
+internal class TimeAxisMemory(
+    val range: MutableState<HistoryRange>,
+) {
+    val scale = BackgroundMemo<FullRangeScale?>()
+    val figures = BackgroundMemo<BatteryHistoryFigures>()
+    val chargePrice = BackgroundMemo<Float?>()
+}
+
 /** The history card's time axis: the range chips, the battery chart with its projections, and the last charge. */
 @Composable
 internal fun TimeHistory(
@@ -929,29 +941,33 @@ internal fun TimeHistory(
     // Injectable for the Paparazzi snapshots; production call sites use the
     // default, which is the same wall-clock read as before.
     nowMillis: Long = System.currentTimeMillis(),
-    // The chosen range, held by the history card so it survives a switch of axis; production opens on the day range.
-    rangeState: MutableState<HistoryRange> = remember { mutableStateOf(HistoryRange.DAY) },
+    // The chosen range and the last figures, held by the history card so a switch of axis and back finds both.
+    memory: TimeAxisMemory = remember { TimeAxisMemory(mutableStateOf(HistoryRange.DAY)) },
     // The status log and the Sentry and climate readings: when the car sat locked and alone, for the sleep drain rate.
     sleepLogs: ProjectionContext = ProjectionContext(),
 ) {
-    var range by rangeState
+    var range by memory.range
     // A new range starts unzoomed; a tap on the range already chosen zooms back out.
     val viewport = rememberChartViewport(range)
     val now = nowMillis
     // Fitted off the main thread: the stats, the projection and the chart all read it. The car screen's own fit of
     // the same samples is cached, so this one is usually a lookup.
-    val scale = rememberInBackground(null, samples) { FullRangeScales.of(samples) }
+    val scale = memory.scale.inBackground(samples) { FullRangeScales.of(samples) }
     val withScale = remember(sleepLogs, scale) { sleepLogs.copy(scale = scale) }
     val priceChanges = LocalPriceChanges.current
     // Every figure scans the whole log, so they run off the main thread; nothing below shows until the first result.
     val figures =
-        rememberInBackground(null, samples, drives, range, now, withScale) {
+        memory.figures.inBackground(samples, drives, range, now, withScale) {
             batteryHistoryFigures(samples, drives, range, now, withScale)
         } ?: return
     val visible = figures.visible
     val stats = figures.lastCharge
     val lastChargePrice =
-        rememberInBackground(null, stats, samples, priceChanges) { stats?.let { priceForCharge(priceChanges, samples, it.sinceMillis) } }
+        memory.chargePrice.inBackground(
+            stats,
+            samples,
+            priceChanges,
+        ) { stats?.let { priceForCharge(priceChanges, samples, it.sinceMillis) } }
 
     Column {
         // Five chips overflow a narrow phone; they scroll sideways rather than squeeze.
@@ -1037,7 +1053,7 @@ private fun TimeChart(
 }
 
 /** What the battery history card shows, derived from the whole log for one range and moment. */
-private class BatteryHistoryFigures(
+internal class BatteryHistoryFigures(
     val visible: List<BatterySample>,
     /** The visible span the projections are scaled to: the range, or the samples' own span for All. */
     val baseMillis: Long,

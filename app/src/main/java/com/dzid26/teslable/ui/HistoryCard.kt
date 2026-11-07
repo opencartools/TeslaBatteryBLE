@@ -62,9 +62,12 @@ internal fun HistoryCard(
     view: HistoryView = HistoryView(),
 ) {
     var axis by rememberSaveable { mutableStateOf(view.axis) }
-    // Held here, not in each axis, so switching to the other axis and back finds the range where it was left.
+    // Held here, not in each axis, so switching to the other axis and back finds the range where it was left and its
+    // chart already worked out: the axis not shown leaves the composition, and would otherwise start from nothing.
     val range = rememberSaveable { mutableStateOf(view.range) }
     val window = rememberSaveable { mutableStateOf(view.window) }
+    val time = remember { TimeAxisMemory(range) }
+    val distance = remember { DistanceAxisMemory(window) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -72,8 +75,8 @@ internal fun HistoryCard(
                 AxisSwitch(axis) { axis = it }
             }
             when (axis) {
-                HistoryAxis.TIME -> TimeHistory(samples, drives, view.nowMillis, range, context)
-                HistoryAxis.DISTANCE -> DistanceHistory(samples, drives, window, context.scale, ratedKwhPerMile)
+                HistoryAxis.TIME -> TimeHistory(samples, drives, view.nowMillis, time, context)
+                HistoryAxis.DISTANCE -> DistanceHistory(samples, drives, distance, context.scale, ratedKwhPerMile)
             }
         }
     }
