@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -95,10 +96,15 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
             Spacer(Modifier.height(8.dp))
             ChargeSessionSelector(priced.asReversed(), settingsCurrency, selectedIndex) { selectedStart = it.startMillis }
             Spacer(Modifier.height(8.dp))
-            ChargeSessionStats(priced[selectedIndex], currencyCode)
-            if (pricing != null && !session.inProgress) {
-                TextButton(onClick = { editing = true }) { Text(stringResource(R.string.charge_session_edit_price)) }
-            }
+            ChargeSessionStats(
+                priced[selectedIndex],
+                currencyCode,
+                onEdit =
+                    { editing = true }.takeIf {
+                        pricing != null &&
+                            !session.inProgress
+                    },
+            )
         }
     }
     if (editing && pricing != null) {
@@ -122,6 +128,7 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
 private fun ChargeSessionStats(
     priced: PricedSession,
     currencyCode: String?,
+    onEdit: (() -> Unit)?,
 ) {
     val session = priced.session
     val cost = priced.cost
@@ -149,16 +156,26 @@ private fun ChargeSessionStats(
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text(
-            stringResource(R.string.charge_session_percent_range, session.startPercent.roundToInt(), session.endPercent.roundToInt()),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        session.milesAddedRated?.let {
-            Text(
-                stringResource(R.string.charge_session_miles_added, unit.format(it)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        // Edit price shares the line of the level range, at the right.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(
+                        R.string.charge_session_percent_range,
+                        session.startPercent.roundToInt(),
+                        session.endPercent.roundToInt(),
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                session.milesAddedRated?.let {
+                    Text(
+                        stringResource(R.string.charge_session_miles_added, unit.format(it)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            onEdit?.let { TextButton(onClick = it) { Text(stringResource(R.string.charge_session_edit_price)) } }
         }
     }
 }
