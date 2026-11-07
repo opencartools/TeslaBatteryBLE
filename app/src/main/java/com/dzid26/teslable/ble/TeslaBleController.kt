@@ -71,7 +71,7 @@ class TeslaBleController(
     private val keyStore = PairingKeyStore(appContext)
     private val vehicleStore = VehicleStore(appContext)
     private val vehicles = mutableMapOf<String, Vehicle>()
-    private val historyStore: HistoryStore
+    internal val historyStore: HistoryStore
     private val closureAlert = ClosureAlert(appContext, _state, ::log)
 
     /** Battery readings recorded from every charge response, oldest first. */
