@@ -271,7 +271,7 @@ internal fun EditPricePanel(
                 TextButton(
                     enabled = value != null,
                     onClick = { value?.let { onSave(if (total) SessionPrice.Total(it) else SessionPrice.PerKwh(it), currency) } },
-                ) { Text(stringResource(R.string.charge_session_price_save)) }
+                ) { Text(stringResource(R.string.charge_session_price_update)) }
             }
         }
     }

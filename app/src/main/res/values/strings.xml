@@ -215,8 +215,8 @@
     <string name="charge_session_option_live">Charging · %1$s</string>
     <string name="charge_session_percent_range">%1$d%% to %2$d%%</string>
     <string name="charge_session_price_per_kwh">Per kWh</string>
-    <string name="charge_session_price_save">Save</string>
     <string name="charge_session_price_total">Total</string>
+    <string name="charge_session_price_update">Update</string>
     <string name="charge_session_price_use_home">Home %1$s</string>
     <string name="charge_session_price_use_supercharger">Supercharger %1$s</string>
     <string name="charge_session_selector_description">Choose a charging session</string>
