@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.core.health
 
+import com.dzid26.teslable.protocol.LastPaidCharge
+
 /**
  * The stored prices of one car after a build re-cut its [sessions] (oldest first, as cut), from what was [stored].
  * Every row comes out at its session's exact start and end, the key the screens read it by (`sessionPrices`); an
@@ -12,13 +14,18 @@ package com.dzid26.teslable.core.health
  * - the owner's edit follows its session: when a re-cut joins sessions, their totals in one currency add up, else
  *   the longest overlap wins and the other edits stay stored, unmatched; when it splits one, a price per kWh goes to
  *   every part and a total is shared by energy;
- * - a stored price that overlaps no session is kept (on a new phone the sessions come only once the logs are back).
+ * - a stored price that overlaps no session is kept (on a new phone the sessions come only once the logs are back);
+ * - a session the car reports as a paid charge ([paid], see `matchPaidCharges`) takes the car's total cost as its
+ *   automatic price, replacing one frozen by the rule (empty, or the home price where the samples did not say DC);
+ *   the owner's edits are never changed.
  */
 fun reconcilePrices(
     sessions: List<ChargeSession>,
     stored: List<StoredChargePrice>,
     defaults: PriceDefaults,
+    paid: List<LastPaidCharge> = emptyList(),
 ): List<StoredChargePrice> {
+    val paidFor = matchPaidCharges(sessions, paid)
     val (owner, automatic) = stored.partition { it.byOwner }
     val ownerTargets = owner.map { price -> targetsOf(sessions, price) }
     val ownerParts = Array(sessions.size) { mutableListOf<Int>() }
@@ -33,11 +40,12 @@ fun reconcilePrices(
             val session = sessions[i]
             val parts = ownerParts[i].map { Part(it, owner[it], share(sessions, ownerTargets[it], i), overlap(session, owner[it])) }
             // A session that only moved keeps its frozen price; one joined or split from others is frozen again.
+            // An automatic price holds no place (the logs tell it), so none an older build stored is kept.
             val moved = automaticParts[i].singleOrNull()?.takeIf { automaticTargets[it].size == 1 }?.let { automatic[it] }
             when {
                 parts.isNotEmpty() -> joined(parts, used)
-                moved != null -> moved
-                else -> frozen(session, home[i], defaults).takeIf { i != sessions.lastIndex }
+                moved != null -> paidFor[i]?.let { paidPrice(session, it) } ?: moved.copy(place = null)
+                else -> frozen(session, home[i], defaults, paidFor[i]).takeIf { i != sessions.lastIndex }
             }?.copy(startMillis = session.startMillis, endMillis = session.endMillis)
         }
     val keptAutomatic = automatic.filterIndexed { row, _ -> automaticTargets[row].isEmpty() }
@@ -63,23 +71,36 @@ private fun targetsOf(
     }
 }
 
-/** [session]'s automatic price, frozen: an empty one means unpriced, which a later source (the car's cost) may fill. */
+/**
+ * [session]'s automatic price, frozen: the car's own cost when it was a [paid] charge, else by the price rule. An empty
+ * one means unpriced, which the car's cost fills once it reports the charge.
+ */
 private fun frozen(
     session: ChargeSession,
     homePricePerKwh: Float?,
     defaults: PriceDefaults,
-) = StoredChargePrice(
+    paid: LastPaidCharge?,
+) = paid?.let { paidPrice(session, it) } ?: StoredChargePrice(
     session.vehicleId,
     session.startMillis,
     session.endMillis,
     automaticPrice(session, homePricePerKwh),
     defaults.currencyCode,
     byOwner = false,
-    place = automaticPlace(session),
 )
 
-/** Where [session] charged, as far as the app can tell without the car's location: home, unless it was DC. */
-fun automaticPlace(session: ChargeSession): String? = ChargePlace.HOME.takeIf { session.chargerKind != ChargerKind.DC }
+/** [session]'s price as the car's [paid] charge: its total cost, in its currency. */
+internal fun paidPrice(
+    session: ChargeSession,
+    paid: LastPaidCharge,
+) = StoredChargePrice(
+    session.vehicleId,
+    session.startMillis,
+    session.endMillis,
+    paid.price(),
+    paid.currencyCode,
+    byOwner = false,
+)
 
 /** The owner's edit [index] as part of one session: its [share] of a total, and how long it overlaps the session. */
 private class Part(

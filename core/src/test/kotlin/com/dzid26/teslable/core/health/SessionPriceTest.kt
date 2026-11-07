@@ -37,9 +37,9 @@ class SessionPriceTest {
 
         assertEquals(
             listOf(
-                stored(0, 60, SessionPrice.PerKwh(0.2f), byOwner = false, currency = "PLN").copy(place = ChargePlace.HOME),
+                stored(0, 60, SessionPrice.PerKwh(0.2f), byOwner = false, currency = "PLN"),
                 // A price set after a charge started, while it was the newest, covers it.
-                stored(600, 700, SessionPrice.PerKwh(0.4f), byOwner = false, currency = "PLN").copy(place = ChargePlace.HOME),
+                stored(600, 700, SessionPrice.PerKwh(0.4f), byOwner = false, currency = "PLN"),
                 // A fast charger is never at home: empty until the car's own cost is read.
                 stored(1200, 1300, null, byOwner = false, currency = "PLN"),
             ),
@@ -50,7 +50,7 @@ class SessionPriceTest {
     @Test
     fun `an automatic price stays frozen when its session moves, and is frozen again when sessions join`() {
         val frozenAt = { start: Long, end: Long, price: Float ->
-            stored(start, end, SessionPrice.PerKwh(price), byOwner = false, currency = "PLN").copy(place = ChargePlace.HOME)
+            stored(start, end, SessionPrice.PerKwh(price), byOwner = false, currency = "PLN")
         }
         val kept = frozenAt(0, 60, 0.5f)
         val moved = frozenAt(599, 700, 0.5f)
@@ -131,7 +131,7 @@ class SessionPriceTest {
             listOf(
                 ChargeSessionPrice(SessionPrice.Total(9f), "EUR", byOwner = true, place = null),
                 ChargeSessionPrice(null, "PLN", byOwner = false, place = null),
-                ChargeSessionPrice(SessionPrice.PerKwh(0.2f), null, byOwner = false, place = ChargePlace.HOME),
+                ChargeSessionPrice(SessionPrice.PerKwh(0.2f), null, byOwner = false, place = null),
             ),
             sessionPrices(sessions, rows, home.homeChanges),
         )

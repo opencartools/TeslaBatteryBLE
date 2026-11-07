@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.core.health
 
+import com.dzid26.teslable.protocol.LastPaidCharge
+
 /** How the car charged: through its own charger from AC, or from a DC fast charger. */
 enum class ChargerKind { AC, DC }
 
@@ -44,8 +46,9 @@ data class StoredChargePrice(
     val currencyCode: String,
     val byOwner: Boolean,
     /**
-     * Where the car charged: one of [ChargePlace] or the owner's own name for it; null when not known. A name the owner
-     * types that equals a [ChargePlace] means that place.
+     * Where the car charged, as the owner set it: one of [ChargePlace] or their own name for it. Null unless the owner
+     * set it, since the place is derived from the logs. A name the owner types that equals a [ChargePlace] means that
+     * place.
      */
     val place: String? = null,
 )
@@ -57,10 +60,14 @@ object ChargePlace {
     const val SUPERCHARGER = "Supercharger"
 }
 
-/** What a new session is priced at when nobody priced it: the home price changes, and the currency to store. */
+/**
+ * What a new session is priced at when nobody priced it: the home price changes, the currency to store, and every
+ * car's paid charges as it reported them, by car and oldest first.
+ */
 data class PriceDefaults(
     val homeChanges: List<PriceChange>,
     val currencyCode: String,
+    val paidCharges: Map<String, List<LastPaidCharge>> = emptyMap(),
 )
 
 /** A session's price for the screens, in [currencyCode]; null currency is the one chosen in settings. */
@@ -87,26 +94,26 @@ fun automaticPrice(
 /**
  * The price each of [sessions] (one car, oldest first) shows: its stored price, even an empty one, read by the exact
  * start and end each build writes it at (`reconcilePrices`), else (the newest session, until a build stores it) the
- * automatic price in the settings currency. The one entry point the
- * screens read, so a charge shows the same price everywhere.
+ * automatic price in the settings currency. A session the car reports as a [paid] charge shows the car's cost until
+ * a build stores it, unless the owner priced it. The one entry point the screens read, so a charge shows the same
+ * price everywhere.
  */
 fun sessionPrices(
     sessions: List<ChargeSession>,
     stored: List<StoredChargePrice>,
     homeChanges: List<PriceChange>,
+    paid: List<LastPaidCharge> = emptyList(),
 ): List<ChargeSessionPrice> {
     val byShape = stored.associateBy { Triple(it.vehicleId, it.startMillis, it.endMillis) }
     val home = pricesForSessions(homeChanges, sessions)
+    val paidFor = matchPaidCharges(sessions, paid)
     return sessions.indices.map { i ->
-        byShape[Triple(sessions[i].vehicleId, sessions[i].startMillis, sessions[i].endMillis)]?.let {
-            ChargeSessionPrice(
-                it.price,
-                it.currencyCode,
-                it.byOwner,
-                it.place,
-            )
-        }
-            ?: ChargeSessionPrice(automaticPrice(sessions[i], home[i]), null, byOwner = false, place = automaticPlace(sessions[i]))
+        val session = sessions[i]
+        val row = byShape[Triple(session.vehicleId, session.startMillis, session.endMillis)]
+        val automatic = row == null || !row.byOwner
+        val shown = paidFor[i]?.takeIf { automatic }?.let { paidPrice(session, it) } ?: row
+        shown?.let { ChargeSessionPrice(it.price, it.currencyCode, it.byOwner, it.place) }
+            ?: ChargeSessionPrice(automaticPrice(session, home[i]), null, byOwner = false, place = null)
     }
 }
 

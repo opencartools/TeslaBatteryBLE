@@ -72,7 +72,7 @@ internal class ChargePriceStore(
         val before = published.value.toSet()
         val after =
             sessions.groupBy { it.vehicleId }.flatMap { (vehicleId, carSessions) ->
-                reconcilePrices(carSessions, byCar[vehicleId].orEmpty(), defaults)
+                reconcilePrices(carSessions, byCar[vehicleId].orEmpty(), defaults, defaults.paidCharges[vehicleId].orEmpty())
             } + published.value.filter { it.vehicleId !in sessions.mapTo(HashSet()) { s -> s.vehicleId } }
         val afterSet = after.toSet()
         val removed = before.filter { it !in afterSet }

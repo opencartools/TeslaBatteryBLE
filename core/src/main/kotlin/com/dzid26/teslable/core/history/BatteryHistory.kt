@@ -3,6 +3,7 @@
 package com.dzid26.teslable.core.history
 
 import com.dzid26.teslable.protocol.ChargingStateKind
+import com.dzid26.teslable.protocol.LastPaidCharge
 
 /**
  * One battery reading, recorded whenever a car reports charge state.
@@ -34,6 +35,8 @@ data class BatterySample(
     val chargeRateMph: Float? = null,
     /** `fast_charger_present`: true while a DC fast charger is connected; null when the car sent none. */
     val fastChargerPresent: Boolean? = null,
+    /** The car's summary of its last paid (Supercharger) charge, the same in every reading until the next one. */
+    val lastPaidCharge: LastPaidCharge? = null,
     /**
      * `usable_battery_level`: the level the rated range stands for. The car holds back part of a cold
      * battery, so it reads up to a point below [batteryLevel]. Defaults to the displayed level when the car sent none.

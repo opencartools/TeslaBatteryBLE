@@ -35,6 +35,19 @@ internal data class BatterySampleRow(
     val fastChargerPresent: Boolean? = null,
 )
 
+/**
+ * One paid charge a car reported (`LastPaidCharge`): every reading repeats the last one, so this keeps each once,
+ * written when a build first reads it. [pricePerKwh] is kept for display beside the total, which is the price.
+ */
+@Entity(tableName = "paid_charges", primaryKeys = ["vehicleId", "atMillis"])
+internal data class PaidChargeRow(
+    val vehicleId: String,
+    val atMillis: Long,
+    val cost: Float,
+    val currency: String,
+    val pricePerKwh: Float?,
+)
+
 /** One kept [com.dzid26.teslable.core.history.DriveSample]; [shiftState] is the `ShiftStateKind` name. */
 @Entity(tableName = "drive_samples", primaryKeys = ["vehicleId", "time"])
 internal data class DriveSampleRow(
@@ -93,6 +106,9 @@ internal interface DerivedDao {
     fun insertActivity(rows: List<ActivitySampleRow>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertPaid(rows: List<PaidChargeRow>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun setProgress(row: ProgressRow)
 
     @Query("SELECT * FROM progress WHERE vehicleId = :vehicleId AND kind = :kind")
@@ -128,6 +144,10 @@ internal interface DerivedReadDao {
      */
     @Query("SELECT * FROM battery_samples WHERE time < :before ORDER BY time")
     fun batteryBefore(before: Long): List<BatterySampleRow>
+
+    /** Every paid charge the cars reported, oldest first. */
+    @Query("SELECT * FROM paid_charges ORDER BY atMillis")
+    fun paidCharges(): List<PaidChargeRow>
 
     @Query("SELECT * FROM drive_samples WHERE time < :before ORDER BY time")
     fun driveBefore(before: Long): List<DriveSampleRow>
@@ -187,12 +207,13 @@ internal interface DerivedReadDao {
         ChargeSessionRow::class,
         DriveSessionRow::class,
         SessionDirtyRow::class,
+        PaidChargeRow::class,
     ],
     // 2 adds the session tables; the samples and marks of 1 stay as they are. 3 adds the charger kind of a charge
-    // session and re-cuts every car's sessions so the stored ones get it.
-    version = 3,
+    // session and re-cuts every car's sessions so the stored ones get it. 4 adds the cars' paid charges.
+    version = 4,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
 )
 internal abstract class DerivedDatabase : RoomDatabase() {
     abstract fun derived(): DerivedDao

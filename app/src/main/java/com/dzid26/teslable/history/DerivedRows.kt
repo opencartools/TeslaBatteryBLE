@@ -8,6 +8,7 @@ import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.DriveSample
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.protocol.ChargingStateKind
+import com.dzid26.teslable.protocol.LastPaidCharge
 import com.dzid26.teslable.protocol.ShiftStateKind
 
 // The samples as `derived.db` rows and back. Enums are stored by name, so reordering one never changes a stored row;
@@ -46,6 +47,14 @@ internal fun BatterySampleRow.toSample(): BatterySample =
         readAtMillis = readAt,
         fastChargerPresent = fastChargerPresent,
     )
+
+internal fun LastPaidCharge.toRow(vehicleId: String): PaidChargeRow = PaidChargeRow(vehicleId, atMillis, cost, currencyCode, pricePerKwh)
+
+internal fun PaidChargeRow.toPaidCharge(): LastPaidCharge = LastPaidCharge(atMillis, cost, currency, pricePerKwh)
+
+/** [rows] per car, oldest first: what the price follow matches to sessions. */
+internal fun paidChargesByCar(rows: List<PaidChargeRow>): Map<String, List<LastPaidCharge>> =
+    rows.groupBy({ it.vehicleId }, { it.toPaidCharge() })
 
 internal fun DriveSample.toRow(): DriveSampleRow =
     DriveSampleRow(

@@ -60,8 +60,8 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   - `events.db` (not backed up): the phone's own logs, above.
   - `owner.db` (backed up, journal mode TRUNCATE so the backed-up file is whole): what the owner entered,
     the only data that cannot be rebuilt. Schema export is binding from the first normal release. It holds
-    every finished charge session's price with its place (Home, Work, Supercharger or the owner's own name): the
-    automatic price frozen when the session finished, or the owner's edit, so later rule or setting changes never
+    every finished charge session's price, and its place only when the owner set it (the place is derived from the
+    logs otherwise): the automatic price frozen when the session finished, or the owner's edit, so later rule or setting changes never
     re-price the past. A price is matched to the derived session by time overlap, because a re-cut can shift a
     session's start; on a re-cut join the owner's edit wins and totals add up, and on a split a total is shared by
     energy. The GPS position, which can be rebuilt, belongs with the session in `derived.db`. The readings are not

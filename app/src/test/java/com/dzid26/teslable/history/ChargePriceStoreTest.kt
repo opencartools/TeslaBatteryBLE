@@ -9,6 +9,7 @@ import com.dzid26.teslable.core.health.PriceChange
 import com.dzid26.teslable.core.health.PriceDefaults
 import com.dzid26.teslable.core.health.SessionPrice
 import com.dzid26.teslable.core.health.StoredChargePrice
+import com.dzid26.teslable.protocol.LastPaidCharge
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -61,7 +62,7 @@ class ChargePriceStoreTest {
         store.follow(sessions, defaults)
 
         assertEquals(
-            listOf(StoredChargePrice("carA", HOUR, 3 * HOUR, SessionPrice.PerKwh(0.2f), "PLN", byOwner = false, ChargePlace.HOME)),
+            listOf(StoredChargePrice("carA", HOUR, 3 * HOUR, SessionPrice.PerKwh(0.2f), "PLN", byOwner = false)),
             prices.value,
         )
     }
@@ -82,6 +83,18 @@ class ChargePriceStoreTest {
                 StoredChargePrice("carB", HOUR, 2 * HOUR, SessionPrice.Total(9f), "PLN", byOwner = true),
             ),
             prices.value.toSet(),
+        )
+    }
+
+    @Test
+    fun `a paid charge keeps its fields through derived db, listed per car`() {
+        val paid = LastPaidCharge(1_780_411_979_000, 4.22f, "EUR", 0.28f)
+        val other = paid.copy(atMillis = 2_000, pricePerKwh = null)
+
+        assertEquals(paid, paid.toRow("carA").toPaidCharge())
+        assertEquals(
+            mapOf("carA" to listOf(other, paid), "carB" to listOf(paid)),
+            paidChargesByCar(listOf(other.toRow("carA"), paid.toRow("carB"), paid.toRow("carA"))),
         )
     }
 
