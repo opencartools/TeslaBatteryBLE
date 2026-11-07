@@ -3,6 +3,7 @@
 package com.dzid26.teslable.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
@@ -93,7 +94,7 @@ internal class ChartViewport(
     }
 
     /** Where canvas x [px] falls across the plotting area, 0 at its start edge and 1 at its end edge. */
-    private fun viewFraction(px: Float): Double {
+    fun viewFraction(px: Float): Double {
         val fraction = ((px - layerLeft) / layerWidth).toDouble()
         return if (ltr) fraction else 1.0 - fraction
     }
@@ -205,3 +206,24 @@ internal fun List<Double>.insertionPoint(
 
 /** The narrowest view, as a fraction of the whole chart: a fiftieth, so a week still zooms to a few hours. */
 internal const val MIN_VIEW_SPAN = 0.02
+
+/**
+ * A range chip's tap on a history axis: while a picked session is shown it goes back to the overview at [entry]; on
+ * the chip already chosen it zooms back out; on another chip it picks that range.
+ */
+internal fun <T> pickRange(
+    entry: T,
+    chosen: MutableState<T>,
+    focused: Boolean,
+    link: SessionLink,
+    viewport: ChartViewport,
+) {
+    when {
+        focused -> {
+            chosen.value = entry
+            link.onSelect(null)
+        }
+        chosen.value == entry -> viewport.reset()
+        else -> chosen.value = entry
+    }
+}

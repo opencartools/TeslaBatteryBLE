@@ -168,6 +168,7 @@ fun MainScreen(
             routes = history.routes,
             trips = history.trips,
             storedCharges = history.chargeSessions,
+            storedDrives = history.driveSessions,
             historyLoaded = history.loaded,
             onBack = { viewingBleName = null },
             onEdit = { vinTarget = bleName },

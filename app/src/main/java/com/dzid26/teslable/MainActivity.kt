@@ -90,6 +90,7 @@ class MainActivity : ComponentActivity() {
                             controller.chargePriceEditor::setChargePrice,
                         )
                     }
+                val driveSessions by controller.driveSessions.collectAsState()
                 val historyLoaded by controller.historyLoaded.collectAsState()
                 val logExportStatus by controller.logExport.status.collectAsState()
                 val history =
@@ -101,6 +102,7 @@ class MainActivity : ComponentActivity() {
                         latestRoutes,
                         trips,
                         chargeSessions,
+                        driveSessions,
                         historyLoaded,
                     ) {
                         HistorySamples(
@@ -111,6 +113,7 @@ class MainActivity : ComponentActivity() {
                             latestRoutes,
                             trips,
                             chargeSessions,
+                            driveSessions,
                             historyLoaded,
                         )
                     }

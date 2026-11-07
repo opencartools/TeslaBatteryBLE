@@ -122,8 +122,11 @@ internal fun Modifier.scrubbing(
     viewport: ChartViewport? = null,
     // The tick when a held press starts a span.
     haptics: HapticFeedback? = null,
+    // A tap (a touch lifted without moving): the canvas x it landed on. True when the tap picked something, which
+    // clears the cursor; false leaves the cursor standing where the tap put it.
+    onTap: ((Float) -> Boolean)? = null,
 ): Modifier =
-    pointerInput(pin, viewport, haptics) {
+    pointerInput(pin, viewport, haptics, onTap) {
         val gesture = Gesture(viewConfiguration.touchSlop, viewConfiguration.longPressTimeoutMillis, MIN_SPAN.toPx())
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
@@ -147,6 +150,7 @@ internal fun Modifier.scrubbing(
                     pin.canvasX = before
                     pin.restoredX = restoredBefore
                 }
+                step == ScrubStep.UNDECIDED -> if (onTap?.invoke(down.position.x) == true) pin.clear()
                 step == ScrubStep.SPAN && viewport != null && anchor != null -> {
                     val end = pin.canvasX ?: anchor
                     // A span narrower than MIN_SPAN is a press that changed its mind: the cursor stays where it was let go.

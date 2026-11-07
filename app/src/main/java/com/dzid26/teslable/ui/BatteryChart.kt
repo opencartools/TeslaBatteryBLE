@@ -40,12 +40,16 @@ import kotlin.math.roundToLong
 /** What a series of the battery chart draws; the line provider maps each kind to its look. */
 internal enum class SeriesKind { MEASURED, MEASURED_CHARGING, DOTS, DOTS_CHARGING, CHARGE_PROJECTION, DISCHARGE_PROJECTION }
 
-/** What the chart plots: the readings, the projections and the scale that turns them into percent. */
+/**
+ * What the chart plots: the readings, the projections and the scale that turns them into percent, and the drives and
+ * charges as bands behind them.
+ */
 internal data class ChartData(
     val samples: List<BatterySample>,
     val charge: ChargeProjection?,
     val discharge: DischargeProjection?,
     val scale: FullRangeScale?,
+    val bands: List<SessionBand> = emptyList(),
 )
 
 /** The time window and how its times are written. */
@@ -96,7 +100,9 @@ internal class Beam(
  * dot per measurement, and the dashed charge or parked-drain projection with
  * its beam. Pressing the chart shows a cursor with the value and the time at
  * the nearest point. Two fingers pan and zoom it sideways ([viewport]); the
- * percent axis fits what is on screen.
+ * percent axis fits what is on screen. A tap goes to [onTap] with the time it
+ * landed on and how far a finger's width reaches; true means it picked a
+ * session, and the cursor goes.
  */
 @Composable
 internal fun BatteryChart(
@@ -104,6 +110,7 @@ internal fun BatteryChart(
     axis: TimeAxis,
     modifier: Modifier = Modifier,
     viewport: ChartViewport = remember { ChartViewport() },
+    onTap: ((millis: Long, slopMillis: Long) -> Boolean)? = null,
 ) {
     val samples = data.samples
     val charge = data.charge
@@ -125,10 +132,7 @@ internal fun BatteryChart(
     val timeFormatter = rememberTimeFormatter(window, axis.showDate, axis.is24Hour)
     val view = remember(shape, spanHours, viewport.start, viewport.end) { shape.view(spanHours, viewport) }
     val xStep = (view.maxX - view.minX) / X_LABEL_STEPS
-    val clock =
-        remember(window, view.maxX - view.minX, viewport.isFull) {
-            if (viewport.isFull) null else clockSteps(window.start, view.maxX - view.minX)
-        }
+    val clock = rememberClockSteps(window, view, viewport)
     val description = remember(samples, scale) { chartDescription(samples, scale) }
 
     val pin = rememberCursorPin()
@@ -143,15 +147,15 @@ internal fun BatteryChart(
                             shape.specs,
                             lines,
                         ) { LineCartesianLayer.LineProvider.series(shape.specs.map { lines.getValue(it.kind) }) },
-                    rangeProvider =
-                        remember(view) { view.rangeProvider() },
+                    rangeProvider = remember(view) { view.rangeProvider() },
                 ),
                 startAxis = rememberPercentAxis(view.gridlines),
                 bottomAxis = rememberTimeAxis(timeFormatter, clock),
                 decorations =
-                    remember(shape.specs, shape.beams, pin, cursor, lineColor, viewport) {
+                    remember(shape.specs, shape.beams, data.bands, window, pin, cursor, lineColor, viewport) {
                         listOf(
                             ViewportTracker(viewport),
+                            ClippedWhenZoomed(SessionBands(data.bands, window), viewport),
                             ClippedWhenZoomed(Beams(shape.beams), viewport),
                             ScrubCursor(pin, cursor, shape.specs.flatMap { it.xs.zip(it.ys) }, lineColor),
                         )
@@ -162,7 +166,10 @@ internal fun BatteryChart(
         CartesianChartHost(
             chart = chart,
             model = remember(shape.specs) { batteryModel(shape.specs) },
-            modifier = modifier.scrubbing(pin, viewport, LocalHapticFeedback.current).semantics { contentDescription = description },
+            modifier =
+                modifier
+                    .scrubbing(pin, viewport, LocalHapticFeedback.current, rememberTapMillis(onTap, viewport, view, window))
+                    .semantics { contentDescription = description },
             scrollState = rememberVicoScrollState(scrollEnabled = false),
             zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content),
         )

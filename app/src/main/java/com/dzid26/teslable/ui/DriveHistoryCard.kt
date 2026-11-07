@@ -28,9 +28,12 @@ import com.dzid26.teslable.core.health.DriveStats
 import com.dzid26.teslable.core.health.driveStats
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.DriveSample
+import com.dzid26.teslable.core.history.DriveSession
 import com.dzid26.teslable.core.history.DriveWindow
 import com.dzid26.teslable.core.history.FullRangeScale
+import com.dzid26.teslable.core.history.distanceFocus
 import com.dzid26.teslable.core.history.drivePoints
+import com.dzid26.teslable.core.history.inSpan
 import com.dzid26.teslable.core.history.totalDrop
 import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.history.FullRangeScales
@@ -51,7 +54,8 @@ internal class DistanceAxisMemory(
  * dot, and one that held the rated range (not lower than the reading before or after) is a green gradient. The window is the last 15,
  * 50 or 150 km (10, 30 or 100 mi) or everything since the last charge. Each trip
  * is its own line, so a charge or a long parked gap never gets a connecting
- * stroke.
+ * stroke. A drive picked in [link] replaces the window with that drive alone (no chip lit), and its figures
+ * fill the footer; a chip goes back to the overview.
  */
 @Composable
 internal fun DistanceHistory(
@@ -59,46 +63,45 @@ internal fun DistanceHistory(
     drives: List<DriveSample>,
     // The chosen window and the last figures, held by the history card so a switch of axis and back finds both.
     memory: DistanceAxisMemory = remember { DistanceAxisMemory(mutableStateOf(DriveWindow.MEDIUM)) },
-    // The fitted full-range scale; the car screen fits it once for all its cards.
-    scale: FullRangeScale? = remember(samples) { FullRangeScales.of(samples) },
-    // The learned rated constant (kWh per rated mile); null hides the energy and efficiency stats.
-    ratedKwhPerMile: Float? = null,
+    // The session link: a picked drive replaces the window with that drive's readings.
+    link: SessionLink = SessionLink(),
+    // The fitted full-range scale (the car screen fits it once for all its cards) and the learned rated constant.
+    energy: EnergyScale = EnergyScale(remember(samples) { FullRangeScales.of(samples) }),
 ) {
-    var window by memory.window
-    // A new window starts unzoomed; a tap on the window already chosen zooms back out.
-    val viewport = rememberChartViewport(window)
+    val scale = energy.scale
+    val ratedKwhPerMile = energy.ratedKwhPerMile
+    val window by memory.window
+    val focus = (link.selected as? DriveSession)?.distanceFocus()
+    // A new window or drive starts unzoomed; a tap on the window already chosen zooms back out.
+    val viewport = rememberChartViewport(window, focus)
     val unit = LocalDistanceUnit.current
     val pricePerKwh = LocalPricePerKwh.current
     // Up to 20k samples: matched off the main thread, and only when the data or the window changes. The card shows once
     // the first match is in; a later change, or a switch back from the time axis, keeps the previous chart up until the
     // next one is ready.
     val figures =
-        memory.figures.inBackground(samples, drives, window, unit, scale, ratedKwhPerMile, pricePerKwh) {
-            val points = drivePoints(samples, drives, scale, window.miles(unit), window.sinceLastCharge)
-            DriveFigures(
-                plotted =
-                    points.map {
-                        Plotted(
-                            unit.fromMiles(it.milesDriven.toFloat()).toDouble(),
-                            it.socPercent,
-                            it.regenerating,
-                            it.trip,
-                            it.timestampMillis,
-                            it.ratedMiles,
-                        )
-                    },
-                used = points.totalDrop { it.socPercent },
-                stats = driveStats(points, scale, ratedKwhPerMile, pricePerKwh),
+        memory.figures.inBackground(samples, drives, window, focus, unit, scale, ratedKwhPerMile, pricePerKwh) {
+            driveFigures(
+                samples,
+                drives,
+                focus,
+                DriveInputs(window.miles(unit), window.sinceLastCharge, unit, scale),
+                ratedKwhPerMile to pricePerKwh,
             )
         } ?: return
     val plotted = figures.plotted
 
     Column {
-        DriveChips(window, unit) { if (window == it) viewport.reset() else window = it }
+        DriveChips(window.takeIf { focus == null }, unit) { pickRange(it, memory.window, focus != null, link, viewport) }
         Spacer(Modifier.height(8.dp))
         if (plotted.size < 2 || plotted.last().distance <= 0.0) {
             Text(
-                text = "No drives since the last charge yet. Battery percent is plotted against distance driven.",
+                text =
+                    if (focus != null) {
+                        stringResource(R.string.drive_focus_no_points)
+                    } else {
+                        "No drives since the last charge yet. Battery percent is plotted against distance driven."
+                    },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -118,6 +121,58 @@ internal fun DistanceHistory(
     }
 }
 
+/**
+ * How percent turns into energy: the fitted full-range [scale], and the learned rated constant (kWh per rated mile;
+ * null hides the energy and efficiency stats).
+ */
+internal class EnergyScale(
+    val scale: FullRangeScale?,
+    val ratedKwhPerMile: Float? = null,
+)
+
+/** How the readings become points: the window's miles and its stop at the last charge, the unit and the scale. */
+private class DriveInputs(
+    val windowMiles: Double?,
+    val sinceLastCharge: Boolean,
+    val unit: DistanceUnit,
+    val scale: FullRangeScale?,
+)
+
+/**
+ * The points and sums for the window, or for [focus] (a picked drive's readings) instead; [prices] is the rated
+ * constant and the energy price.
+ */
+private fun driveFigures(
+    samples: List<BatterySample>,
+    drives: List<DriveSample>,
+    focus: LongRange?,
+    inputs: DriveInputs,
+    prices: Pair<Float?, Float?>,
+): DriveFigures {
+    val scale = inputs.scale
+    val points =
+        if (focus != null) {
+            drivePoints(samples.inSpan(focus) { it.timestampMillis }, drives.inSpan(focus) { it.timestampMillis }, scale)
+        } else {
+            drivePoints(samples, drives, scale, inputs.windowMiles, inputs.sinceLastCharge)
+        }
+    return DriveFigures(
+        plotted =
+            points.map {
+                Plotted(
+                    inputs.unit.fromMiles(it.milesDriven.toFloat()).toDouble(),
+                    it.socPercent,
+                    it.regenerating,
+                    it.trip,
+                    it.timestampMillis,
+                    it.ratedMiles,
+                )
+            },
+        used = points.totalDrop { it.socPercent },
+        stats = driveStats(points, scale, prices.first, prices.second),
+    )
+}
+
 /** What the drive history card plots and sums for one window. */
 internal class DriveFigures(
     val plotted: List<Plotted>,
@@ -125,11 +180,11 @@ internal class DriveFigures(
     val stats: DriveStats?,
 )
 
-/** The distance-window chips: 15 / 50 / 150 km (10 / 30 / 100 mi) and since the last charge. */
+/** The distance-window chips: 15 / 50 / 150 km (10 / 30 / 100 mi) and since the last charge; none lit for null. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DriveChips(
-    window: DriveWindow,
+    window: DriveWindow?,
     unit: DistanceUnit,
     onWindow: (DriveWindow) -> Unit,
 ) {
