@@ -62,6 +62,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.EnergyPriceStore
@@ -252,9 +253,16 @@ internal fun CarScreen(
                 title = {
                     val vinLabel = remember(vehicle?.vin) { vehicle?.vin?.let(::decodeVin)?.label }
                     Row(verticalAlignment = Alignment.Top) {
-                        Column {
-                            Text(vehicle?.title ?: connection?.gattDeviceName ?: advert?.name ?: "Car")
-                            vinLabel?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                        // Shrinks before the pencil: on a narrow screen the name ends in an ellipsis, not one letter per line.
+                        Column(Modifier.weight(1f, fill = false)) {
+                            Text(
+                                text = vehicle?.title ?: connection?.gattDeviceName ?: advert?.name ?: "Car",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            vinLabel?.let {
+                                Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                         if (vehicle != null) {
                             // A small glyph lifted onto the name line, inside the standard 48dp touch target.
