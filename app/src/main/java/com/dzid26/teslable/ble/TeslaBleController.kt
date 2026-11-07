@@ -1006,14 +1006,8 @@ class TeslaBleController(
         /** Keeps the command log: every request goes out through [transmit], which logs it with its reason (ADR-0008). */
         val commands = CommandRecorder(bleName, historyStore, rssi = { latestRssi(address) })
 
-        /** Whether an Infotainment read is in flight, for the spinner; every exit clears it. */
-        private val readInFlight = ReadInFlight { progress -> updateConnection(address) { it.copy(readProgress = progress) } }
-
-        /** The reason of the read that is waiting for the Infotainment handshake. */
-        private var waitingReadReason = Command.Reason.REASON_UNSPECIFIED
-
         /** The charge controls' queue, the request in flight, and the feedback they produce. */
-        internal val actuation =
+        internal val actuation: ActuationChannel =
             ActuationChannel(
                 object : ActuationHost {
                     override fun isAwake() = this@VehicleLink.isAwake()
@@ -1021,6 +1015,8 @@ class TeslaBleController(
                     override fun hasSession() = handshake.has(Domain.DOMAIN_INFOTAINMENT)
 
                     override fun readWaiting() = infotainmentGate.readWaiting
+
+                    override fun readActive(): Boolean = readInFlight.active
 
                     override fun startSession() = this@VehicleLink.startSession()
 
@@ -1058,6 +1054,17 @@ class TeslaBleController(
                     }
                 },
             )
+
+        /** Whether an Infotainment read is in flight, for the spinner; every exit clears it. */
+        private val readInFlight: ReadInFlight =
+            ReadInFlight { progress ->
+                updateConnection(address) { it.copy(readProgress = progress) }
+                // The action waits for the read sequence; this is the one point every read exit reaches.
+                if (progress == null) actuation.onReadFinished()
+            }
+
+        /** The reason of the read that is waiting for the Infotainment handshake. */
+        private var waitingReadReason = Command.Reason.REASON_UNSPECIFIED
 
         /**
          * When the app last read on coming to the foreground; reopening the screen sooner than
@@ -1553,6 +1560,8 @@ class TeslaBleController(
          * button ([Command.Reason.USER_REFRESH]) is sent at once and counted by the policy.
          */
         fun requestChargeState(reason: Command.Reason = CommandRecords.reasonOf(infotainmentPolicy.lastReadReason)) {
+            // The action the owner just gave waits for the current read; do not start another ahead of it.
+            if (actuation.hasPending && !readInFlight.active) return
             if (reason == Command.Reason.USER_REFRESH) infotainmentPolicy.onUserRequest(System.currentTimeMillis())
             val now = System.currentTimeMillis()
             when (infotainmentGate.onReadDue(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT))) {

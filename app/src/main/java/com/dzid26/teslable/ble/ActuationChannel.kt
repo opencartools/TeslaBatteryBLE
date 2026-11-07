@@ -34,6 +34,9 @@ internal interface ActuationHost {
     /** True while a read already waits for the Infotainment handshake. */
     fun readWaiting(): Boolean
 
+    /** True while an Infotainment read sequence is in flight. */
+    fun readActive(): Boolean
+
     /** Asks the car for sessions; false when nothing went out. */
     fun startSession(): Boolean
 
@@ -113,6 +116,9 @@ internal class ActuationChannel(
         sendNext()
     }
 
+    /** The in-flight read is over: an action that waited behind it may go out now. */
+    fun onReadFinished() = sendNext()
+
     /** The car answered [key]; null means the answer could not be used. A value that arrived meanwhile follows. */
     fun onReply(
         key: ActuationKey,
@@ -153,7 +159,8 @@ internal class ActuationChannel(
     }
 
     private fun sendNext() {
-        if (inFlight != null || pending.isEmpty() || !host.isAwake()) return
+        val ready = pending.isNotEmpty() && inFlight == null && host.isAwake() && !host.readActive()
+        if (!ready) return
         if (!host.hasSession()) {
             // A read already asked for the session; the action follows when it arrives. Otherwise ask
             // once and let the handshake's retries run.

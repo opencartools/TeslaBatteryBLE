@@ -43,6 +43,23 @@ class ActuationChannelTest {
     }
 
     @Test
+    fun `an action waits for the in-flight read`() {
+        host.awake = true
+        host.session = true
+        host.readInFlight = true
+
+        channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
+
+        assertTrue(host.sent.isEmpty())
+        assertEquals(setOf(ActuationKey.CHARGE_LIMIT), host.pendingStates.last())
+
+        host.readInFlight = false
+        channel.onReadFinished()
+
+        assertEquals(listOf(ActuationKey.CHARGE_LIMIT), host.sent.map { it.first })
+    }
+
+    @Test
     fun `a newer value replaces the one still queued`() {
         channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
         channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(85))
@@ -149,6 +166,7 @@ class ActuationChannelTest {
     private class FakeHost : ActuationHost {
         var awake = false
         var session = false
+        var readInFlight = false
         var readWaiting = false
         var sendResult = true
         var startSessionResult = true
@@ -166,6 +184,8 @@ class ActuationChannelTest {
         override fun hasSession(): Boolean = session
 
         override fun readWaiting(): Boolean = readWaiting
+
+        override fun readActive(): Boolean = readInFlight
 
         override fun startSession(): Boolean {
             sessionStarts++
