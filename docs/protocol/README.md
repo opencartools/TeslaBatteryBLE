@@ -11,6 +11,7 @@ To bump the protos, rebase the fork's `main` on `teslamotors/main`, merge the ch
 there, write the new commit hash to `TESLA_COMMIT`, copy all nine `.proto` files from
 `pkg/protocol/protobuf` at that commit, then regenerate
 `docs/reference/fleet-telemetry-vs-ble.md` with `tools/signal-matrix/generate.py`.
+If the Go implementation changed, regenerate `tools/go-fixtures/expected.txt` too.
 CI's go-vectors job diffs the copies against the pin, and the generated-doc check
 fails if the matrix is stale.
 

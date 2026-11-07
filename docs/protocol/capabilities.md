@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 # Tesla BLE capabilities
 
-Date: 2026-10-04 (proto rev: a4b43c1eff0e09d77deb9f2dce97031141fe8c8a)
+Date: 2026-10-04 (proto rev then: a4b43c1eff0e09d77deb9f2dce97031141fe8c8a)
 
 Pinned protos: `protocol/src/main/proto/*.proto` (rev recorded in
 `protocol/src/main/proto/TESLA_COMMIT`). Go reference: `opencartools/vehicle-command`
@@ -81,7 +81,8 @@ Also in `common.proto`: `ChargeSchedule`, `PreconditionSchedule`,
 
 All fields below are in `ChargeState`, `protocol/src/main/proto/vehicle.proto`
 (~field 1–178). Every scalar is `oneof optional_*` = **omitted when the car
-has nothing to report**, so absence ≠ zero. Field numbers in parentheses.
+has nothing to report**, so absence ≠ zero; the `last_charge_timestamp` message
+(190) is a plain field. Field numbers in parentheses.
 
 **Core SOC / limits**
 
@@ -256,8 +257,7 @@ Verified by case-insensitive search of all pinned `*.proto` for each term
    `universal_message.proto` (`Domain`, `RoutableMessage`, `MessageFault_E`,
    `Flags`), `keys.proto` (`Role`), `signatures.proto`, `errors.proto`,
    `common.proto`, `managed_charging.proto`; rev
-   `protocol/src/main/proto/TESLA_COMMIT` = `a4b43c1…8c8a` when catalogued, now
-   `e337e1a…846f`.
+   `protocol/src/main/proto/TESLA_COMMIT` = `a4b43c1…8c8a` when catalogued.
 2. `https://github.com/teslamotors/vehicle-command/blob/a4b43c1eff0e09d77deb9f2dce97031141fe8c8a/pkg/protocol/protocol.md` — GATT UUIDs, framing/chunk note, domains, roles, VCSEC connection limits, request/response + retry semantics.
 3. `…/pkg/vehicle/state.go` — `BodyControllerState` works asleep;
    12 `StateCategory` values; `GetState` doc (BLE one-category vs Fleet API

@@ -20,8 +20,9 @@ data class LastPaidCharge(
 )
 
 /**
- * The last paid charge, from `ChargeState` fields 183 (cost), 184 (currency), 185 (price per kWh) and 190 (time).
- * Null unless the cost, currency and time are all there.
+ * The last paid charge, from `ChargeState`'s `last_charge_cost`, `last_charge_currency`,
+ * `last_charge_price_per_kwh` and `last_charge_timestamp` fields. Null unless the cost,
+ * currency and time are all there.
  */
 val ChargeState.lastPaidCharge: LastPaidCharge?
     get() {
