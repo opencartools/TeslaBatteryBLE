@@ -79,7 +79,6 @@
     <string name="wizard_allow">Allow</string>
     <string name="about_title">About</string>
     <string name="about_disclaimer">Not affiliated with, endorsed by, or sponsored by Tesla, Inc.</string>
-    <string name="about_pr_build">Pull request #%1$s</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_description">A local-first Tesla BLE battery tracker. It reads battery data over Bluetooth and keeps the history on the phone: no account, no cloud, nothing leaves the phone.</string>
     <string name="about_links">Links</string>
