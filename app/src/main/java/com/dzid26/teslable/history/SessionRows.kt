@@ -8,6 +8,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.dzid26.teslable.core.health.ChargeSession
+import com.dzid26.teslable.core.health.ChargerKind
 import com.dzid26.teslable.core.history.DriveSession
 
 /**
@@ -23,6 +24,8 @@ internal data class ChargeSessionRow(
     val endPercent: Float,
     val energyAdded: Float?,
     val milesAddedRated: Float?,
+    /** The `ChargerKind` name; null when the samples do not tell. */
+    val chargerKind: String? = null,
 )
 
 /** One [DriveSession]; odometer in hundredths of a mile, levels in percent, ranges in rated miles. */
@@ -51,6 +54,12 @@ internal data class SessionDirtyRow(
     val fromTime: Long,
 )
 
+/** A stored session's start and end, from either session table. */
+internal data class SessionSpanRow(
+    val startTime: Long,
+    val endTime: Long,
+)
+
 /** The per-car marks the sample builder lowers and the session builder clears. */
 @Dao
 internal interface SessionDirtyDao {
@@ -74,18 +83,22 @@ internal interface SessionDirtyDao {
 /** What the session builder and the session readers use. */
 @Dao
 internal interface SessionDao {
-    /** The start of the car's newest charge session that starts before [time], where a re-cut begins. */
-    @Query("SELECT MAX(startTime) FROM charge_sessions WHERE vehicleId = :vehicleId AND startTime < :time")
-    fun newestChargeStartBefore(
+    /** The car's newest charge session that starts before [time], where a re-cut may begin. */
+    @Query(
+        "SELECT startTime, endTime FROM charge_sessions WHERE vehicleId = :vehicleId AND startTime < :time ORDER BY startTime DESC LIMIT 1",
+    )
+    fun newestChargeBefore(
         vehicleId: String,
         time: Long,
-    ): Long?
+    ): SessionSpanRow?
 
-    @Query("SELECT MAX(startTime) FROM drive_sessions WHERE vehicleId = :vehicleId AND startTime < :time")
-    fun newestDriveStartBefore(
+    @Query(
+        "SELECT startTime, endTime FROM drive_sessions WHERE vehicleId = :vehicleId AND startTime < :time ORDER BY startTime DESC LIMIT 1",
+    )
+    fun newestDriveBefore(
         vehicleId: String,
         time: Long,
-    ): Long?
+    ): SessionSpanRow?
 
     @Query("DELETE FROM charge_sessions WHERE vehicleId = :vehicleId AND startTime >= :from")
     fun deleteChargesFrom(
@@ -115,10 +128,19 @@ internal interface SessionDao {
 }
 
 internal fun ChargeSession.toRow(): ChargeSessionRow =
-    ChargeSessionRow(vehicleId, startMillis, endMillis, startPercent, endPercent, energyAddedKwh, milesAddedRated)
+    ChargeSessionRow(vehicleId, startMillis, endMillis, startPercent, endPercent, energyAddedKwh, milesAddedRated, chargerKind?.name)
 
 internal fun ChargeSessionRow.toSession(): ChargeSession =
-    ChargeSession(startTime, endTime, startPercent, endPercent, energyAdded, milesAddedRated, vehicleId = vehicleId)
+    ChargeSession(
+        startTime,
+        endTime,
+        startPercent,
+        endPercent,
+        energyAdded,
+        milesAddedRated,
+        vehicleId = vehicleId,
+        chargerKind = ChargerKind.entries.firstOrNull { it.name == chargerKind },
+    )
 
 internal fun DriveSession.toRow(): DriveSessionRow =
     DriveSessionRow(

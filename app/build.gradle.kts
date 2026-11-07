@@ -130,6 +130,8 @@ android {
         )
         // Short tag for notifications of CI debug builds ("PR 332"); empty elsewhere.
         buildConfigField("String", "BUILD_LABEL", "\"\"")
+        // Pull request number of a CI pull request build; empty elsewhere.
+        buildConfigField("String", "PR_NUMBER", "\"\"")
         // android:label in the manifest; CI debug builds override it below.
         manifestPlaceholders["appLabel"] = "@string/app_name"
     }
@@ -167,7 +169,9 @@ android {
             if (ciDebugBuild) {
                 applicationIdSuffix = ".pr"
                 manifestPlaceholders["appLabel"] = "TeslaBatteryBLE PR$ciPrNumber"
+                // BUILD_LABEL and PR_NUMBER both come from the one ciPrNumber, so they cannot drift apart.
                 buildConfigField("String", "BUILD_LABEL", "\"${if (ciPrNumber.isEmpty()) "PR build" else "PR $ciPrNumber"}\"")
+                buildConfigField("String", "PR_NUMBER", "\"$ciPrNumber\"")
             }
         }
         release {

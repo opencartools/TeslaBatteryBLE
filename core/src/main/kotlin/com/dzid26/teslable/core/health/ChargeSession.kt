@@ -28,6 +28,8 @@ data class ChargeSession(
     override val inProgress: Boolean = false,
     /** The car this session belongs to. */
     val vehicleId: String = "",
+    /** AC or DC, as [chargerKindOf] tells it from the session's samples; null when they do not say. */
+    val chargerKind: ChargerKind? = null,
 ) : Session {
     override val id: String get() = "charge-$vehicleId-$startMillis"
     override val socStartPercent: Float get() = startPercent
@@ -100,34 +102,6 @@ fun chargeSessions(
     }
 }
 
-private fun chargeRuns(samples: List<BatterySample>): List<List<BatterySample>> {
-    val runs = mutableListOf<MutableList<BatterySample>>()
-    var current: MutableList<BatterySample>? = null
-    var paused = false
-    for (sample in samples) {
-        when (sample.chargingState) {
-            ChargingStateKind.Charging, ChargingStateKind.Starting -> {
-                val pausedTooLong =
-                    paused && current != null && sample.timestampMillis - current.last().timestampMillis >= MAX_PAUSE_MILLIS
-                if (current == null || pausedTooLong) {
-                    current = mutableListOf()
-                    runs.add(current)
-                }
-                current.add(sample)
-                paused = false
-            }
-
-            ChargingStateKind.Stopped, ChargingStateKind.NoPower -> paused = true
-
-            else -> {
-                current = null
-                paused = false
-            }
-        }
-    }
-    return runs
-}
-
 /**
  * Stats of the last charge that has finished: [chargeStats] once the session is over, and while one is
  * still open (see [chargeSessionOpen]) the charge before it, so the figures stay put and are swapped
@@ -159,7 +133,27 @@ private fun List<BatterySample>.toSession(): ChargeSession =
         energyAddedKwh = counterGrowth { it.chargeEnergyAdded },
         milesAddedRated = counterGrowth { it.chargeMilesAddedRated },
         vehicleId = first().vehicleId,
-    )
+    ).let { it.copy(chargerKind = chargerKindOf(this, it.averageKw)) }
+
+/**
+ * How a run of charging samples charged, by the car's own `fast_charger_present`: DC when any sample had a fast
+ * charger, AC when the samples say it had none. Samples without the flag (stored before it was kept) are told by
+ * [averageKw], since faster than any AC supply is DC, then by an AC supply voltage; anything else is not known.
+ * Voltage alone never says DC: some firmwares report the DC bus voltage while fast charging.
+ */
+internal fun chargerKindOf(
+    run: List<BatterySample>,
+    averageKw: Float?,
+): ChargerKind? {
+    val flags = run.mapNotNull { it.fastChargerPresent }
+    return when {
+        flags.any { it } -> ChargerKind.DC
+        flags.isNotEmpty() -> ChargerKind.AC
+        (averageKw ?: 0f) > AC_MAX_KW -> ChargerKind.DC
+        run.any { (it.chargerVoltage ?: 0) >= AC_MIN_VOLTS } -> ChargerKind.AC
+        else -> null
+    }
+}
 
 /**
  * How far one of the car's running totals grew from the first to the last sample
@@ -203,11 +197,17 @@ fun chargeSessionOpen(
 /** Below this swing the estimator itself refuses to compute a capacity. */
 const val MIN_SWING_PERCENT = 5f
 
+/** The lowest mains voltage, 100V supplies included, with room for a sagging line. */
+private const val AC_MIN_VOLTS = 90
+
+/** No AC supply charges a Tesla faster than this (19.2kW at 80A on the older chargers), so above it is DC. */
+private const val AC_MAX_KW = 22f
+
 private const val MIN_AVERAGE_MILLIS = 5 * 60_000L
 private const val MILLIS_PER_HOUR = 3_600_000f
 
 /** A pause (Stopped or NoPower) shorter than this does not end a session. */
-private const val MAX_PAUSE_MILLIS = 10 * 60_000L
+internal const val MAX_PAUSE_MILLIS = 10 * 60_000L
 
 /** When each charge that had begun by [byMillis] began, oldest first: the time of its first charging sample. */
 fun chargeStartsBy(

@@ -14,7 +14,6 @@
     <ID>InjectDispatcher:HistoryStore.kt:HistoryStore$IO</ID>
     <ID>InjectDispatcher:SettingsScreen.kt:IO</ID>
     <ID>LongMethod:BatteryHealthCard.kt:@Composable internal fun BatteryHealthCard</ID>
-    <ID>LongMethod:CarScreen.kt:@Composable internal fun BatteryHistoryCard</ID>
     <ID>LongMethod:CarScreen.kt:@Composable internal fun HeroCard</ID>
     <ID>LongMethod:CarScreen.kt:@Composable private fun BatteryChart</ID>
     <ID>LongMethod:CarScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun CarScreen</ID>

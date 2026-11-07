@@ -5,7 +5,6 @@ package com.dzid26.teslable.ui
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import app.cash.paparazzi.Paparazzi
-import com.android.ide.common.rendering.api.SessionParams
 import com.dzid26.teslable.core.history.RouteSample
 import org.junit.After
 import org.junit.Before
@@ -73,7 +72,7 @@ class DrivingScreenSnapshots {
     @Test
     fun screenCarDetailDriving() {
         // The same driving car scrolled down to the drive card and its chart: the second release screenshot.
-        snapScreen("screen-car-detail-driving") {
+        snapScreen("screen-car-detail-driving") { narrow ->
             CarScreen(
                 state = DemoScreenFixtures.drivingState(NOW),
                 vehicle = DemoScreenFixtures.vehicle,
@@ -91,29 +90,25 @@ class DrivingScreenSnapshots {
                 onToggleTracking = {},
                 nowMillis = NOW,
                 homePrice = HOME_PRICE,
-                scrollState = rememberScrollState(DRIVE_CARD_SCROLL_PX),
+                scrollState = rememberScrollState(if (narrow) DRIVE_CARD_SCROLL_NARROW_PX else DRIVE_CARD_SCROLL_PX),
             )
         }
     }
 
-    /** The full screen on the 1080x2400 phone of [CardSnapshots], light and dark. */
+    /** The full screen on the 1080x2400 phone of [CardSnapshots], light and dark, and at Jelly Star width in light. */
     private fun snapScreen(
         name: String,
-        content: @Composable () -> Unit,
-    ) {
-        paparazzi.unsafeUpdateConfig(
-            deviceConfig = screenPhone,
-            renderingMode = SessionParams.RenderingMode.NORMAL,
-        )
-        paparazzi.snapshot(name + "_light") { ScreenFrame(darkTheme = false, content = content) }
-        paparazzi.snapshot(name + "_dark") { ScreenFrame(darkTheme = true, content = content) }
-    }
+        content: @Composable (narrow: Boolean) -> Unit,
+    ) = paparazzi.snapFullScreen(name, content)
 
     private companion object {
         const val HOME_PRICE = 0.30f
 
         /** Scrolls the car view down to the drive card, its rounded top corners just clear of the top bar. */
         const val DRIVE_CARD_SCROLL_PX = 1625
+
+        /** Puts the drive card's rounded top corners just clear of the top bar, as on the phone; tuned with the narrow top bar fix. */
+        const val DRIVE_CARD_SCROLL_NARROW_PX = 1345
 
         /** The live trip began fourteen minutes before the render. */
         const val TRIP_ELAPSED_MILLIS = 14 * 60_000L

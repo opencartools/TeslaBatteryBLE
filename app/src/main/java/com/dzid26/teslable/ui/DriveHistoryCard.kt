@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,8 +38,8 @@ import java.text.DecimalFormatSymbols
 import java.util.Locale
 
 /**
- * Battery percent over distance driven: the driving counterpart of the battery
- * history card, which plots percent over time. Percent is the sub-percent SOC
+ * The history card's distance axis: battery percent over distance driven, the
+ * counterpart of the time axis. Percent is the sub-percent SOC
  * (the rated range over the fitted full range); each regenerating reading is a green
  * dot, and one that held the rated range (not lower than the reading before or after) is a green gradient. The window is the last 15,
  * 50 or 150 km (10, 30 or 100 mi) or everything since the last charge. Each trip
@@ -49,7 +47,7 @@ import java.util.Locale
  * stroke.
  */
 @Composable
-internal fun DriveHistoryCard(
+internal fun DistanceHistory(
     samples: List<BatterySample>,
     drives: List<DriveSample>,
     // Injectable for the Paparazzi snapshots; production opens on the middle window.
@@ -85,31 +83,27 @@ internal fun DriveHistoryCard(
         } ?: return
     val plotted = figures.plotted
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
-            Text("Drive history", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(8.dp))
-            DriveChips(window, unit) { window = it }
-            Spacer(Modifier.height(8.dp))
-            if (plotted.size < 2 || plotted.last().distance <= 0.0) {
-                Text(
-                    text = "No drives since the last charge yet. Battery percent is plotted against distance driven.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                RangeChart(points = plotted, modifier = Modifier.fillMaxWidth().height(160.dp))
-                Spacer(Modifier.height(6.dp))
-                Legend()
-                Spacer(Modifier.height(6.dp))
-                DriveFooter(
-                    plotted.last().distance,
-                    unit,
-                    figures.used,
-                    wholeStepsOnly = scale?.pinned != true,
-                    stats = figures.stats,
-                )
-            }
+    Column {
+        DriveChips(window, unit) { window = it }
+        Spacer(Modifier.height(8.dp))
+        if (plotted.size < 2 || plotted.last().distance <= 0.0) {
+            Text(
+                text = "No drives since the last charge yet. Battery percent is plotted against distance driven.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            RangeChart(points = plotted, modifier = Modifier.fillMaxWidth().height(160.dp))
+            Spacer(Modifier.height(6.dp))
+            Legend()
+            Spacer(Modifier.height(6.dp))
+            DriveFooter(
+                plotted.last().distance,
+                unit,
+                figures.used,
+                wholeStepsOnly = scale?.pinned != true,
+                stats = figures.stats,
+            )
         }
     }
 }

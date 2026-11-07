@@ -2,7 +2,9 @@
 
 package com.dzid26.teslable.history
 
+import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.BleRecord
+import com.dzid26.teslable.protocol.ChargingStateKind
 import com.tesla.generated.carserver.common.Void
 import com.tesla.generated.carserver.vehicle.ChargeState
 import com.tesla.generated.carserver.vehicle.DriveState
@@ -156,6 +158,24 @@ class SessionBuilderTest {
                 .single()
         assertEquals(1000 to 3000, drive.startOdometer to drive.endOdometer)
         assertTrue(drive.unseen)
+    }
+
+    @Test
+    fun `the charge break lookup skips every charging state the rows store`() {
+        // The query names Charging and Starting as text; every other state, and none, is a break.
+        val states = listOf(null) + ChargingStateKind.entries
+        val rows = states.mapIndexed { index, state -> BatterySample(index.toLong(), 50, state, 80, vehicleId = "carA").toRow() }
+        dbs.derived.derived().insertBattery(rows)
+
+        states.indices.forEach { index ->
+            val found =
+                dbs.derived
+                    .reads()
+                    .chargeBreakBefore("carA", index + 1L)
+                    ?.time
+            val expected = states.subList(0, index + 1).indexOfLast { it != ChargingStateKind.Charging && it != ChargingStateKind.Starting }
+            assertEquals("break before ${states[index]}", expected.toLong().takeIf { expected >= 0 }, found)
+        }
     }
 
     @Test

@@ -12,7 +12,10 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.AutoMigrationSpec
+import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.SQLiteDriver
+import androidx.sqlite.execSQL
 
 /**
  * One kept [com.dzid26.teslable.core.history.BatterySample] of the long-term history (ADR-0014): the columns are the
@@ -32,6 +35,7 @@ internal data class BatterySampleRow(
     val chargerVoltage: Int?,
     val chargeRateMph: Float?,
     val readAt: Long?,
+    val fastChargerPresent: Boolean? = null,
 )
 
 /** One kept [com.dzid26.teslable.core.history.DriveSample]; [shiftState] is the `ShiftStateKind` name. */
@@ -150,12 +154,32 @@ internal interface DerivedReadDao {
         from: Long,
     ): List<DriveSampleRow>
 
+    /**
+     * The car's newest kept battery sample before [time] that is neither charging nor starting to (the names of
+     * `ChargingStateKind.Charging` and `Starting`): what may have closed the charge session before it.
+     */
+    @Query(
+        "SELECT * FROM battery_samples WHERE vehicleId = :vehicleId AND time < :time AND " +
+            "(chargingState IS NULL OR chargingState NOT IN ('Charging', 'Starting')) ORDER BY time DESC LIMIT 1",
+    )
+    fun chargeBreakBefore(
+        vehicleId: String,
+        time: Long,
+    ): BatterySampleRow?
+
     /** The time of the car's newest kept drive sample with an odometer before [time]. */
     @Query("SELECT MAX(time) FROM drive_samples WHERE vehicleId = :vehicleId AND time < :time AND odometer IS NOT NULL")
     fun driveReadingBefore(
         vehicleId: String,
         time: Long,
     ): Long?
+}
+
+/** Marks every car with stored samples for a full session re-cut, from the start of its history. */
+internal class RecutAllSessions : AutoMigrationSpec {
+    override fun onPostMigrate(connection: SQLiteConnection) {
+        connection.execSQL("INSERT OR REPLACE INTO session_dirty (vehicleId, fromTime) SELECT DISTINCT vehicleId, 0 FROM battery_samples")
+    }
 }
 
 /**
@@ -174,10 +198,11 @@ internal interface DerivedReadDao {
         DriveSessionRow::class,
         SessionDirtyRow::class,
     ],
-    // 2 adds the session tables; the samples and marks of 1 stay as they are.
-    version = 2,
+    // 2 adds the session tables; the samples and marks of 1 stay as they are. 3 adds the charger kind of a charge
+    // session and re-cuts every car's sessions so the stored ones get it.
+    version = 3,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3, spec = RecutAllSessions::class)],
 )
 internal abstract class DerivedDatabase : RoomDatabase() {
     abstract fun derived(): DerivedDao
