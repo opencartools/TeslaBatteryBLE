@@ -12,15 +12,15 @@ import kotlin.test.assertNull
 class TeslaCryptoTest {
     @Test
     fun `derives the protocol reference session key`() {
-        val client = TeslaKeyPair(REFERENCE_CLIENT_PKCS8.hex(), REFERENCE_CLIENT_PUBLIC.hex())
-        val key = client.sessionKeyWith(REFERENCE_VEHICLE_PUBLIC.hex())
-        assertContentEquals(REFERENCE_SESSION_KEY.hex(), key)
+        val client = TeslaKeyPair(REFERENCE_CLIENT_PKCS8.hexToByteArray(), REFERENCE_CLIENT_PUBLIC.hexToByteArray())
+        val key = client.sessionKeyWith(REFERENCE_VEHICLE_PUBLIC.hexToByteArray())
+        assertContentEquals(REFERENCE_SESSION_KEY.hexToByteArray(), key)
     }
 
     @Test
     fun `subkey matches the protocol reference hmac`() {
-        val subkey = TeslaCrypto.subkey(REFERENCE_SESSION_KEY.hex(), TeslaSession.LABEL_SESSION_INFO)
-        assertContentEquals(REFERENCE_SESSION_INFO_KEY.hex(), subkey)
+        val subkey = TeslaCrypto.subkey(REFERENCE_SESSION_KEY.hexToByteArray(), TeslaSession.LABEL_SESSION_INFO)
+        assertContentEquals(REFERENCE_SESSION_INFO_KEY.hexToByteArray(), subkey)
     }
 
     @Test
@@ -93,8 +93,6 @@ class TeslaCryptoTest {
             keyPair.sessionKeyWith(ByteArray(10))
         }
     }
-
-    private fun String.hex(): ByteArray = chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
     private companion object {
         // Test keys and derived values from the protocol reference document

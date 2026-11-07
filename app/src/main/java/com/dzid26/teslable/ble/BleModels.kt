@@ -32,7 +32,7 @@ data class TeslaConnection(
     val rssi: Int? = null,
     val status: VehicleStatus? = null,
     val keySlot: Int? = null,
-    val sessions: List<String> = emptyList(),
+    val sessions: Set<Domain> = emptySet(),
     val charge: ChargeState? = null,
     /** When [charge] was last read; null until the first charge response. */
     val chargeAtMillis: Long? = null,
@@ -396,7 +396,7 @@ fun readBlockedHint(
         // A ready link before its first status is normal right after connecting: the pull wakes it.
         status == null -> null
         status.asleep -> ReadBlockedHint.ASLEEP
-        Domain.DOMAIN_INFOTAINMENT.name !in sessions -> ReadBlockedHint.NO_SESSION
+        Domain.DOMAIN_INFOTAINMENT !in sessions -> ReadBlockedHint.NO_SESSION
         else -> null
     }
 }
@@ -429,17 +429,6 @@ private fun withDuration(
     label: String,
     millis: Long?,
 ): String = millis?.let(::compactDuration)?.let { "$label\u00A0$it" } ?: label
-
-/** Friendly names for the per-domain secure sessions. */
-fun sessionNames(sessions: List<String>): String =
-    sessions.joinToString(", ") { session ->
-        when {
-            session.contains("VEHICLE_SECURITY") -> "Security"
-            session.contains("INFOTAINMENT") -> "Infotainment"
-            session.contains("BROADCAST") -> "Broadcast"
-            else -> session
-        }
-    }
 
 /** Friendly charging state for the charge details line. */
 fun chargingStateText(state: ChargingStateKind): String =

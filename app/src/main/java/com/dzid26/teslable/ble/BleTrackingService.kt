@@ -29,6 +29,7 @@ import com.dzid26.teslable.core.history.RouteSample
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.statusDurations
 import com.dzid26.teslable.protocol.asleep
+import com.tesla.generated.universalmessage.Domain
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -216,7 +217,7 @@ class BleTrackingService(
                 percentAgeLabel = reading?.ageLabel(now, connection),
                 showWake =
                     connection.status?.asleep == true &&
-                        connection.sessions.contains("DOMAIN_VEHICLE_SECURITY"),
+                        Domain.DOMAIN_VEHICLE_SECURITY in connection.sessions,
                 trip = trip,
             )
         }

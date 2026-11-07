@@ -84,6 +84,6 @@ class TeslaCommandsClosuresClimateTest {
         val refusal = Response(actionStatus = ActionStatus(result = OperationStatus_E.OPERATIONSTATUS_ERROR)).encode()
         assertNull(TeslaCommands.parseClosuresState(refusal))
         assertNull(TeslaCommands.parseClimateState(refusal))
-        assertEquals("OPERATIONSTATUS_ERROR", TeslaCommands.parseActionStatus(refusal))
+        assertEquals(OperationStatus_E.OPERATIONSTATUS_ERROR, TeslaCommands.parseActionStatus(refusal))
     }
 }

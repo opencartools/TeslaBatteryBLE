@@ -175,7 +175,7 @@ class FakeCarFaultsTest {
             return true
         }
 
-        override fun publishSessions(domains: List<String>) = Unit
+        override fun publishSessions(domains: Set<Domain>) = Unit
 
         override fun mayRequestInfotainment(awake: Boolean) = false
 

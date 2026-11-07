@@ -33,8 +33,8 @@ interface SessionHost {
     /** Sends a session-info request; false when the transport did not take it. */
     fun transmitSessionRequest(request: ByteArray): Boolean
 
-    /** The domains that now have a session, sorted by name. */
-    fun publishSessions(domains: List<String>)
+    /** The domains that now have a session. */
+    fun publishSessions(domains: Set<Domain>)
 
     /** Whether the Infotainment session may be requested now (a read is waiting and the car is awake). */
     fun mayRequestInfotainment(awake: Boolean): Boolean
@@ -73,9 +73,9 @@ class SessionHandshake(
 
     operator fun get(domain: Domain): TeslaSession? = sessions[domain]
 
-    /** Domains with a session, sorted by name. */
-    val established: List<String>
-        get() = sessions.keys.map { it.name }.sorted()
+    /** Domains with a session. */
+    val established: Set<Domain>
+        get() = sessions.keys.toSet()
 
     /** Forgets the [domain] session without telling the host; the next [start] asks for a new one. */
     fun drop(domain: Domain) {
