@@ -107,8 +107,8 @@ class DrivingScreenSnapshots {
         /** Scrolls the car view down to the drive card, its rounded top corners just clear of the top bar. */
         const val DRIVE_CARD_SCROLL_PX = 1625
 
-        /** The same 619dp offset as DRIVE_CARD_SCROLL_PX at the Jelly Star density (327 dpi instead of 420). */
-        const val DRIVE_CARD_SCROLL_NARROW_PX = 1262
+        /** Lands on the drive card with its rounded top corners just clear of the top bar, as DRIVE_CARD_SCROLL_PX does on the phone; retuned by eye with the narrow top bar fix. */
+        const val DRIVE_CARD_SCROLL_NARROW_PX = 1345
 
         /** The live trip began fourteen minutes before the render. */
         const val TRIP_ELAPSED_MILLIS = 14 * 60_000L
