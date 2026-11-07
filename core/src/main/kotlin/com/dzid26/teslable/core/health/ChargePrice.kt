@@ -19,28 +19,26 @@ fun recordPriceChange(
         .takeLast(MAX_CHANGES)
 
 /**
- * The price a charge that ended at [chargeEndMillis] was billed at. A price change takes effect from the
- * start of the latest charge when it was made: the current one while charging, else the last finished one.
- * So a price set mid-charge covers that whole charge, and one set while parked also re-prices the charge
- * just finished. The newest change in effect by the charge's start wins; null when none is, or it cleared
- * the price.
+ * The price a charge that ended at [chargeEndMillis] (the time of its last charging sample) was billed at: its
+ * entry from [pricesForSessions] over the sessions cut from [samples]. Null when no charge ends there, or no
+ * price is in effect for it.
  */
 fun priceForCharge(
     changes: List<PriceChange>,
     samples: List<BatterySample>,
     chargeEndMillis: Long,
 ): Float? {
-    val chargeStart = chargeStartOf(samples, chargeEndMillis)
-    return changes
-        .filter { change -> (chargeStartsBy(samples, change.atMillis).lastOrNull() ?: Long.MIN_VALUE) <= chargeStart }
-        .maxByOrNull { it.atMillis }
-        ?.pricePerKwh
+    val sessions = chargeSessions(samples)
+    val index = sessions.indexOfFirst { it.endMillis == chargeEndMillis }
+    return if (index >= 0) pricesForSessions(changes, sessions)[index] else null
 }
 
 /**
- * The price each of [sessions] (oldest first) was billed at, by the rule of [priceForCharge]: a change takes
- * effect from the start of the latest session that had begun when it was made. Reads the session starts
- * instead of re-cutting the samples, so it also prices the stored sessions older than the readings in memory.
+ * The price each of [sessions] (oldest first) was billed at. A price change takes effect from the start of the
+ * latest charge when it was made: the current one while charging, else the last finished one. So a price set
+ * mid-charge covers that whole charge, and one set while parked also re-prices the charge just finished. The
+ * newest change in effect by a session's start wins; null when none is, or it cleared the price. Reads only
+ * the session starts, so it also prices the stored sessions older than the readings in memory.
  */
 fun pricesForSessions(
     changes: List<PriceChange>,
