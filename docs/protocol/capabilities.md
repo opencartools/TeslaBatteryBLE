@@ -138,6 +138,12 @@ has nothing to report**, so absence ≠ zero. Field numbers in parentheses.
   `managed_charging_start_time` (141), `managed_charging_state` (158, solar).
 - `timestamp` (44) on every sample — use for poll cadence math.
 
+**Last paid charge (fork fields, not in Tesla's protos)**: `last_charge_cost` (183),
+`last_charge_currency` (184), `last_charge_price_per_kwh` (185),
+`last_charge_timestamp` (190). The car's summary of its most recent paid session,
+unchanged in every reply until the next one; it sends no energy or duration for it.
+Details and the other undefined fields: `docs/research/unknown-proto-fields.md`.
+
 **Powershare / outlet (Cybertruck + Powershare cars; absent elsewhere)**
 
 - `powershare_feature_allowed/enabled/request` (166–168),

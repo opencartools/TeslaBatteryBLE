@@ -11,7 +11,7 @@ vehicle data as the Fleet API JSON) versus what is readable over **local BLE**
   `upstream/fleet-telemetry/FLEET_TELEMETRY_COMMIT`. The signal list comes from the
   `Field` enum in `vehicle_data.proto`.
 - **BLE:** `protocol/src/main/proto/*.proto`, pinned to Tesla's vehicle-command revision in
-  `protocol/src/main/proto/TESLA_COMMIT`.
+  `protocol/src/main/proto/TESLA_COMMIT` (a commit of our fork, `opencartools/vehicle-command`).
 - **The cross-map:** `mapping.json` — hand-curated equivalences, cloud-only rows, and the
   command table. This is the file to edit when you want the document to change.
 

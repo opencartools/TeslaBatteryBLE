@@ -2,10 +2,7 @@
 
 package com.dzid26.teslable.protocol
 
-import com.squareup.wire.ProtoAdapter
-import com.squareup.wire.ProtoReader
 import com.tesla.generated.carserver.vehicle.ChargeState
-import okio.Buffer
 
 /**
  * The car's summary of its last paid charge (a Supercharger session), as the car shows it with its invoice. It stays
@@ -23,38 +20,13 @@ data class LastPaidCharge(
 )
 
 /**
- * The last paid charge, from `ChargeState` fields that the pinned protos do not define yet (183 cost, 184 currency,
- * 185 price per kWh, 190 timestamp), with the names and types of opencartools/vehicle-command#1. They are read from the
- * reply's unknown fields so the vendored protos stay verbatim; once upstream defines them, a `TESLA_COMMIT` bump
- * turns this into plain field reads. Null unless the cost, currency and time are all there.
+ * The last paid charge, from `ChargeState` fields 183 (cost), 184 (currency), 185 (price per kWh) and 190 (time).
+ * Null unless the cost, currency and time are all there.
  */
 val ChargeState.lastPaidCharge: LastPaidCharge?
     get() {
-        if (unknownFields.size == 0) return null
-        var cost: Float? = null
-        var currency: String? = null
-        var price: Float? = null
-        var atMillis: Long? = null
-        runCatching {
-            val reader = ProtoReader(Buffer().write(unknownFields))
-            val token = reader.beginMessage()
-            while (true) {
-                when (reader.nextTag()) {
-                    -1 -> break
-                    LAST_CHARGE_COST -> cost = ProtoAdapter.FLOAT.decode(reader)
-                    LAST_CHARGE_CURRENCY -> currency = ProtoAdapter.STRING.decode(reader)
-                    LAST_CHARGE_PRICE_PER_KWH -> price = ProtoAdapter.FLOAT.decode(reader)
-                    LAST_CHARGE_TIMESTAMP -> atMillis = ProtoAdapter.INSTANT.decode(reader).toEpochMilli()
-                    else -> reader.skip()
-                }
-            }
-            reader.endMessageAndGetUnknownFields(token)
-        }
-        val at = atMillis ?: return null
-        return cost?.let { c -> currency?.let { LastPaidCharge(at, c, it, price) } }
+        val at = last_charge_timestamp ?: return null
+        val cost = last_charge_cost ?: return null
+        val currency = last_charge_currency ?: return null
+        return LastPaidCharge(at.toEpochMilli(), cost, currency, last_charge_price_per_kwh)
     }
-
-private const val LAST_CHARGE_COST = 183
-private const val LAST_CHARGE_CURRENCY = 184
-private const val LAST_CHARGE_PRICE_PER_KWH = 185
-private const val LAST_CHARGE_TIMESTAMP = 190

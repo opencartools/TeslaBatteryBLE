@@ -2,8 +2,10 @@
 
 How TeslaBatteryBLE talks to a Tesla over Bluetooth LE. Implemented in
 [`core/`](../../core) and wired to Android BLE in [`app/`](../../app). Verified
-against Tesla's [`vehicle-command`](https://github.com/teslamotors/vehicle-command)
-(the proto revision is pinned in [`protocol/src/main/proto/TESLA_COMMIT`](../../protocol/src/main/proto/TESLA_COMMIT)).
+against Tesla's [`vehicle-command`](https://github.com/teslamotors/vehicle-command),
+through our fork [`opencartools/vehicle-command`](https://github.com/opencartools/vehicle-command)
+that adds the fields the car sends and Tesla's protos lack (the proto revision is
+pinned in [`protocol/src/main/proto/TESLA_COMMIT`](../../protocol/src/main/proto/TESLA_COMMIT)).
 
 ## Transport
 

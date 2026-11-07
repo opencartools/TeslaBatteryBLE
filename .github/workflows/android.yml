@@ -679,7 +679,7 @@ jobs:
         run: |
           git init -q /tmp/vehicle-command
           git -C /tmp/vehicle-command fetch -q --depth 1 \
-            https://github.com/teslamotors/vehicle-command.git "$(cat protocol/src/main/proto/TESLA_COMMIT)"
+            https://github.com/opencartools/vehicle-command.git "$(cat protocol/src/main/proto/TESLA_COMMIT)"
           git -C /tmp/vehicle-command checkout -q FETCH_HEAD
 
       - name: Set up Go
