@@ -14,6 +14,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,29 +27,45 @@ import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.DriveSample
+import com.dzid26.teslable.core.history.DriveSession
 import com.dzid26.teslable.core.history.DriveWindow
 import com.dzid26.teslable.core.history.HistoryRange
 import com.dzid26.teslable.core.history.ProjectionContext
+import com.dzid26.teslable.core.history.Session
 import com.dzid26.teslable.history.FullRangeScales
 
 /** What the history card's x-axis measures: time, or distance driven. */
 internal enum class HistoryAxis { TIME, DISTANCE }
 
 /**
- * The moment the history card measures up to, and where it opens: its axis, the time range and the distance window.
- * Production passes the ticking clock and opens on the defaults; the Paparazzi snapshots pin them all.
+ * The moment the history card measures up to, and where it opens: its axis, the time range and the distance window,
+ * and the sessions it is linked with. Production passes the ticking clock and opens on the defaults; the Paparazzi
+ * snapshots pin them all.
  */
 internal data class HistoryView(
     val nowMillis: Long = System.currentTimeMillis(),
     val axis: HistoryAxis = HistoryAxis.TIME,
     val range: HistoryRange = HistoryRange.DAY,
     val window: DriveWindow = DriveWindow.MEDIUM,
+    val link: SessionLink = SessionLink(),
+)
+
+/**
+ * The chart's half of the link with the Sessions card: the drives and charges it shows as bands (oldest first), the
+ * one picked in the list, which the chart zooms to, and [onSelect] for a tap on a band, or null when a range chip
+ * takes the chart back to its overview.
+ */
+internal class SessionLink(
+    val sessions: List<Session> = emptyList(),
+    val selected: Session? = null,
+    val onSelect: (Session?) -> Unit = {},
 )
 
 /**
  * Battery history, one chart with two axes: over time (the range chips, projections and the last charge) or over
  * distance driven (the distance windows, regen and the drive figures). A switch in the header picks the axis; each
- * axis keeps its own chips, so switching back finds the range where it was left.
+ * axis keeps its own chips, so switching back finds the range where it was left. A session picked in the list zooms
+ * the chart to it, a drive on distance and a charge on time; the switch still moves between the two.
  */
 @Composable
 internal fun HistoryCard(
@@ -68,6 +85,10 @@ internal fun HistoryCard(
     val window = rememberSaveable { mutableStateOf(view.window) }
     val time = remember { TimeAxisMemory(range) }
     val distance = remember { DistanceAxisMemory(window) }
+    val focus = view.link.selected
+    LaunchedEffect(focus?.id) {
+        focus?.let { axis = if (it is DriveSession) HistoryAxis.DISTANCE else HistoryAxis.TIME }
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -75,8 +96,8 @@ internal fun HistoryCard(
                 AxisSwitch(axis) { axis = it }
             }
             when (axis) {
-                HistoryAxis.TIME -> TimeHistory(samples, drives, view.nowMillis, time, context)
-                HistoryAxis.DISTANCE -> DistanceHistory(samples, drives, distance, context.scale, ratedKwhPerMile)
+                HistoryAxis.TIME -> TimeHistory(samples, drives, view, time, context)
+                HistoryAxis.DISTANCE -> DistanceHistory(samples, drives, distance, view.link, EnergyScale(context.scale, ratedKwhPerMile))
             }
         }
     }

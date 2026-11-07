@@ -16,6 +16,7 @@ import com.dzid26.teslable.core.history.Command
 import com.dzid26.teslable.core.history.CommandRecords
 import com.dzid26.teslable.core.history.ConnectionEvent
 import com.dzid26.teslable.core.history.DriveSample
+import com.dzid26.teslable.core.history.DriveSession
 import com.dzid26.teslable.core.history.RouteSample
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.Trip
@@ -96,6 +97,9 @@ class TeslaBleController(
 
     /** Every car's charge sessions as `derived.db` stores them, oldest first. */
     val chargeSessions: StateFlow<List<ChargeSession>> get() = historyStore.chargeSessions
+
+    /** Every car's drives as `derived.db` stores them, oldest first. */
+    val driveSessions: StateFlow<List<DriveSession>> get() = historyStore.driveSessions
 
     /** The newest route-bearing drive reading per car, for the live trip card. */
     val latestRoutes: StateFlow<Map<String, RouteSample>> get() = historyStore.latestRoutes

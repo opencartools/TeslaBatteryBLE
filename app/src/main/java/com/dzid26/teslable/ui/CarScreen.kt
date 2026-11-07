@@ -46,6 +46,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -95,10 +96,12 @@ import com.dzid26.teslable.core.history.ChargeProjection
 import com.dzid26.teslable.core.history.ChargeStats
 import com.dzid26.teslable.core.history.DischargeProjection
 import com.dzid26.teslable.core.history.DriveSample
+import com.dzid26.teslable.core.history.DriveSession
 import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.HistoryRange
 import com.dzid26.teslable.core.history.ProjectionContext
 import com.dzid26.teslable.core.history.RouteSample
+import com.dzid26.teslable.core.history.Session
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.TENTHS_PER_PERCENT
 import com.dzid26.teslable.core.history.Trip
@@ -107,10 +110,14 @@ import com.dzid26.teslable.core.history.chargeProjection
 import com.dzid26.teslable.core.history.compactDuration
 import com.dzid26.teslable.core.history.currentRest
 import com.dzid26.teslable.core.history.dischargeProjection
+import com.dzid26.teslable.core.history.driveSessions
+import com.dzid26.teslable.core.history.focusWindow
 import com.dzid26.teslable.core.history.fromTime
+import com.dzid26.teslable.core.history.inSpan
 import com.dzid26.teslable.core.history.markingLive
 import com.dzid26.teslable.core.history.projectionHorizonMillis
 import com.dzid26.teslable.core.history.restStats
+import com.dzid26.teslable.core.history.sessionAt
 import com.dzid26.teslable.core.history.socTenths
 import com.dzid26.teslable.core.history.statusDurations
 import com.dzid26.teslable.core.history.withLiveTail
@@ -155,6 +162,8 @@ internal fun CarScreen(
     trips: Map<String, List<Trip>> = emptyMap(),
     // Every car's charge sessions as derived.db stores them; the screen joins the newest with the live readings.
     storedCharges: List<ChargeSession> = emptyList(),
+    // Every car's drives as derived.db stores them, joined the same way.
+    storedDrives: List<DriveSession> = emptyList(),
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onAddVin: () -> Unit,
@@ -182,6 +191,7 @@ internal fun CarScreen(
     val vehicleStatuses = rememberForVehicle(statusHistory, bleName) { it.vehicleId }
     val vehicleActivity = rememberForVehicle(activityHistory, bleName) { it.vehicleId }
     val vehicleCharges = rememberForVehicle(storedCharges, bleName) { it.vehicleId }
+    val vehicleStoredDrives = rememberForVehicle(storedDrives, bleName) { it.vehicleId }
     val paired = isPaired(connection, vehicle)
     // The figures that scan the whole history (the fit, the stats, the health, both history charts and past trips)
     // follow the logs at most every FIGURES_INTERVAL_MILLIS, not on every reading; the hero and the current-rest
@@ -382,6 +392,12 @@ internal fun CarScreen(
                         ratedKwhPerMile = health?.ratedKwhPerMile,
                         pricePerKwh = pricePerKwh,
                     )
+                    // Keyed on the minute as well, so a session that ended while no sample came in stops saying it is going.
+                    val sessionsMinute = (nowMillis ?: rememberNowMillis()) / MILLIS_PER_MINUTE
+                    val sessions = rememberSessions(logs, StoredSessions(vehicleCharges, vehicleStoredDrives), scale, sessionsMinute)
+                    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+                    val selected = sessions.firstOrNull { it.id == selectedId }
+                    val onSelect: (Session?) -> Unit = { selectedId = it?.id }
                     HistoryCard(
                         logs.battery,
                         logs.drives,
@@ -389,24 +405,19 @@ internal fun CarScreen(
                         ratedKwhPerMile = health?.ratedKwhPerMile,
                         // The ticking clock, not a fresh wall-clock read: that changed on every recomposition (each
                         // RSSI poll), so the card redid its projections and redrew its chart every time.
-                        view = HistoryView(nowMillis = nowMillis ?: rememberNowMillis()),
+                        view =
+                            HistoryView(
+                                nowMillis = nowMillis ?: rememberNowMillis(),
+                                link = SessionLink(sessions, selected, onSelect),
+                            ),
                     )
                     val vehicleTrips = vehicle?.let { trips[it.bleName] }.orEmpty()
-                    PastTripsCard(
+                    SessionsCard(
+                        sessions = sessions,
                         trips = remember(vehicleTrips, liveRoute) { vehicleTrips.markingLive(liveRoute) },
-                        samples = logs.battery,
-                        scale = scale,
-                        ratedKwhPerMile = health?.ratedKwhPerMile,
-                        pricePerKwh = pricePerKwh,
-                    )
-                    // Keyed on the minute as well, so a charge that ended while no sample came in stops saying "charging".
-                    val sessionsMinute = (nowMillis ?: rememberNowMillis()) / MILLIS_PER_MINUTE
-                    ChargeSessionsCard(
-                        remember(logs, vehicleCharges, sessionsMinute) {
-                            withLiveTail(vehicleCharges) { from ->
-                                chargeSessions(logs.battery.fromTime(from) { it.timestampMillis }, sessionsMinute * MILLIS_PER_MINUTE)
-                            }
-                        },
+                        inputs = SessionInputs(logs.battery, scale, health?.ratedKwhPerMile, pricePerKwh),
+                        selectedId = selected?.id,
+                        onSelect = onSelect,
                     )
                     rest?.let { DrainStatsCard(it, current) }
                     health?.let { BatteryHealthCard(it) }
@@ -415,6 +426,40 @@ internal fun CarScreen(
         }
     }
 }
+
+/** The car's sessions as derived.db stores them: its charges and its drives, each oldest first. */
+private class StoredSessions(
+    val charges: List<ChargeSession>,
+    val drives: List<DriveSession>,
+)
+
+/**
+ * The car's drives and charges, oldest first by start: the stored ones joined with the tail cut again from the
+ * readings in memory (`withLiveTail`), at [minute] for the session still going. Off the main thread: with nothing
+ * stored yet the cut reads the whole log.
+ */
+@Composable
+private fun rememberSessions(
+    logs: VehicleLogs,
+    stored: StoredSessions,
+    scale: FullRangeScale?,
+    minute: Long,
+): List<Session> =
+    rememberInBackground(emptyList(), logs, stored.charges, stored.drives, scale, minute) {
+        val now = minute * MILLIS_PER_MINUTE
+        val charges =
+            withLiveTail(stored.charges) { from -> chargeSessions(logs.battery.fromTime(from) { it.timestampMillis }, now) }
+        val drives =
+            withLiveTail(stored.drives) { from ->
+                driveSessions(
+                    logs.drives.fromTime(from) { it.timestampMillis },
+                    logs.battery.fromTime(from) { it.timestampMillis },
+                    scale,
+                    now,
+                )
+            }
+        (charges + drives).sortedBy { it.startMillis }
+    }
 
 /** What a tap on the status pill says: asleep explains the swipe-to-wake, paused why the reads wait. */
 private fun pillClick(
@@ -933,23 +978,27 @@ internal class TimeAxisMemory(
     val chargePrice = BackgroundMemo<Float?>()
 }
 
-/** The history card's time axis: the range chips, the battery chart with its projections, and the last charge. */
+/**
+ * The history card's time axis: the range chips, the battery chart with its projections, and the last charge. A
+ * session picked in [view]'s link replaces the range with a window around it (no chip lit, no projections), and a chip
+ * goes back to the overview. Drives and charges show as bands behind the line; a tap on one picks it.
+ */
 @Composable
 internal fun TimeHistory(
     samples: List<BatterySample>,
     drives: List<DriveSample>,
-    // Injectable for the Paparazzi snapshots; production call sites use the
-    // default, which is the same wall-clock read as before.
-    nowMillis: Long = System.currentTimeMillis(),
+    // The clock and the session link; the Paparazzi snapshots pin the clock.
+    view: HistoryView = HistoryView(),
     // The chosen range and the last figures, held by the history card so a switch of axis and back finds both.
-    memory: TimeAxisMemory = remember { TimeAxisMemory(mutableStateOf(HistoryRange.DAY)) },
+    memory: TimeAxisMemory = remember { TimeAxisMemory(mutableStateOf(view.range)) },
     // The status log and the Sentry and climate readings: when the car sat locked and alone, for the sleep drain rate.
     sleepLogs: ProjectionContext = ProjectionContext(),
 ) {
-    var range by memory.range
-    // A new range starts unzoomed; a tap on the range already chosen zooms back out.
-    val viewport = rememberChartViewport(range)
-    val now = nowMillis
+    val range by memory.range
+    val link = view.link
+    val span = ChartSpan(range, view.nowMillis, link.selected?.let(::focusWindow))
+    // A new range or session starts unzoomed; a tap on the range already chosen zooms back out.
+    val viewport = rememberChartViewport(range, span.focus)
     // Fitted off the main thread: the stats, the projection and the chart all read it. The car screen's own fit of
     // the same samples is cached, so this one is usually a lookup.
     val scale = memory.scale.inBackground(samples) { FullRangeScales.of(samples) }
@@ -957,10 +1006,9 @@ internal fun TimeHistory(
     val priceChanges = LocalPriceChanges.current
     // Every figure scans the whole log, so they run off the main thread; nothing below shows until the first result.
     val figures =
-        memory.figures.inBackground(samples, drives, range, now, withScale) {
-            batteryHistoryFigures(samples, drives, range, now, withScale)
+        memory.figures.inBackground(samples, drives, span, withScale) {
+            batteryHistoryFigures(samples, drives, span, withScale)
         } ?: return
-    val visible = figures.visible
     val stats = figures.lastCharge
     val lastChargePrice =
         memory.chargePrice.inBackground(
@@ -974,21 +1022,21 @@ internal fun TimeHistory(
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             HistoryRange.entries.forEach { entry ->
                 FilterChip(
-                    selected = range == entry,
-                    onClick = { if (range == entry) viewport.reset() else range = entry },
+                    selected = span.focus == null && range == entry,
+                    onClick = { pickRange(entry, memory.range, span.focus != null, link, viewport) },
                     label = { Text(entry.label()) },
                 )
             }
         }
         Spacer(Modifier.height(8.dp))
-        if (visible.isEmpty()) {
+        if (figures.visible.isEmpty()) {
             Text(
                 text = stringResource(R.string.history_no_samples),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            TimeChart(figures, scale, range, now, viewport)
+            TimeChart(figures, scale, span, viewport, link)
         }
         stats?.let {
             Spacer(Modifier.height(8.dp))
@@ -997,7 +1045,7 @@ internal fun TimeHistory(
                 text =
                     "Last charge:\u00A0${formatPercent(
                         it.chargePercent(scale),
-                    )}% · ${agoText(now - it.sinceMillis)}" +
+                    )}% · ${agoText(view.nowMillis - it.sinceMillis)}" +
                         energy?.let { e -> " · $e" }.orEmpty(),
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -1005,41 +1053,53 @@ internal fun TimeHistory(
     }
 }
 
-/** The battery chart over the chosen range, with the projection lines under it. */
+/**
+ * The stretch the time axis covers: the chosen [range] up to [nowMillis], or [focus], the window around a picked
+ * session, which overrides it.
+ */
+private data class ChartSpan(
+    val range: HistoryRange,
+    val nowMillis: Long,
+    val focus: LongRange?,
+) {
+    /** Dates join the times once the window is longer than the shortest range. */
+    val showDate: Boolean
+        get() = focus?.let { it.last - it.first > SIX_HOURS_MILLIS } ?: (range != HistoryRange.SIX_HOURS)
+}
+
+/** The battery chart over the chosen range or session, with the projection lines under it. */
 @Composable
 private fun TimeChart(
     figures: BatteryHistoryFigures,
     scale: FullRangeScale?,
-    range: HistoryRange,
-    now: Long,
+    span: ChartSpan,
     viewport: ChartViewport,
+    link: SessionLink,
 ) {
     val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
     val visible = figures.visible
-    val baseMillis = figures.baseMillis
+    val now = span.nowMillis
     val charge = figures.charge
     val discharge = figures.discharge
+    val focus = span.focus
+    val windowStart = focus?.first ?: span.range.durationMillis?.let { now - it } ?: visible.first().timestampMillis
     // The projection gets room on the x-axis: its round-figure horizon ahead.
     val windowEnd =
-        if (charge != null || discharge != null) {
-            now + projectionHorizonMillis(baseMillis)
-        } else {
-            now
+        when {
+            focus != null -> focus.last
+            charge != null || discharge != null -> now + projectionHorizonMillis(figures.baseMillis)
+            else -> now
         }
+    val bands = rememberSessionBands(link, windowStart, windowEnd)
     BatteryChart(
-        data = ChartData(visible, charge, discharge, scale),
-        axis =
-            TimeAxis(
-                windowStart = range.durationMillis?.let { now - it } ?: visible.first().timestampMillis,
-                windowEnd = windowEnd,
-                showDate = range != HistoryRange.SIX_HOURS,
-                is24Hour = is24Hour,
-            ),
+        data = ChartData(visible, charge, discharge, scale, bands),
+        axis = TimeAxis(windowStart = windowStart, windowEnd = windowEnd, showDate = span.showDate, is24Hour = is24Hour),
         modifier =
             Modifier
                 .fillMaxWidth()
                 .height(160.dp),
         viewport = viewport,
+        onTap = if (link.sessions.isEmpty()) null else { millis, slop -> link.pickAt(millis, slop) },
     )
     charge?.let { ChargeProjectionLine(it, is24Hour) }
     discharge?.let {
@@ -1050,6 +1110,34 @@ private fun TimeChart(
             color = MaterialTheme.colorScheme.primary,
         )
     }
+}
+
+/** The link's sessions that reach into [start] to [end] as bands: drives orange, charges green, the picked one stronger. */
+@Composable
+private fun rememberSessionBands(
+    link: SessionLink,
+    start: Long,
+    end: Long,
+): List<SessionBand> {
+    val selectedId = link.selected?.id
+    return remember(link.sessions, selectedId, start / MILLIS_PER_MINUTE, end / MILLIS_PER_MINUTE) {
+        link.sessions
+            .filter { it.endMillis >= start && it.startMillis <= end }
+            .map {
+                val color = if (it is DriveSession) driveChartColor else chargingChartColor
+                SessionBand(it.startMillis, it.endMillis, color, it.id == selectedId)
+            }
+    }
+}
+
+/** Picks the session at [millis] (within [slopMillis]); true when that is a new pick. */
+private fun SessionLink.pickAt(
+    millis: Long,
+    slopMillis: Long,
+): Boolean {
+    val hit = sessions.sessionAt(millis, slopMillis)?.takeIf { it.id != selected?.id } ?: return false
+    onSelect(hit)
+    return true
 }
 
 /** What the battery history card shows, derived from the whole log for one range and moment. */
@@ -1065,18 +1153,27 @@ internal class BatteryHistoryFigures(
 private fun batteryHistoryFigures(
     samples: List<BatterySample>,
     drives: List<DriveSample>,
-    range: HistoryRange,
-    nowMillis: Long,
+    span: ChartSpan,
     context: ProjectionContext,
 ): BatteryHistoryFigures {
-    val visible = samples.within(range, nowMillis)
+    val range = span.range
+    val nowMillis = span.nowMillis
+    val focus = span.focus
+    val visible =
+        if (focus != null) {
+            samples.inSpan(focus) { it.timestampMillis }
+        } else {
+            samples.within(range, nowMillis)
+        }
     val baseMillis =
-        range.durationMillis
+        focus?.let { it.last - it.first }
+            ?: range.durationMillis
             ?: ((visible.lastOrNull()?.timestampMillis ?: 0L) - (visible.firstOrNull()?.timestampMillis ?: 0L)).coerceAtLeast(1L)
     // Projections are derived from every sample, not just the visible window, so a run that started before the
     // selected range still projects. Parked drain: the drive samples' odometer marks the stretches the car moved;
-    // shown next to the charge projection too, where the battery heads if unplugged now.
-    val projections = visible.isNotEmpty()
+    // shown next to the charge projection too, where the battery heads if unplugged now. A picked session is history:
+    // no projection.
+    val projections = visible.isNotEmpty() && focus == null
     return BatteryHistoryFigures(
         visible = visible,
         baseMillis = baseMillis,
@@ -1099,6 +1196,8 @@ private fun HistoryRange.label(): String =
     )
 
 private const val FULL_LEVEL = 100
+
+private const val SIX_HOURS_MILLIS = 6 * 60 * 60_000L
 
 private const val REFRESH_FEEDBACK_MS = 2500L
 

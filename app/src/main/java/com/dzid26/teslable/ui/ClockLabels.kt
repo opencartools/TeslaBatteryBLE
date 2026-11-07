@@ -2,6 +2,8 @@
 
 package com.dzid26.teslable.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import java.time.Instant
@@ -66,3 +68,14 @@ private val CLOCK_STEP_HOURS =
 private const val CLOCK_LABELS = 3
 
 private const val MILLIS_PER_HOUR = 3_600_000.0
+
+/** Round clock times for the x labels while zoomed in; null at the full view, which keeps its aligned labels. */
+@Composable
+internal fun rememberClockSteps(
+    window: Window,
+    view: BatteryView,
+    viewport: ChartViewport,
+): ClockSteps? =
+    remember(window, view.maxX - view.minX, viewport.isFull) {
+        if (viewport.isFull) null else clockSteps(window.start, view.maxX - view.minX)
+    }

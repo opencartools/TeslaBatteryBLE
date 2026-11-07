@@ -4,7 +4,6 @@ package com.dzid26.teslable.ui
 
 import app.cash.paparazzi.Paparazzi
 import com.dzid26.teslable.core.health.tripEstimate
-import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.RouteSample
 import org.junit.After
@@ -14,7 +13,7 @@ import org.junit.Test
 import java.util.Locale
 
 /**
- * Paparazzi snapshots of the trip cards (#207): the live trip card and the past-trips card,
+ * Paparazzi snapshots of the live trip card (#207); past trips are rows of the Sessions card ([SessionsCardSnapshots]),
  * in the card flow of [CardSnapshots] (light, dark and Jelly Star width) with a fixed clock.
  * The full-screen render with a live route stays with the other screens in [CardSnapshots].
  */
@@ -89,31 +88,6 @@ class TripSnapshots {
                 route,
                 tripEstimate(route, currentRatedMiles = 125f, fullRange = scale, ratedKwhPerMile = 0.25f, pricePerKwh = pricePerKwh),
             )
-        }
-    }
-
-    @Test
-    fun pastTripsCardTwoTrips() = snapPastTrips("past-trips-card_two-trips")
-
-    @Test
-    fun pastTripsCardNoPrice() = snapPastTrips("past-trips-card_no-price", pricePerKwh = null)
-
-    @Test
-    fun pastTripsCardInProgress() = snapPastTrips("past-trips-card_in-progress", inProgress = true)
-
-    private fun snapPastTrips(
-        name: String,
-        pricePerKwh: Float? = 0.30f,
-        inProgress: Boolean = false,
-    ) {
-        val trips = demoPastTrips(NOW).let { all -> if (inProgress) all.dropLast(1) + all.last().copy(inProgress = true) else all }
-        val samples =
-            listOf(
-                BatterySample(NOW - DEMO_TRIP_AGO_MILLIS - 5 * 60_000L, 60, null, null, ratedRangeMiles = 162f),
-                BatterySample(NOW - DEMO_TRIP_AGO_MILLIS + 20 * 60_000L, 56, null, null, ratedRangeMiles = 152f),
-            )
-        paparazzi.snapCard(name) {
-            PastTripsCard(trips, samples, demoTripScale, ratedKwhPerMile = 0.25f, pricePerKwh = pricePerKwh)
         }
     }
 

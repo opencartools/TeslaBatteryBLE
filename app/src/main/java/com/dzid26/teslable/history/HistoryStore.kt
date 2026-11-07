@@ -671,6 +671,8 @@ data class HistorySamples(
     val trips: Map<String, List<Trip>> = emptyMap(),
     /** Every car's charge sessions as `derived.db` stores them, oldest first; see [HistoryStore.chargeSessions]. */
     val chargeSessions: List<ChargeSession> = emptyList(),
+    /** Every car's drives as `derived.db` stores them, oldest first; see [HistoryStore.driveSessions]. */
+    val driveSessions: List<DriveSession> = emptyList(),
     /** False while the start is still publishing the logs; see [HistoryStore.loaded]. */
     val loaded: Boolean = true,
 )
