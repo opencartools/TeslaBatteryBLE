@@ -38,13 +38,13 @@ class ChargePriceStoreTest {
         val store = ChargePriceStore(db, prices)
         val first = session(HOUR, 3 * HOUR)
         store.follow(listOf(first, session(10 * HOUR, 11 * HOUR)), defaults)
-        store.set(first.copy(startMillis = HOUR + MINUTE), SessionPrice.Total(7f), "EUR", ChargePlace.SUPERCHARGER)
+        store.set(first, SessionPrice.Total(7f), "EUR", ChargePlace.SUPERCHARGER)
 
         ChargePriceStore(db, prices)
 
         assertEquals(
             listOf(
-                StoredChargePrice("carA", HOUR + MINUTE, 3 * HOUR, SessionPrice.Total(7f), "EUR", byOwner = true, ChargePlace.SUPERCHARGER),
+                StoredChargePrice("carA", HOUR, 3 * HOUR, SessionPrice.Total(7f), "EUR", byOwner = true, ChargePlace.SUPERCHARGER),
             ),
             prices.value,
         )

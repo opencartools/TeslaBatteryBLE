@@ -48,17 +48,24 @@ class SessionPriceTest {
     }
 
     @Test
-    fun `a stored price stays frozen and follows its session when a re-cut moves it`() {
-        val rows = listOf(stored(1, 60, SessionPrice.PerKwh(0.5f), byOwner = false), stored(599, 700))
+    fun `an automatic price stays frozen while its session keeps its shape, and is frozen again when it changes`() {
+        val kept = stored(0, 60, SessionPrice.PerKwh(0.5f), byOwner = false)
+        val moved = stored(599, 700, SessionPrice.PerKwh(0.5f), byOwner = false)
+        val sessions = listOf(session(0, 60), session(600, 700), session(900, 950))
 
         assertEquals(
-            listOf(stored(0, 60, SessionPrice.PerKwh(0.5f), byOwner = false), stored(600, 700)),
-            reconcile(listOf(session(0, 60), session(600, 700), session(900, 950)), rows),
+            listOf(kept, stored(600, 700, SessionPrice.PerKwh(0.2f), byOwner = false, currency = "PLN").copy(place = ChargePlace.HOME)),
+            reconcile(sessions, listOf(kept, moved)),
         )
     }
 
     @Test
-    fun `a join keeps the owner's edit over an automatic price and adds up totals`() {
+    fun `an owner's edit follows its session when a re-cut moves it`() {
+        assertEquals(listOf(stored(600, 700)), reconcile(listOf(session(600, 700), session(900, 950)), listOf(stored(599, 700))))
+    }
+
+    @Test
+    fun `a join keeps the owner's edit over an automatic price, adds up totals, and keeps an edit it cannot merge`() {
         val auto = stored(0, 60, SessionPrice.PerKwh(0.2f), byOwner = false)
         val edit = stored(70, 120, SessionPrice.PerKwh(0.5f))
         assertEquals(listOf(edit.copy(startMillis = 0)), reconcile(listOf(session(0, 120), session(900, 950)), listOf(auto, edit)))
@@ -68,6 +75,12 @@ class SessionPriceTest {
             listOf(stored(0, 120, SessionPrice.Total(12f))),
             reconcile(listOf(session(0, 120), session(900, 950)), totals),
         )
+
+        // Two edits that do not add up: the longer one prices the session, the other stays stored, and stays so.
+        val edits = listOf(stored(0, 40, SessionPrice.PerKwh(0.4f)), stored(50, 120, SessionPrice.Total(6f)))
+        val joined = reconcile(listOf(session(0, 120), session(900, 950)), edits)
+        assertEquals(listOf(stored(0, 120, SessionPrice.Total(6f)), edits[0]), joined)
+        assertEquals(joined, reconcile(listOf(session(0, 120), session(900, 950)), joined))
     }
 
     @Test
@@ -92,7 +105,6 @@ class SessionPriceTest {
         // Two charges three minutes apart each keep their own total.
         val rows = listOf(stored(0, 60, SessionPrice.Total(5f)), stored(63, 200, SessionPrice.Total(7f)))
         assertEquals(rows, reconcile(listOf(session(0, 60), session(63, 200), session(900, 950)), rows))
-        assertEquals(rows, matchStoredPrices(listOf(session(0, 60), session(63, 200)), rows))
     }
 
     @Test

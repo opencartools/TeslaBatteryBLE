@@ -2,81 +2,109 @@
 package com.dzid26.teslable.core.health
 
 /**
- * The stored prices of one car after a build re-cut its [sessions] (oldest first), from what was [stored]:
+ * The stored prices of one car after a build re-cut its [sessions] (oldest first, as cut), from what was [stored].
+ * Every row comes out at its session's exact start and end, the key the screens read it by (`sessionPrices`):
  * - every session but the newest gets a stored price; the newest is priced live until the next charge starts, so a
  *   price set while parked still covers the charge just finished;
- * - a stored price follows its session to the new start and end;
- * - when a re-cut joins sessions, the owner's edits win over automatic prices, and totals add up;
- * - when it splits one, a price per kWh goes to every part and a total is shared by energy;
- * - a session with no stored price gets the automatic one, frozen;
- * - a stored price that overlaps no session is kept, never dropped.
+ * - an automatic price whose session kept its start and end stays as frozen; one whose session changed shape (moved,
+ *   joined or split) is frozen again by the price rule, at the session's own time, since it holds no owner input;
+ * - the owner's edit follows its session: when a re-cut joins sessions, their totals in one currency add up, else
+ *   the longest overlap wins and the other edits stay stored, unmatched; when it splits one, a price per kWh goes to
+ *   every part and a total is shared by energy;
+ * - a stored price that overlaps no session is kept (on a new phone the sessions come only once the logs are back).
  */
 fun reconcilePrices(
     sessions: List<ChargeSession>,
     stored: List<StoredChargePrice>,
     defaults: PriceDefaults,
 ): List<StoredChargePrice> {
-    val targets = stored.map { row -> targetsOf(sessions, row) }
+    val (owner, automatic) = stored.partition { it.byOwner }
+    val ownerTargets = owner.map { price -> targetsOf(sessions, price) }
+    val ownerParts = Array(sessions.size) { mutableListOf<Int>() }
+    ownerTargets.forEachIndexed { row, targets -> targets.forEach { ownerParts[it] += row } }
+    val used = BooleanArray(owner.size)
+    val sameShape = automatic.associateBy { it.startMillis to it.endMillis }
     val home = pricesForSessions(defaults.homeChanges, sessions)
     val priced =
         sessions.indices.mapNotNull { i ->
-            val parts =
-                stored.indices
-                    .filter {
-                        i in targets[it]
-                    }.map { Part(stored[it], share(sessions, targets[it], i), overlap(sessions[i], stored[it])) }
             val session = sessions[i]
+            val parts = ownerParts[i].map { Part(it, owner[it], share(sessions, ownerTargets[it], i), overlap(session, owner[it])) }
             when {
-                parts.isNotEmpty() -> joined(parts).copy(startMillis = session.startMillis, endMillis = session.endMillis)
-                i == sessions.lastIndex -> null
-                else -> frozen(session, automaticPrice(session, home[i]), defaults.currencyCode)
+                parts.isNotEmpty() -> joined(parts, used).copy(startMillis = session.startMillis, endMillis = session.endMillis)
+                else ->
+                    sameShape[session.startMillis to session.endMillis]
+                        ?: frozen(session, home[i], defaults).takeIf { i != sessions.lastIndex }
             }
         }
-    return priced + stored.filterIndexed { index, _ -> targets[index].isEmpty() }
+    val pricedKeys = priced.map { it.startMillis }.toSet()
+    val keptAutomatic = automatic.filter { it.startMillis !in pricedKeys && targetsOf(sessions, it).isEmpty() }
+    return priced + owner.filterIndexed { row, _ -> !used[row] } + keptAutomatic
 }
 
 /**
- * The sessions a stored price falls into: those it overlaps (several after a re-cut split one), else the one it
- * nearly touches within [MATCH_SLACK_MILLIS], a session that moved by a reading. The slack never adds a neighbour.
+ * The sessions (by index) a stored price falls into: those it overlaps, several after a re-cut split one, else the
+ * one it nearly touches within [MATCH_SLACK_MILLIS], a session that moved by a reading. The slack never adds a
+ * neighbour. Sessions do not overlap, so their ends are as sorted as their starts: a binary search finds the first.
  */
 private fun targetsOf(
     sessions: List<ChargeSession>,
     row: StoredChargePrice,
-): List<Int> =
-    sessions.indices.filter { overlap(sessions[it], row) >= 0 }.ifEmpty {
-        listOfNotNull(sessions.indices.filter { overlaps(sessions[it], row) }.maxByOrNull { overlap(sessions[it], row) })
+): List<Int> {
+    val first = sessions.binarySearch { if (it.endMillis < row.startMillis) -1 else 1 }.let { -(it + 1) }
+    val overlapping = (first until sessions.size).takeWhile { sessions[it].startMillis <= row.endMillis }
+    return overlapping.ifEmpty {
+        listOf(first - 1, first)
+            .filter { it in sessions.indices && overlaps(sessions[it], row) }
+            .maxByOrNull { overlap(sessions[it], row) }
+            .let(::listOfNotNull)
     }
+}
 
-/** [session]'s automatic [price], frozen. */
+/** [session]'s automatic price, frozen: an empty one means unpriced, which a later source (the car's cost) may fill. */
 private fun frozen(
     session: ChargeSession,
-    price: SessionPrice?,
-    currencyCode: String,
-) = StoredChargePrice(session.vehicleId, session.startMillis, session.endMillis, price, currencyCode, false, automaticPlace(session))
+    homePricePerKwh: Float?,
+    defaults: PriceDefaults,
+) = StoredChargePrice(
+    session.vehicleId,
+    session.startMillis,
+    session.endMillis,
+    automaticPrice(session, homePricePerKwh),
+    defaults.currencyCode,
+    byOwner = false,
+    place = automaticPlace(session),
+)
 
 /** Where [session] charged, as far as the app can tell without the car's location: home, unless it was DC. */
 fun automaticPlace(session: ChargeSession): String? = ChargePlace.HOME.takeIf { session.chargerKind != ChargerKind.DC }
 
-/** A stored price's part in one session: its [share] of a total, and how long it overlaps the session. */
+/** The owner's edit [index] as part of one session: its [share] of a total, and how long it overlaps the session. */
 private class Part(
+    val index: Int,
     val row: StoredChargePrice,
     val share: Float,
     val overlap: Long,
 )
 
-/** The stored prices that fell into one session as one: the owner's edits first, totals added, else the longest. */
-private fun joined(parts: List<Part>): StoredChargePrice {
-    val chosen = parts.filter { it.row.byOwner }.ifEmpty { parts }
-    val main = chosen.maxBy { it.overlap }.row
-    val totals = chosen.map { it.row.price }
-    val sum =
-        if (totals.all { it is SessionPrice.Total } && chosen.all { it.row.currencyCode == main.currencyCode }) {
-            SessionPrice.Total(chosen.sumOf { ((it.row.price as SessionPrice.Total).amount * it.share).toDouble() }.toFloat())
+/**
+ * The owner's edits that fell into one session as one, marking each it takes in [used]: totals in one currency add
+ * up; otherwise the longest overlap wins (a total of it shared, if it spans more sessions) and the rest stay unused.
+ */
+private fun joined(
+    parts: List<Part>,
+    used: BooleanArray,
+): StoredChargePrice {
+    val main = parts.maxBy { it.overlap }
+    val summable = parts.all { it.row.price is SessionPrice.Total && it.row.currencyCode == main.row.currencyCode }
+    val taken = if (summable) parts else listOf(main)
+    taken.forEach { used[it.index] = true }
+    val price =
+        if (summable) {
+            SessionPrice.Total(parts.sumOf { ((it.row.price as SessionPrice.Total).amount * it.share).toDouble() }.toFloat())
         } else {
-            (main.price as? SessionPrice.Total)?.let { SessionPrice.Total(it.amount * chosen.first { p -> p.row == main }.share) }
-                ?: main.price
+            (main.row.price as? SessionPrice.Total)?.let { SessionPrice.Total(it.amount * main.share) } ?: main.row.price
         }
-    return main.copy(price = sum)
+    return main.row.copy(price = price)
 }
 
 /** Session [i]'s share of a stored price that spans [targets]: its part of their energy, else of their time. */

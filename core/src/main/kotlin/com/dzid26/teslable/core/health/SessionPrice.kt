@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.core.health
 
-import kotlin.math.abs
-
 /** How the car charged: through its own charger from AC, or from a DC fast charger. */
 enum class ChargerKind { AC, DC }
 
@@ -37,11 +35,18 @@ data class StoredChargePrice(
     val vehicleId: String,
     val startMillis: Long,
     val endMillis: Long,
+    /**
+     * Null is empty. An empty automatic price means unpriced (a DC charge, or none set yet), which a later source such
+     * as the car's own Supercharger cost may fill; an empty edit is the owner's choice and is never filled.
+     */
     val price: SessionPrice?,
     /** The ISO 4217 code, resolved when stored: a backup restored on a phone of another locale keeps it. */
     val currencyCode: String,
     val byOwner: Boolean,
-    /** Where the car charged: one of [ChargePlace] or the owner's own name for it; null when not known. */
+    /**
+     * Where the car charged: one of [ChargePlace] or the owner's own name for it; null when not known. A name the owner
+     * types that equals a [ChargePlace] means that place.
+     */
     val place: String? = null,
 )
 
@@ -67,32 +72,6 @@ data class ChargeSessionPrice(
 )
 
 /**
- * Which of [stored] belongs to each of [sessions] (one car, both oldest first). A pair matches when they overlap,
- * their ends stretched by [MATCH_SLACK_MILLIS] so a session of a single reading still finds its own. The best pairs
- * are taken first, across all sessions: the longest overlap, then the nearest start. Each stored price goes to one
- * session at most.
- */
-fun matchStoredPrices(
-    sessions: List<ChargeSession>,
-    stored: List<StoredChargePrice>,
-): List<StoredChargePrice?> {
-    val pairs = sessions.indices.flatMap { s -> stored.indices.filter { overlaps(sessions[s], stored[it]) }.map { s to it } }
-    val matched = arrayOfNulls<StoredChargePrice>(sessions.size)
-    val taken = BooleanArray(stored.size)
-    pairs
-        .sortedWith(
-            compareByDescending<Pair<Int, Int>> { (s, o) -> overlap(sessions[s], stored[o]) }
-                .thenBy { (s, o) -> abs(stored[o].startMillis - sessions[s].startMillis) },
-        ).forEach { (s, o) ->
-            if (matched[s] == null && !taken[o]) {
-                matched[s] = stored[o]
-                taken[o] = true
-            }
-        }
-    return matched.toList()
-}
-
-/**
  * The automatic price of [session]: [homePricePerKwh], the home price in effect when it ran (`pricesForSessions`).
  * There is no location yet, so every charge is taken as home except a DC one, since a fast charger is never at home:
  * that stays empty until the car's own Supercharger cost is read.
@@ -106,8 +85,9 @@ fun automaticPrice(
         ?.let { SessionPrice.PerKwh(it) }
 
 /**
- * The price each of [sessions] (one car, oldest first) shows: its stored price, even an empty one, else (the
- * newest session, until a build stores it) the automatic price in the settings currency. The one entry point the
+ * The price each of [sessions] (one car, oldest first) shows: its stored price, even an empty one, read by the exact
+ * start each build writes it at (`reconcilePrices`), else (the newest session, until a build stores it) the
+ * automatic price in the settings currency. The one entry point the
  * screens read, so a charge shows the same price everywhere.
  */
 fun sessionPrices(
@@ -115,10 +95,17 @@ fun sessionPrices(
     stored: List<StoredChargePrice>,
     homeChanges: List<PriceChange>,
 ): List<ChargeSessionPrice> {
-    val matched = matchStoredPrices(sessions, stored)
+    val byStart = stored.associateBy { it.vehicleId to it.startMillis }
     val home = pricesForSessions(homeChanges, sessions)
     return sessions.indices.map { i ->
-        matched[i]?.let { ChargeSessionPrice(it.price, it.currencyCode, it.byOwner, it.place) }
+        byStart[sessions[i].vehicleId to sessions[i].startMillis]?.let {
+            ChargeSessionPrice(
+                it.price,
+                it.currencyCode,
+                it.byOwner,
+                it.place,
+            )
+        }
             ?: ChargeSessionPrice(automaticPrice(sessions[i], home[i]), null, byOwner = false, place = automaticPlace(sessions[i]))
     }
 }

@@ -32,7 +32,7 @@ import com.dzid26.teslable.core.history.toBatterySample
 import com.dzid26.teslable.core.history.toDriveSample
 import com.dzid26.teslable.core.history.toRouteSample
 import com.dzid26.teslable.core.history.toStatusSample
-import com.dzid26.teslable.ui.resolvedCurrencyCode
+import com.dzid26.teslable.resolvedCurrencyCode
 import com.tesla.generated.carserver.vehicle.ChargeState
 import com.tesla.generated.carserver.vehicle.ClimateState
 import com.tesla.generated.carserver.vehicle.ClosuresState
