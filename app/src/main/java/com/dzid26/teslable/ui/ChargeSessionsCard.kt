@@ -7,19 +7,26 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,13 +38,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 import com.dzid26.teslable.core.health.ChargeSession
-import com.dzid26.teslable.core.health.chargeSessionCost
-import com.dzid26.teslable.core.health.pricesForSessions
+import com.dzid26.teslable.core.health.ChargeSessionPrice
+import com.dzid26.teslable.core.health.SessionPrice
+import com.dzid26.teslable.core.health.cost
+import com.dzid26.teslable.core.health.sessionPrices
 import com.dzid26.teslable.core.history.compactDuration
+import com.dzid26.teslable.resolvedCurrencyCode
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -49,74 +60,193 @@ import kotlin.math.roundToInt
  * car reported no energy for shows what it has. Shows nothing until there is a session. [sessions] are oldest
  * first; the newest is open by default.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
     if (sessions.isEmpty()) return
     var selectedStart by rememberSaveable { mutableStateOf<Long?>(null) }
     val selectedIndex = sessions.indexOfFirst { it.startMillis == selectedStart }.takeIf { it >= 0 } ?: sessions.lastIndex
     val session = sessions[selectedIndex]
-    val unit = LocalDistanceUnit.current
-    val currencyCode = LocalCurrencyCode.current
+    val settingsCurrency = LocalCurrencyCode.current
     val priceChanges = LocalPriceChanges.current
-    val costs =
-        remember(sessions, priceChanges) {
-            sessions.zip(pricesForSessions(priceChanges, sessions)) { charge, price -> chargeSessionCost(charge.energyAddedKwh, price) }
+    val pricing = LocalChargePricing.current
+    val stored = pricing?.stored.orEmpty()
+    // Each session's price, owner's edit first; an edited one stays in the currency it was set in.
+    val priced =
+        remember(sessions, priceChanges, stored) {
+            sessions.zip(sessionPrices(sessions, stored, priceChanges)) { session, price -> PricedSession(session, price) }
         }
-    val cost = costs[selectedIndex]
+    val currencyCode = priced[selectedIndex].currencyCode ?: settingsCurrency
+    var editing by remember { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(stringResource(R.string.charge_sessions_title_count, sessions.size), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
-            ChargeSessionSelector(sessions.zip(costs).asReversed(), session, cost, currencyCode) { selectedStart = it.startMillis }
+            ChargeSessionSelector(priced.asReversed(), settingsCurrency, selectedIndex) { selectedStart = it.startMillis }
             Spacer(Modifier.height(8.dp))
-            // The stats wrap whole on a narrow phone instead of squeezing the digits.
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                session.averageKw?.let { TripStat("${formatKw(it)}kW", stringResource(R.string.charge_session_average_label)) }
-                compactDuration(session.durationMillis)?.let { TripStat(it, stringResource(R.string.charge_session_duration_label)) }
-                // Last, like the trip card: its cost (or energy) closes the row.
-                val kwh = session.energyAddedKwh?.let(::formatKwh)
-                when {
-                    cost != null && kwh != null ->
-                        TripStat(
-                            formatMoney(cost, currencyCode),
-                            stringResource(R.string.charge_session_cost_label, kwh),
-                        )
-                    kwh != null -> TripStat("${kwh}kWh", stringResource(R.string.charge_session_energy_label))
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                stringResource(R.string.charge_session_percent_range, session.startPercent.roundToInt(), session.endPercent.roundToInt()),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            session.milesAddedRated?.let {
-                Text(
-                    stringResource(R.string.charge_session_miles_added, unit.format(it)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            ChargeSessionStats(priced[selectedIndex], currencyCode)
+            if (pricing != null && !session.inProgress) {
+                TextButton(onClick = { editing = true }) { Text(stringResource(R.string.charge_session_edit_price)) }
             }
         }
     }
+    if (editing && pricing != null) {
+        val picked = priced[selectedIndex]
+        EditPriceDialog(
+            picked = picked,
+            currencyCode = picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency),
+            onSave = { price ->
+                editing = false
+                pricing.onSet(session, price, picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency), picked.place)
+            },
+            onClear = {
+                editing = false
+                pricing.onClear(session)
+            },
+            onDismiss = { editing = false },
+        )
+    }
+}
+
+/** The chosen session's average power, duration and cost (or energy) in big type, then its level range and rated range added. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ChargeSessionStats(
+    priced: PricedSession,
+    currencyCode: String?,
+) {
+    val session = priced.session
+    val cost = priced.cost
+    val unit = LocalDistanceUnit.current
+    Column {
+        // The stats wrap whole on a narrow phone instead of squeezing the digits.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            session.averageKw?.let { TripStat("${formatKw(it)}kW", stringResource(R.string.charge_session_average_label)) }
+            compactDuration(session.durationMillis)?.let { TripStat(it, stringResource(R.string.charge_session_duration_label)) }
+            // Last, like the trip card: its cost (or energy) closes the row.
+            val kwh = session.energyAddedKwh?.let(::formatKwh)
+            when {
+                cost != null && priced.price is SessionPrice.Total ->
+                    TripStat(formatMoney(cost, currencyCode), stringResource(R.string.charge_session_total_label))
+                cost != null && kwh != null ->
+                    TripStat(
+                        formatMoney(cost, currencyCode),
+                        stringResource(R.string.charge_session_cost_label, kwh),
+                    )
+                kwh != null -> TripStat("${kwh}kWh", stringResource(R.string.charge_session_energy_label))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            stringResource(R.string.charge_session_percent_range, session.startPercent.roundToInt(), session.endPercent.roundToInt()),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        session.milesAddedRated?.let {
+            Text(
+                stringResource(R.string.charge_session_miles_added, unit.format(it)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** A session with the price it is billed at (and the currency of an edit or stored price; null is the settings one). */
+private class PricedSession(
+    val session: ChargeSession,
+    private val billed: ChargeSessionPrice,
+) {
+    val price get() = billed.price
+    val currencyCode get() = billed.currencyCode
+    val place get() = billed.place
+    val edited get() = billed.byOwner
+    val cost get() = price?.cost(session.energyAddedKwh)
+}
+
+private fun priceText(price: SessionPrice?): String =
+    when (price) {
+        is SessionPrice.PerKwh -> price.pricePerKwh.toString()
+        is SessionPrice.Total -> price.amount.toString()
+        null -> ""
+    }
+
+/** Sets a session's price per kWh or as a total, or takes it back to the automatic one. */
+@Composable
+private fun EditPriceDialog(
+    picked: PricedSession,
+    currencyCode: String,
+    onSave: (SessionPrice) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val current = picked.price
+    var total by rememberSaveable { mutableStateOf(current is SessionPrice.Total) }
+    var text by rememberSaveable { mutableStateOf(priceText(current)) }
+    val value =
+        text
+            .trim()
+            .replace(',', '.')
+            .toFloatOrNull()
+            ?.takeIf { it.isFinite() && it >= 0f }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.charge_session_edit_price)) },
+        text = {
+            Column {
+                Row {
+                    FilterChip(
+                        selected = !total,
+                        onClick = { total = false },
+                        label = { Text(stringResource(R.string.charge_session_price_per_kwh)) },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(
+                        selected = total,
+                        onClick = { total = true },
+                        label = { Text(stringResource(R.string.charge_session_price_total)) },
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    isError = text.isNotBlank() && value == null,
+                    suffix = { Text(currencyCode) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = value != null,
+                onClick = { value?.let { onSave(if (total) SessionPrice.Total(it) else SessionPrice.PerKwh(it)) } },
+            ) { Text(stringResource(R.string.charge_session_price_save)) }
+        },
+        dismissButton = {
+            Row {
+                if (picked.edited) TextButton(onClick = onClear) { Text(stringResource(R.string.charge_session_price_automatic)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+            }
+        },
+    )
 }
 
 /** The chosen session as a button; a tap lists every session (with its cost, or null) by start time and cost, newest first. */
 @Composable
 private fun ChargeSessionSelector(
-    options: List<Pair<ChargeSession, Float?>>,
-    selected: ChargeSession,
-    selectedCost: Float?,
-    currencyCode: String?,
+    options: List<PricedSession>,
+    settingsCurrency: String?,
+    selectedIndex: Int,
     onSelect: (ChargeSession) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    val selected = options[options.lastIndex - selectedIndex]
     val description = stringResource(R.string.charge_session_selector_description)
     val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
     Column {
         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth().semantics { contentDescription = description }) {
             Text(
-                sessionLabel(selected, selectedCost, currencyCode, is24Hour),
+                sessionLabel(selected, settingsCurrency, is24Hour),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -124,12 +254,12 @@ private fun ChargeSessionSelector(
             Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { (session, cost) ->
+            options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(sessionLabel(session, cost, currencyCode, is24Hour), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    text = { Text(sessionLabel(option, settingsCurrency, is24Hour), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     onClick = {
                         open = false
-                        onSelect(session)
+                        onSelect(option.session)
                     },
                 )
             }
@@ -143,11 +273,13 @@ private fun ChargeSessionSelector(
  */
 @Composable
 private fun sessionLabel(
-    session: ChargeSession,
-    cost: Float?,
-    currencyCode: String?,
+    priced: PricedSession,
+    settingsCurrency: String?,
     is24Hour: Boolean,
 ): String {
+    val session = priced.session
+    val cost = priced.cost
+    val currencyCode = priced.currencyCode ?: settingsCurrency
     val time = formatTime(session.startMillis, showDate = true, is24Hour = is24Hour)
     val energy = session.energyAddedKwh?.let(::formatKwh)
     return when {

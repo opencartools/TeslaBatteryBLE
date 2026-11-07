@@ -12,6 +12,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -34,6 +35,8 @@ import com.dzid26.teslable.ble.shouldTrack
 import com.dzid26.teslable.core.history.AppState
 import com.dzid26.teslable.history.HistorySamples
 import com.dzid26.teslable.ui.AboutScreen
+import com.dzid26.teslable.ui.ChargePricing
+import com.dzid26.teslable.ui.LocalChargePricing
 import com.dzid26.teslable.ui.MainScreen
 import com.dzid26.teslable.ui.PermissionWizardHost
 import com.dzid26.teslable.ui.SettingsScreen
@@ -77,6 +80,15 @@ class MainActivity : ComponentActivity() {
                 val latestRoutes by controller.latestRoutes.collectAsState()
                 val trips by controller.trips.collectAsState()
                 val chargeSessions by controller.chargeSessions.collectAsState()
+                val chargePrices by controller.historyStore.chargePrices.collectAsState()
+                val chargePricing =
+                    remember(chargePrices) {
+                        ChargePricing(
+                            chargePrices,
+                            controller.historyStore::setChargePrice,
+                            controller.historyStore::clearChargePrice,
+                        )
+                    }
                 val historyLoaded by controller.historyLoaded.collectAsState()
                 val logExportStatus by controller.logExport.status.collectAsState()
                 val history =
@@ -155,36 +167,38 @@ class MainActivity : ComponentActivity() {
 
                         AppScreen.MAIN ->
                             screenStates.SaveableStateProvider(AppScreen.MAIN.name) {
-                                MainScreen(
-                                    state = state,
-                                    history = history,
-                                    permissionsGranted = permissionsGranted,
-                                    locationServicesEnabled = locationEnabled,
-                                    locationNeeded = state.locationNeeded && !locationCardHidden,
-                                    onRequestPermissions = requestPermissions,
-                                    onRequestLocation = { requestLocation(null) { controller.ensureConnected() } },
-                                    onToggleScan = {
-                                        when {
-                                            state.scanning -> controller.stopScan()
-                                            !permissionsGranted -> requestPermissions()
-                                            hasLocationPermission(context) -> controller.startScan()
-                                            else ->
-                                                requestLocation(if (hasCompanionChooser(context)) companionScan else null) {
-                                                    controller.startScan()
-                                                }
-                                        }
-                                    },
-                                    onToggleTracking = controller::setTrackingEnabled,
-                                    onOpenVehicle = controller::openVehicle,
-                                    onOpenRequestConsumed = controller::consumeOpenVehicleRequest,
-                                    onPairKey = controller::pairKey,
-                                    onSaveCar = controller::saveCar,
-                                    onWake = { bleName -> controller.wakeVehicle(bleName) },
-                                    onRefreshVehicle = { bleName, address -> controller.refreshVehicle(bleName, address) },
-                                    onRequestVin = controller::requestVin,
-                                    onDismissVin = controller::dismissVinRequest,
-                                    onOpenSettings = { screen = AppScreen.SETTINGS },
-                                )
+                                CompositionLocalProvider(LocalChargePricing provides chargePricing) {
+                                    MainScreen(
+                                        state = state,
+                                        history = history,
+                                        permissionsGranted = permissionsGranted,
+                                        locationServicesEnabled = locationEnabled,
+                                        locationNeeded = state.locationNeeded && !locationCardHidden,
+                                        onRequestPermissions = requestPermissions,
+                                        onRequestLocation = { requestLocation(null) { controller.ensureConnected() } },
+                                        onToggleScan = {
+                                            when {
+                                                state.scanning -> controller.stopScan()
+                                                !permissionsGranted -> requestPermissions()
+                                                hasLocationPermission(context) -> controller.startScan()
+                                                else ->
+                                                    requestLocation(if (hasCompanionChooser(context)) companionScan else null) {
+                                                        controller.startScan()
+                                                    }
+                                            }
+                                        },
+                                        onToggleTracking = controller::setTrackingEnabled,
+                                        onOpenVehicle = controller::openVehicle,
+                                        onOpenRequestConsumed = controller::consumeOpenVehicleRequest,
+                                        onPairKey = controller::pairKey,
+                                        onSaveCar = controller::saveCar,
+                                        onWake = { bleName -> controller.wakeVehicle(bleName) },
+                                        onRefreshVehicle = { bleName, address -> controller.refreshVehicle(bleName, address) },
+                                        onRequestVin = controller::requestVin,
+                                        onDismissVin = controller::dismissVinRequest,
+                                        onOpenSettings = { screen = AppScreen.SETTINGS },
+                                    )
+                                }
                             }
                     }
                 }
