@@ -93,7 +93,8 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
     if (editing && pricing != null) {
         val picked = priced[selectedIndex]
         EditPriceDialog(
-            current = picked.price.takeIf { picked.edited },
+            current = picked.price,
+            edited = picked.edited,
             currencyCode = picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency),
             onSave = { price ->
                 editing = false
@@ -165,6 +166,7 @@ private class PricedSession(
 @Composable
 private fun EditPriceDialog(
     current: SessionPrice?,
+    edited: Boolean,
     currencyCode: String,
     onSave: (SessionPrice) -> Unit,
     onClear: () -> Unit,
@@ -223,7 +225,7 @@ private fun EditPriceDialog(
         },
         dismissButton = {
             Row {
-                if (current != null) TextButton(onClick = onClear) { Text(stringResource(R.string.charge_session_price_automatic)) }
+                if (edited) TextButton(onClick = onClear) { Text(stringResource(R.string.charge_session_price_automatic)) }
                 TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
             }
         },
