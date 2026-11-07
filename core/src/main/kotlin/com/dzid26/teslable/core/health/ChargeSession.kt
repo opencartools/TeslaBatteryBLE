@@ -100,34 +100,6 @@ fun chargeSessions(
     }
 }
 
-private fun chargeRuns(samples: List<BatterySample>): List<List<BatterySample>> {
-    val runs = mutableListOf<MutableList<BatterySample>>()
-    var current: MutableList<BatterySample>? = null
-    var paused = false
-    for (sample in samples) {
-        when (sample.chargingState) {
-            ChargingStateKind.Charging, ChargingStateKind.Starting -> {
-                val pausedTooLong =
-                    paused && current != null && sample.timestampMillis - current.last().timestampMillis >= MAX_PAUSE_MILLIS
-                if (current == null || pausedTooLong) {
-                    current = mutableListOf()
-                    runs.add(current)
-                }
-                current.add(sample)
-                paused = false
-            }
-
-            ChargingStateKind.Stopped, ChargingStateKind.NoPower -> paused = true
-
-            else -> {
-                current = null
-                paused = false
-            }
-        }
-    }
-    return runs
-}
-
 /**
  * Stats of the last charge that has finished: [chargeStats] once the session is over, and while one is
  * still open (see [chargeSessionOpen]) the charge before it, so the figures stay put and are swapped

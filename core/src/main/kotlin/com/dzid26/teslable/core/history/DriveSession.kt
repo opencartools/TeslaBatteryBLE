@@ -95,7 +95,7 @@ private class DriveCutter {
             current != null -> if (current.after == null) current.after = reading
             else -> unseen(reading)
         }
-        if (!reading.inGear && sinceInGear != null && sinceInGear >= DRIVE_JOIN_MILLIS) open = null
+        if (!reading.inGear && sinceInGear != null && driveClosedAfter(sinceInGear)) open = null
         previous = reading
     }
 
@@ -176,6 +176,13 @@ private fun parkedRead(
     return near?.takeIf { abs(it.timestampMillis - millis) <= PARKED_READ_MILLIS }
         ?: far?.takeIf { abs(it.timestampMillis - millis) <= DRIVE_MATCH_MILLIS }
 }
+
+/**
+ * True when a parked reading [sinceLastInGearMillis] after a drive's last reading in gear closes the drive: no later
+ * reading joins it. The cutter drops its open drive by it, and a session re-cut asks it whether a stored drive can
+ * still grow (a newest reading in gear is the drive's own end, 0 after it).
+ */
+internal fun driveClosedAfter(sinceLastInGearMillis: Long): Boolean = sinceLastInGearMillis >= DRIVE_JOIN_MILLIS
 
 /** How far from a drive's end the parked reading on that side may be: two of the history's parked steps. */
 private const val PARKED_READ_MILLIS = 10 * 60_000L

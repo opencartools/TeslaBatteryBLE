@@ -3,9 +3,8 @@
 package com.dzid26.teslable.core.history
 
 import com.dzid26.teslable.core.health.ChargeSession
-import com.dzid26.teslable.core.health.MAX_PAUSE_MILLIS
+import com.dzid26.teslable.core.health.chargeRunEndedBy
 import com.dzid26.teslable.core.health.chargeSessions
-import com.dzid26.teslable.protocol.ChargingStateKind
 
 /** When a stored session starts and ends, millis: what a re-cut needs to know of it. */
 data class StoredSpan(
@@ -55,8 +54,8 @@ interface SessionStore {
  * joins across a hole in the reads of any length, a drive across a short stop. So the re-cut starts at that session's
  * start, unless a sample since already closed it, and then at that sample, so a build reads only back to the last
  * time a session could still grow:
- * - a charge is closed by a later sample that ends the run ([endsChargeRun]);
- * - a drive is closed by a parked reading [DRIVE_JOIN_MILLIS] or more after it ended. With none stored, the first new
+ * - a charge is closed by a later sample that ends the run ([chargeRunEndedBy]);
+ * - a drive is closed by a parked reading long enough after it ended ([driveClosedAfter]). With none stored, the first new
  *   sample may still end an unseen drive that starts at the parked reading before it, however old, so the drives
  *   start there.
  *
@@ -71,7 +70,7 @@ fun recutSessions(
     val chargesFrom = chargesFrom(store, fromMillis)
     val lastDriveReading = store.driveReadingBefore(fromMillis)
     val drive = store.newestDriveBefore(fromMillis)
-    val driveOpen = drive != null && (lastDriveReading == null || lastDriveReading - drive.endMillis < DRIVE_JOIN_MILLIS)
+    val driveOpen = drive != null && (lastDriveReading == null || !driveClosedAfter(lastDriveReading - drive.endMillis))
     val drivesFrom = if (driveOpen) drive.startMillis else lastDriveReading ?: fromMillis
     val drivesRead = if (driveOpen) store.driveReadingBefore(drivesFrom) ?: drivesFrom else drivesFrom
     val battery = store.batteryFrom(minOf(chargesFrom, drivesFrom) - SESSION_CUT_LEAD_MILLIS)
@@ -88,22 +87,7 @@ private fun chargesFrom(
     val charge = store.newestChargeBefore(fromMillis) ?: return fromMillis
     val closing =
         store.chargeBreakBefore(fromMillis)?.takeIf {
-            it.timestampMillis > charge.endMillis && endsChargeRun(it, fromMillis - charge.endMillis)
+            it.timestampMillis > charge.endMillis && chargeRunEndedBy(it.chargingState, fromMillis - charge.endMillis)
         }
     return closing?.timestampMillis ?: charge.startMillis
 }
-
-/**
- * True when [sample], read after a charge session's last charging sample and before [gapMillis] had passed since it,
- * means no later sample can extend that session: a state that ends the run, or a pause, once a charge resuming after
- * it would come [MAX_PAUSE_MILLIS] or more after the session's end and so open the next one.
- */
-private fun endsChargeRun(
-    sample: BatterySample,
-    gapMillis: Long,
-): Boolean =
-    when (sample.chargingState) {
-        ChargingStateKind.Charging, ChargingStateKind.Starting -> false
-        ChargingStateKind.Stopped, ChargingStateKind.NoPower -> gapMillis >= MAX_PAUSE_MILLIS
-        else -> true
-    }

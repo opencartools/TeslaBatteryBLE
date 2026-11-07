@@ -155,11 +155,11 @@ class ThinningReplayTest {
         var mostRead = 0
         private var read = 0
 
-        override fun batteryFrom(millis: Long) =
-            battery.subList(0, keptBattery).fromTime(millis) { it.timestampMillis }.also {
-                read =
-                    it.size
-            }
+        override fun batteryFrom(millis: Long): List<BatterySample> {
+            val from = battery.subList(0, keptBattery).fromTime(millis) { it.timestampMillis }
+            read = from.size
+            return from
+        }
 
         override fun drivesFrom(millis: Long) =
             drives.subList(0, keptDrives).fromTime(millis) { it.timestampMillis }.also { mostRead = maxOf(mostRead, read + it.size) }

@@ -3,7 +3,6 @@
   <ManuallySuppressedIssues/>
   <CurrentIssues>
     <ID>CyclomaticComplexMethod:ChargeProjection.kt:private fun baseChargeProjection: ChargeProjection?</ID>
-    <ID>DoubleMutabilityForCollection:ChargeSession.kt:var current: MutableList&lt;BatterySample&gt;? = null</ID>
     <ID>LoopWithTooManyJumpStatements:ProtoLog.kt:ProtoLog$while</ID>
     <ID>MagicNumber:BatteryHistory.kt:HistoryRange.DAY$1000L</ID>
     <ID>MagicNumber:BatteryHistory.kt:HistoryRange.DAY$24</ID>
