@@ -8,6 +8,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.dzid26.teslable.core.health.ChargeSession
+import com.dzid26.teslable.core.health.ChargerKind
 import com.dzid26.teslable.core.history.DriveSession
 
 /**
@@ -23,6 +24,8 @@ internal data class ChargeSessionRow(
     val endPercent: Float,
     val energyAdded: Float?,
     val milesAddedRated: Float?,
+    /** The `ChargerKind` name; null when the samples do not tell. */
+    val chargerKind: String? = null,
 )
 
 /** One [DriveSession]; odometer in hundredths of a mile, levels in percent, ranges in rated miles. */
@@ -125,10 +128,19 @@ internal interface SessionDao {
 }
 
 internal fun ChargeSession.toRow(): ChargeSessionRow =
-    ChargeSessionRow(vehicleId, startMillis, endMillis, startPercent, endPercent, energyAddedKwh, milesAddedRated)
+    ChargeSessionRow(vehicleId, startMillis, endMillis, startPercent, endPercent, energyAddedKwh, milesAddedRated, chargerKind?.name)
 
 internal fun ChargeSessionRow.toSession(): ChargeSession =
-    ChargeSession(startTime, endTime, startPercent, endPercent, energyAdded, milesAddedRated, vehicleId = vehicleId)
+    ChargeSession(
+        startTime,
+        endTime,
+        startPercent,
+        endPercent,
+        energyAdded,
+        milesAddedRated,
+        vehicleId = vehicleId,
+        chargerKind = ChargerKind.entries.firstOrNull { it.name == chargerKind },
+    )
 
 internal fun DriveSession.toRow(): DriveSessionRow =
     DriveSessionRow(

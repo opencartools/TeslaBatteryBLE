@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- API 31+: back up app data (including the vehicle key) only when
      client-side encryption with the device lock secret is available.
-     Battery readings are live state, not settings: they stay on the device. -->
+     Battery readings are live state, not settings: they stay on the device.
+     owner.db (the owner's own prices) is backed up. -->
 <data-extraction-rules>
     <cloud-backup disableIfNoEncryptionCapabilities="true">
         <exclude domain="file" path="battery-history" />

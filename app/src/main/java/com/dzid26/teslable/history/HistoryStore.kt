@@ -4,7 +4,9 @@ package com.dzid26.teslable.history
 
 import android.content.Context
 import com.dzid26.teslable.BuildConfig
+import com.dzid26.teslable.core.health.ChargePriceOverride
 import com.dzid26.teslable.core.health.ChargeSession
+import com.dzid26.teslable.core.health.SessionPrice
 import com.dzid26.teslable.core.history.ActivitySample
 import com.dzid26.teslable.core.history.ActivityThinner
 import com.dzid26.teslable.core.history.AppState
@@ -86,12 +88,14 @@ class HistoryStore internal constructor(
     private val recordStoreProvider: Lazy<RecordStore>,
     private val scope: CoroutineScope,
     private val derivedProvider: Lazy<DerivedDatabase?> = lazy { null },
+    private val ownerProvider: Lazy<OwnerDatabase?> = lazy { null },
 ) {
     constructor(context: Context) : this(
         File(context.filesDir, HISTORY_DIR_NAME),
         lazy { RoomBackedRecordStore(HistoryDatabase.open(context), EventsDatabase.open(context), OriginId.load(context)) },
         CoroutineScope(SupervisorJob() + Dispatchers.IO),
         lazy { DerivedDatabase.open(context) },
+        lazy { OwnerDatabase.open(context) },
     )
 
     private val mutex = Mutex()
@@ -108,6 +112,14 @@ class HistoryStore internal constructor(
     /** Builds `derived.db` from the raw records; null where there is none (the tests of the raw store). */
     private val derivedBuilder: DerivedBuilder? by lazy { derivedProvider.value?.let { DerivedBuilder(recordStore, it) } }
     private val sessionBuilder: SessionBuilder? by lazy { derivedProvider.value?.let { SessionBuilder(it) } }
+    private val _chargePriceOverrides = MutableStateFlow<List<ChargePriceOverride>>(emptyList())
+
+    /**
+     * The prices the owner set per charge session, from `owner.db`, by car and oldest first. Match them to sessions
+     * with `matchOverrides`; a session without one takes the automatic price (`sessionPrice`).
+     */
+    val chargePriceOverrides: StateFlow<List<ChargePriceOverride>> = _chargePriceOverrides.asStateFlow()
+    private val chargePrices: ChargePriceStore? by lazy { ownerProvider.value?.let { ChargePriceStore(it, _chargePriceOverrides) } }
 
     /** One build at a time: the startup build and the periodic catch-ups never overlap. */
     private val buildMutex = Mutex()
@@ -214,8 +226,24 @@ class HistoryStore internal constructor(
                 // The sessions follow the samples; a failure there leaves the samples built and the marks in place.
                 runCatching { sessionBuilder?.build() }
                 loadSessions()
+                // A re-cut can move a session by a reading; the owner's price follows it.
+                runCatching { chargePrices?.follow(_chargeSessions.value) }
             }.isSuccess
         }
+
+    /** Sets the owner's [price] in [currencyCode] for [session] in `owner.db`. */
+    fun setChargePrice(
+        session: ChargeSession,
+        price: SessionPrice,
+        currencyCode: String?,
+    ) {
+        scope.launch { buildMutex.withLock { runCatching { chargePrices?.set(session, price, currencyCode) } } }
+    }
+
+    /** Takes [session] back to its automatic price. */
+    fun clearChargePrice(session: ChargeSession) {
+        scope.launch { buildMutex.withLock { runCatching { chargePrices?.clear(session) } } }
+    }
 
     /** Publishes the stored sessions. */
     private fun loadSessions() {

@@ -28,6 +28,8 @@ data class ChargeSession(
     override val inProgress: Boolean = false,
     /** The car this session belongs to. */
     val vehicleId: String = "",
+    /** AC or DC, as [chargerKindOf] tells it from the session's samples; null when they do not say. */
+    val chargerKind: ChargerKind? = null,
 ) : Session {
     override val id: String get() = "charge-$vehicleId-$startMillis"
     override val socStartPercent: Float get() = startPercent
@@ -131,7 +133,24 @@ private fun List<BatterySample>.toSession(): ChargeSession =
         energyAddedKwh = counterGrowth { it.chargeEnergyAdded },
         milesAddedRated = counterGrowth { it.chargeMilesAddedRated },
         vehicleId = first().vehicleId,
-    )
+    ).let { it.copy(chargerKind = chargerKindOf(this, it.averageKw)) }
+
+/**
+ * How a run of charging samples charged. The car reports the AC supply voltage of its own charger, so a run that
+ * read mains voltage was AC; a DC fast charger bypasses that charger, which then reads a few volts. A run with no
+ * voltage at all is told by its [averageKw]: faster than any AC supply is DC; anything else is not known.
+ */
+internal fun chargerKindOf(
+    run: List<BatterySample>,
+    averageKw: Float?,
+): ChargerKind? {
+    val volts = run.mapNotNull { it.chargerVoltage }.maxOrNull()
+    return when {
+        volts != null -> if (volts >= AC_MIN_VOLTS) ChargerKind.AC else ChargerKind.DC
+        (averageKw ?: 0f) > AC_MAX_KW -> ChargerKind.DC
+        else -> null
+    }
+}
 
 /**
  * How far one of the car's running totals grew from the first to the last sample
@@ -174,6 +193,12 @@ fun chargeSessionOpen(
 
 /** Below this swing the estimator itself refuses to compute a capacity. */
 const val MIN_SWING_PERCENT = 5f
+
+/** The lowest mains voltage, 100V supplies included, with room for a sagging line. */
+private const val AC_MIN_VOLTS = 90
+
+/** No AC supply charges a Tesla faster than this (19.2kW at 80A on the older chargers), so above it is DC. */
+private const val AC_MAX_KW = 22f
 
 private const val MIN_AVERAGE_MILLIS = 5 * 60_000L
 private const val MILLIS_PER_HOUR = 3_600_000f
