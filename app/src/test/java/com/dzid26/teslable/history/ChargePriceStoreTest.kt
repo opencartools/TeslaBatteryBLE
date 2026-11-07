@@ -9,8 +9,6 @@ import com.dzid26.teslable.core.health.PriceChange
 import com.dzid26.teslable.core.health.PriceDefaults
 import com.dzid26.teslable.core.health.SessionPrice
 import com.dzid26.teslable.core.health.StoredChargePrice
-import com.dzid26.teslable.core.history.BatterySample
-import com.dzid26.teslable.protocol.ChargingStateKind
 import com.dzid26.teslable.protocol.LastPaidCharge
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
@@ -64,7 +62,7 @@ class ChargePriceStoreTest {
         store.follow(sessions, defaults)
 
         assertEquals(
-            listOf(StoredChargePrice("carA", HOUR, 3 * HOUR, SessionPrice.PerKwh(0.2f), "PLN", byOwner = false, ChargePlace.HOME)),
+            listOf(StoredChargePrice("carA", HOUR, 3 * HOUR, SessionPrice.PerKwh(0.2f), "PLN", byOwner = false)),
             prices.value,
         )
     }
@@ -89,12 +87,15 @@ class ChargePriceStoreTest {
     }
 
     @Test
-    fun `a battery sample keeps the car's paid charge through derived db`() {
+    fun `a paid charge keeps its fields through derived db, listed per car`() {
         val paid = LastPaidCharge(1_780_411_979_000, 4.22f, "EUR", 0.28f)
-        val sample = BatterySample(1_000, 50, ChargingStateKind.Disconnected, 80, "carA", lastPaidCharge = paid)
+        val other = paid.copy(atMillis = 2_000, pricePerKwh = null)
 
-        assertEquals(sample, sample.toRow().toSample())
-        assertEquals(sample.copy(lastPaidCharge = null), sample.copy(lastPaidCharge = null).toRow().toSample())
+        assertEquals(paid, paid.toRow("carA").toPaidCharge())
+        assertEquals(
+            mapOf("carA" to listOf(other, paid), "carB" to listOf(paid)),
+            paidChargesByCar(listOf(other.toRow("carA"), paid.toRow("carB"), paid.toRow("carA"))),
+        )
     }
 
     private companion object {

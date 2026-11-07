@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.core.health
 
-import com.dzid26.teslable.core.history.BatterySample
-import com.dzid26.teslable.protocol.ChargingStateKind
 import com.dzid26.teslable.protocol.LastPaidCharge
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -17,16 +15,7 @@ class PaidChargesTest {
     private val paid = LastPaidCharge(70 * MINUTE, 4.22f, "EUR", 0.28f)
     private val defaults = PriceDefaults(listOf(PriceChange(0, 0.2f)), "PLN")
     private val supercharged =
-        StoredChargePrice("car", 60 * MINUTE, 66 * MINUTE, SessionPrice.Total(4.22f), "EUR", false, ChargePlace.SUPERCHARGER)
-
-    @Test
-    fun `each reading's paid charge is listed once per car`() {
-        val reading = { at: Long, charge: LastPaidCharge? ->
-            BatterySample(at, 50, ChargingStateKind.Disconnected, 80, "car", lastPaidCharge = charge)
-        }
-
-        assertEquals(mapOf("car" to listOf(paid)), paidCharges(listOf(reading(0, null), reading(1, paid), reading(2, paid))))
-    }
+        StoredChargePrice("car", 60 * MINUTE, 66 * MINUTE, SessionPrice.Total(4.22f), "EUR", byOwner = false)
 
     @Test
     fun `a paid charge goes to the nearest session that was not AC, within half an hour`() {
@@ -51,10 +40,21 @@ class PaidChargesTest {
     }
 
     @Test
+    fun `the car's cost replaces the home price a session without a DC reading was frozen at`() {
+        val sessions = listOf(session(60, 66, kind = null), session(300, 330))
+        val atHome = reconcilePrices(sessions, emptyList(), defaults)
+        assertEquals(listOf(SessionPrice.PerKwh(0.2f)), atHome.map { it.price })
+
+        assertEquals(listOf(supercharged), reconcilePrices(sessions, atHome, defaults, listOf(paid)))
+        val shown = sessionPrices(sessions.take(1), atHome, emptyList(), listOf(paid)).single()
+        assertEquals(SessionPrice.Total(4.22f), shown.price)
+    }
+
+    @Test
     fun `the screens show the car's cost before a build stores it`() {
         val shown = sessionPrices(listOf(session(60, 66)), emptyList(), emptyList(), listOf(paid)).single()
 
-        assertEquals(ChargeSessionPrice(SessionPrice.Total(4.22f), "EUR", byOwner = false, place = ChargePlace.SUPERCHARGER), shown)
+        assertEquals(ChargeSessionPrice(SessionPrice.Total(4.22f), "EUR", byOwner = false, place = null), shown)
     }
 
     private companion object {

@@ -29,10 +29,6 @@ internal fun BatterySample.toRow(): BatterySampleRow =
         chargeRateMph = chargeRateMph,
         readAt = readAtMillis,
         fastChargerPresent = fastChargerPresent,
-        paidAt = lastPaidCharge?.atMillis,
-        paidCost = lastPaidCharge?.cost,
-        paidCurrency = lastPaidCharge?.currencyCode,
-        paidPricePerKwh = lastPaidCharge?.pricePerKwh,
     )
 
 internal fun BatterySampleRow.toSample(): BatterySample =
@@ -50,11 +46,15 @@ internal fun BatterySampleRow.toSample(): BatterySample =
         usableLevel = usableLevel,
         readAtMillis = readAt,
         fastChargerPresent = fastChargerPresent,
-        lastPaidCharge =
-            paidAt?.let { at ->
-                paidCost?.let { cost -> paidCurrency?.let { LastPaidCharge(at, cost, it, paidPricePerKwh) } }
-            },
     )
+
+internal fun LastPaidCharge.toRow(vehicleId: String): PaidChargeRow = PaidChargeRow(vehicleId, atMillis, cost, currencyCode, pricePerKwh)
+
+internal fun PaidChargeRow.toPaidCharge(): LastPaidCharge = LastPaidCharge(atMillis, cost, currency, pricePerKwh)
+
+/** [rows] per car, oldest first: what the price follow matches to sessions. */
+internal fun paidChargesByCar(rows: List<PaidChargeRow>): Map<String, List<LastPaidCharge>> =
+    rows.groupBy({ it.vehicleId }, { it.toPaidCharge() })
 
 internal fun DriveSample.toRow(): DriveSampleRow =
     DriveSampleRow(

@@ -87,7 +87,10 @@ private class BatterySink(
     }
 
     override fun accept(records: List<BleRecord>) {
-        val kept = records.mapNotNull { it.toBatterySample(vehicleId) }.flatMap(thinner::accept)
+        val samples = records.mapNotNull { it.toBatterySample(vehicleId) }
+        // Each reading repeats the car's last paid charge; it is kept once, from every reading, thinned or not.
+        dao.insertPaid(samples.mapNotNull { it.lastPaidCharge }.distinct().map { it.toRow(vehicleId) })
+        val kept = samples.flatMap(thinner::accept)
         dao.insertBattery(kept.map { it.toRow() })
         marks.markDirty(vehicleId, kept.minOfOrNull { it.timestampMillis })
     }

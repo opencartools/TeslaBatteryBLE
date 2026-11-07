@@ -20,7 +20,7 @@ import com.dzid26.teslable.core.health.StoredChargePrice
  * One charge session's stored price ([StoredChargePrice]): [kind] is `PerKwh` or `Total`, [value] the price per kWh
  * or the total, both null for an empty price, in [currency] (an ISO 4217 code, resolved when stored). [byOwner] is
  * an edit; otherwise the automatic price frozen when the session was finished. [place] is where it charged
- * (`ChargePlace` or the owner's own name), null when not known. Keyed by car and the session's start and end
+ * as the owner set it (`ChargePlace` or their own name), null unless set. Keyed by car and the session's start and end
  * as last cut; each build matches a row to its re-cut session by overlap
  * and writes it at that session's start and end, where readers read it.
  */

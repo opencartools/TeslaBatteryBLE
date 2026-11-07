@@ -9,7 +9,6 @@ import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.health.PriceDefaults
 import com.dzid26.teslable.core.health.SessionPrice
 import com.dzid26.teslable.core.health.StoredChargePrice
-import com.dzid26.teslable.core.health.paidCharges
 import com.dzid26.teslable.core.history.ActivitySample
 import com.dzid26.teslable.core.history.ActivityThinner
 import com.dzid26.teslable.core.history.AppState
@@ -33,6 +32,7 @@ import com.dzid26.teslable.core.history.toBatterySample
 import com.dzid26.teslable.core.history.toDriveSample
 import com.dzid26.teslable.core.history.toRouteSample
 import com.dzid26.teslable.core.history.toStatusSample
+import com.dzid26.teslable.protocol.LastPaidCharge
 import com.dzid26.teslable.resolvedCurrencyCode
 import com.tesla.generated.carserver.vehicle.ChargeState
 import com.tesla.generated.carserver.vehicle.ClimateState
@@ -130,6 +130,13 @@ class HistoryStore internal constructor(
      */
     val chargePrices: StateFlow<List<StoredChargePrice>> = _chargePrices.asStateFlow()
     private val priceStore: ChargePriceStore? by lazy { ownerProvider.value?.let { ChargePriceStore(it.db, _chargePrices) } }
+    private val _paidCharges = MutableStateFlow<Map<String, List<LastPaidCharge>>>(emptyMap())
+
+    /**
+     * Every paid charge the cars reported, by car and oldest first, as of the last `derived.db` build: what
+     * `sessionPrices` shows a paid session at before a build stores its price.
+     */
+    val paidCharges: StateFlow<Map<String, List<LastPaidCharge>>> = _paidCharges.asStateFlow()
 
     /** One build at a time: the startup build and the periodic catch-ups never overlap. */
     private val buildMutex = Mutex()
@@ -239,7 +246,14 @@ class HistoryStore internal constructor(
                 // Every finished session's price is stored, and follows its session when a re-cut moves it.
                 runCatching {
                     ownerProvider.value?.let { owner ->
-                        priceStore?.follow(_chargeSessions.value, owner.defaults().copy(paidCharges = paidCharges(_samples.value)))
+                        val paid =
+                            derivedProvider.value
+                                ?.reads()
+                                ?.paidCharges()
+                                ?.let(::paidChargesByCar)
+                                .orEmpty()
+                        _paidCharges.value = paid
+                        priceStore?.follow(_chargeSessions.value, owner.defaults().copy(paidCharges = paid))
                     }
                 }.onFailure { log("charge prices: follow failed: $it") }
             }.isSuccess

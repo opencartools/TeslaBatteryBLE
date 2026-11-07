@@ -46,8 +46,9 @@ data class StoredChargePrice(
     val currencyCode: String,
     val byOwner: Boolean,
     /**
-     * Where the car charged: one of [ChargePlace] or the owner's own name for it; null when not known. A name the owner
-     * types that equals a [ChargePlace] means that place.
+     * Where the car charged, as the owner set it: one of [ChargePlace] or their own name for it. Null unless the owner
+     * set it, since the place is derived from the logs. A name the owner types that equals a [ChargePlace] means that
+     * place.
      */
     val place: String? = null,
 )
@@ -61,7 +62,7 @@ object ChargePlace {
 
 /**
  * What a new session is priced at when nobody priced it: the home price changes, the currency to store, and every
- * car's paid charges as it reported them (`paidCharges`), by car.
+ * car's paid charges as it reported them, by car and oldest first.
  */
 data class PriceDefaults(
     val homeChanges: List<PriceChange>,
@@ -109,10 +110,10 @@ fun sessionPrices(
     return sessions.indices.map { i ->
         val session = sessions[i]
         val row = byShape[Triple(session.vehicleId, session.startMillis, session.endMillis)]
-        val unpriced = row == null || (row.price == null && !row.byOwner)
-        val shown = paidFor[i]?.takeIf { unpriced }?.let { paidPrice(session, it) } ?: row
+        val automatic = row == null || !row.byOwner
+        val shown = paidFor[i]?.takeIf { automatic }?.let { paidPrice(session, it) } ?: row
         shown?.let { ChargeSessionPrice(it.price, it.currencyCode, it.byOwner, it.place) }
-            ?: ChargeSessionPrice(automaticPrice(session, home[i]), null, byOwner = false, place = automaticPlace(session))
+            ?: ChargeSessionPrice(automaticPrice(session, home[i]), null, byOwner = false, place = null)
     }
 }
 

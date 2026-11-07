@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 4,
-    "identityHash": "4bdb6aed8946a1fe6b504601bfd7a24c",
+    "identityHash": "11e4f41306be16165ca73a348cf89a2c",
     "entities": [
       {
         "tableName": "battery_samples",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `time` INTEGER NOT NULL, `level` INTEGER NOT NULL, `usableLevel` INTEGER NOT NULL, `chargingState` TEXT, `chargeLimit` INTEGER, `ratedRangeMiles` REAL, `chargeEnergyAdded` REAL, `chargeMilesAddedRated` REAL, `chargerVoltage` INTEGER, `chargeRateMph` REAL, `readAt` INTEGER, `fastChargerPresent` INTEGER, `paidAt` INTEGER, `paidCost` REAL, `paidCurrency` TEXT, `paidPricePerKwh` REAL, PRIMARY KEY(`vehicleId`, `time`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `time` INTEGER NOT NULL, `level` INTEGER NOT NULL, `usableLevel` INTEGER NOT NULL, `chargingState` TEXT, `chargeLimit` INTEGER, `ratedRangeMiles` REAL, `chargeEnergyAdded` REAL, `chargeMilesAddedRated` REAL, `chargerVoltage` INTEGER, `chargeRateMph` REAL, `readAt` INTEGER, `fastChargerPresent` INTEGER, PRIMARY KEY(`vehicleId`, `time`))",
         "fields": [
           {
             "fieldPath": "vehicleId",
@@ -76,26 +76,6 @@
             "fieldPath": "fastChargerPresent",
             "columnName": "fastChargerPresent",
             "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "paidAt",
-            "columnName": "paidAt",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "paidCost",
-            "columnName": "paidCost",
-            "affinity": "REAL"
-          },
-          {
-            "fieldPath": "paidCurrency",
-            "columnName": "paidCurrency",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "paidPricePerKwh",
-            "columnName": "paidPricePerKwh",
-            "affinity": "REAL"
           }
         ],
         "primaryKey": {
@@ -419,11 +399,53 @@
             "vehicleId"
           ]
         }
+      },
+      {
+        "tableName": "paid_charges",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `atMillis` INTEGER NOT NULL, `cost` REAL NOT NULL, `currency` TEXT NOT NULL, `pricePerKwh` REAL, PRIMARY KEY(`vehicleId`, `atMillis`))",
+        "fields": [
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "atMillis",
+            "columnName": "atMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cost",
+            "columnName": "cost",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currency",
+            "columnName": "currency",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pricePerKwh",
+            "columnName": "pricePerKwh",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "vehicleId",
+            "atMillis"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4bdb6aed8946a1fe6b504601bfd7a24c')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '11e4f41306be16165ca73a348cf89a2c')"
     ]
   }
 }

@@ -16,7 +16,8 @@ import com.dzid26.teslable.protocol.LastPaidCharge
  *   every part and a total is shared by energy;
  * - a stored price that overlaps no session is kept (on a new phone the sessions come only once the logs are back);
  * - a session the car reports as a paid charge ([paid], see `matchPaidCharges`) takes the car's total cost as its
- *   automatic price, at a Supercharger, which also fills one frozen empty; the owner's edits are never changed.
+ *   automatic price, replacing one frozen by the rule (empty, or the home price where the samples did not say DC);
+ *   the owner's edits are never changed.
  */
 fun reconcilePrices(
     sessions: List<ChargeSession>,
@@ -42,7 +43,7 @@ fun reconcilePrices(
             val moved = automaticParts[i].singleOrNull()?.takeIf { automaticTargets[it].size == 1 }?.let { automatic[it] }
             when {
                 parts.isNotEmpty() -> joined(parts, used)
-                moved != null -> moved.takeUnless { it.price == null } ?: paidFor[i]?.let { paidPrice(session, it) } ?: moved
+                moved != null -> paidFor[i]?.let { paidPrice(session, it) } ?: moved
                 else -> frozen(session, home[i], defaults, paidFor[i]).takeIf { i != sessions.lastIndex }
             }?.copy(startMillis = session.startMillis, endMillis = session.endMillis)
         }
@@ -85,10 +86,9 @@ private fun frozen(
     automaticPrice(session, homePricePerKwh),
     defaults.currencyCode,
     byOwner = false,
-    place = automaticPlace(session),
 )
 
-/** [session]'s price as the car's [paid] charge: its total cost, in its currency, at a Supercharger. */
+/** [session]'s price as the car's [paid] charge: its total cost, in its currency. */
 internal fun paidPrice(
     session: ChargeSession,
     paid: LastPaidCharge,
@@ -98,12 +98,8 @@ internal fun paidPrice(
     session.endMillis,
     paid.price(),
     paid.currencyCode,
-    false,
-    ChargePlace.SUPERCHARGER,
+    byOwner = false,
 )
-
-/** Where [session] charged, as far as the app can tell without the car's location: home, unless it was DC. */
-fun automaticPlace(session: ChargeSession): String? = ChargePlace.HOME.takeIf { session.chargerKind != ChargerKind.DC }
 
 /** The owner's edit [index] as part of one session: its [share] of a total, and how long it overlaps the session. */
 private class Part(

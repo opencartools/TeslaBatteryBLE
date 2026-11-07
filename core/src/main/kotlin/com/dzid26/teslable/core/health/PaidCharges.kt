@@ -1,17 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.core.health
 
-import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.protocol.LastPaidCharge
 import kotlin.math.max
-
-/** Every paid charge the car reported in [samples], per car and oldest first: each reading repeats the last one. */
-fun paidCharges(samples: List<BatterySample>): Map<String, List<LastPaidCharge>> =
-    samples
-        .mapNotNull { sample -> sample.lastPaidCharge?.let { sample.vehicleId to it } }
-        .distinct()
-        .groupBy({ it.first }, { it.second })
-        .mapValues { (_, paid) -> paid.sortedBy { it.atMillis } }
 
 /**
  * The paid charge each of [sessions] (one car, oldest first) was: each of [paid] goes to the session that is not AC
