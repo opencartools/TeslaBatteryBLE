@@ -169,7 +169,7 @@ class BleRecordMappingTest {
     fun `reasons and app events keep their numbers on the wire`() {
         // Stored format: the enum numbers are part of every record already written.
         assertEquals(
-            listOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+            listOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11),
             Command.Reason.entries.map { it.value },
         )
         assertEquals(1, Command.Reason.USER_WAKE.value)
@@ -182,6 +182,7 @@ class BleRecordMappingTest {
         assertEquals(8, Command.Reason.FOLLOW_UP.value)
         assertEquals(9, Command.Reason.PAIRING.value)
         assertEquals(10, Command.Reason.KEY_LOOKUP.value)
+        assertEquals(11, Command.Reason.USER_ACTION.value)
         assertEquals(
             listOf(0, 1, 2, 3, 4, 5, 6),
             AppState.Event.entries.map { it.value },

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.protocol
 
+import com.tesla.generated.keys.Role
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.vcsec.CommandStatus
 import com.tesla.generated.vcsec.FromVCSECMessage
@@ -144,9 +145,17 @@ class PairingFlowTest {
         flow.onTimer(PairingTimer.RESPONSE_TIMEOUT)
         assertEquals(PairingPhase.ERROR, flow.phase)
 
-        flow.onMessage(slotEntry(slot = 5, keyId = TeslaKeys.keyId(keyPair.publicKeyRaw)))
+        flow.onMessage(
+            slotEntry(
+                slot = 5,
+                keyId = TeslaKeys.keyId(keyPair.publicKeyRaw),
+                role = Role.ROLE_CHARGING_MANAGER,
+            ),
+        )
 
         assertEquals(5, host.keySlots.last())
+        // The role decides which controls the car will authorize for this key.
+        assertEquals(Role.ROLE_CHARGING_MANAGER, host.keyRoles.last())
         assertEquals(PairingPhase.IDLE, flow.phase)
     }
 
@@ -259,10 +268,16 @@ class PairingFlowTest {
     private fun slotEntry(
         slot: Int,
         keyId: ByteArray,
+        role: Role = Role.ROLE_NONE,
     ): ByteArray {
         val payload =
             FromVCSECMessage(
-                whitelistEntryInfo = WhitelistEntryInfo(keyId = KeyIdentifier(publicKeySHA1 = keyId.toByteString()), slot = slot),
+                whitelistEntryInfo =
+                    WhitelistEntryInfo(
+                        keyId = KeyIdentifier(publicKeySHA1 = keyId.toByteString()),
+                        slot = slot,
+                        keyRole = role,
+                    ),
             ).encode()
         return RoutableMessage(protobuf_message_as_bytes = payload.toByteString()).encode()
     }
@@ -295,6 +310,7 @@ class PairingFlowTest {
         val vcsecRequests = mutableListOf<Pair<ByteArray, PairingReason>>()
         val addKeyRequests = mutableListOf<ByteArray>()
         val keySlots = mutableListOf<Int?>()
+        val keyRoles = mutableListOf<Role>()
         val timers = mutableMapOf<PairingTimer, Long>()
 
         override fun log(message: String) {
@@ -322,6 +338,10 @@ class PairingFlowTest {
             keySlots += slot
         }
 
+        override fun publishKeyRole(role: Role) {
+            keyRoles += role
+        }
+
         override fun hasConnectionKeySlot() = connectionSlot
 
         override fun hasShownKeySlot() = shownSlot || connectionSlot
@@ -334,15 +354,11 @@ class PairingFlowTest {
             freshlyEnrolled++
         }
 
-        override fun schedule(
+        override fun setTimer(
             timer: PairingTimer,
-            delayMs: Long,
+            delayMs: Long?,
         ) {
-            timers[timer] = delayMs
-        }
-
-        override fun cancel(timer: PairingTimer) {
-            timers.remove(timer)
+            if (delayMs == null) timers.remove(timer) else timers[timer] = delayMs
         }
     }
 }

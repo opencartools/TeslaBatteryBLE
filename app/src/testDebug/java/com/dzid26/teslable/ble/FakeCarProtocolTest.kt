@@ -29,6 +29,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.tesla.generated.carserver.server.OperationStatus_E as CarServerStatus
 
 /**
  * Round-trips the simulated car against the real client code: every request is
@@ -228,6 +229,23 @@ class FakeCarProtocolTest {
         authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaCommands.buildClosuresStateRequest())
         authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaCommands.buildClimateStateRequest())
 
+        assertTrue(protocol.asleep)
+    }
+
+    @Test
+    fun chargePortIsAcknowledgedAsAnAction() {
+        val session = session(Domain.DOMAIN_INFOTAINMENT)
+
+        val opened = authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaCommands.buildChargePortOpenRequest())
+        assertEquals(CarServerStatus.OPERATIONSTATUS_OK, TeslaCommands.parseActionStatus(opened))
+        assertTrue(protocol.chargePortOpen)
+        val charge =
+            TeslaCommands.parseChargeState(
+                authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaCommands.buildChargeStateRequest()),
+            )
+        assertNotNull(charge)
+        assertEquals(true, charge?.charge_port_door_open)
+        // A quick action is not a wake: the car-server domain leaves the car as it was.
         assertTrue(protocol.asleep)
     }
 

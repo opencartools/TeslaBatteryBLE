@@ -8,6 +8,7 @@ import com.dzid26.teslable.protocol.TeslaKeys
 import com.dzid26.teslable.protocol.TeslaSession
 import com.tesla.generated.carserver.common.Void
 import com.tesla.generated.carserver.server.Action
+import com.tesla.generated.carserver.server.ActionStatus
 import com.tesla.generated.carserver.server.GetVehicleData
 import com.tesla.generated.carserver.vehicle.ChargeState
 import com.tesla.generated.carserver.vehicle.ClimateState
@@ -17,6 +18,7 @@ import com.tesla.generated.carserver.vehicle.LocationState
 import com.tesla.generated.carserver.vehicle.ShiftState
 import com.tesla.generated.carserver.vehicle.TirePressureState
 import com.tesla.generated.carserver.vehicle.VehicleData
+import com.tesla.generated.keys.Role
 import com.tesla.generated.signatures.AES_GCM_Response_Signature_Data
 import com.tesla.generated.signatures.HMAC_Signature_Data
 import com.tesla.generated.signatures.SessionInfo
@@ -43,6 +45,7 @@ import com.tesla.generated.vcsec.WhitelistInfo
 import okio.ByteString.Companion.toByteString
 import java.security.MessageDigest
 import java.time.Instant
+import com.tesla.generated.carserver.server.OperationStatus_E as CarServerStatus
 import com.tesla.generated.carserver.server.Response as CarServerResponse
 
 /**
@@ -71,6 +74,10 @@ class FakeCarProtocol(
         private set
 
     var batteryLevel: Int = 78
+        private set
+
+    /** The simulated charge-port door, opened by a quick action like the real one. */
+    var chargePortOpen: Boolean = false
         private set
 
     /** The demo scenario: plugged in and charging until the limit is reached. */
@@ -213,6 +220,7 @@ class FakeCarProtocol(
                                         keyId = KeyIdentifier(publicKeySHA1 = sha1.toByteString()),
                                         publicKey = PublicKey(PublicKeyRaw = publicKey.toByteString()),
                                         slot = 0,
+                                        keyRole = Role.ROLE_DRIVER,
                                     ),
                             ).encode(),
                             uuid,
@@ -323,6 +331,13 @@ class FakeCarProtocol(
             out += authenticated(domain, uuid, requestTag, reply)
             return
         }
+        // The car-server actions the quick-actions button sends: acknowledge them like a car would.
+        val actionRequest = action?.vehicleAction
+        if (actionRequest?.chargePortDoorOpen != null) {
+            chargePortOpen = true
+            out += authenticated(domain, uuid, requestTag, actionStatusResponse())
+            return
+        }
 
         val unsigned = runCatching { UnsignedMessage.ADAPTER.decode(plaintext) }.getOrNull()
         if (unsigned?.RKEAction != null) {
@@ -364,6 +379,7 @@ class FakeCarProtocol(
                             usable_battery_level = batteryLevel,
                             battery_range = batteryLevel * RATED_MILES_PER_PERCENT,
                             charge_limit_soc = CHARGE_LIMIT,
+                            charge_port_door_open = chargePortOpen,
                             charge_energy_added =
                                 if (charging) {
                                     (batteryLevel - chargeSessionStartLevel) * KWH_PER_PERCENT
@@ -453,6 +469,10 @@ class FakeCarProtocol(
             vehicleData =
                 VehicleData(tire_pressure_state = TirePressureState(timestamp = Instant.ofEpochMilli(System.currentTimeMillis()))),
         ).encode()
+
+    /** The car-server answer to a quick action: accepted, with no data. */
+    private fun actionStatusResponse(): ByteArray =
+        CarServerResponse(actionStatus = ActionStatus(result = CarServerStatus.OPERATIONSTATUS_OK)).encode()
 
     private fun authenticated(
         domain: Domain,

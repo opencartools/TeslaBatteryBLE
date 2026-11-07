@@ -12,6 +12,7 @@ import com.dzid26.teslable.protocol.asleep
 import com.dzid26.teslable.protocol.locked
 import com.dzid26.teslable.protocol.userPresent
 import com.tesla.generated.carserver.vehicle.ChargeState
+import com.tesla.generated.keys.Role
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.vcsec.VehicleStatus
 import java.util.UUID
@@ -32,6 +33,8 @@ data class TeslaConnection(
     val rssi: Int? = null,
     val status: VehicleStatus? = null,
     val keySlot: Int? = null,
+    /** The role the car has for this phone's key; null until the whitelist lookup answers. */
+    val keyRole: Role? = null,
     val sessions: Set<Domain> = emptySet(),
     val charge: ChargeState? = null,
     /** When [charge] was last read; null until the first charge response. */
@@ -97,6 +100,39 @@ data class BleUiState(
      * as a blocking dialog; saving the VIN clears it and replays [VinRequest.replay] once.
      */
     val vinRequest: VinRequest? = null,
+    /** The last quick action's result, shown once as a snackbar and then consumed. */
+    val actionFeedback: QuickActionFeedback? = null,
+)
+
+/** One control on the car screen's quick-action stack. */
+enum class QuickAction {
+    CHARGE_PORT,
+    WAKE,
+}
+
+/**
+ * Whether the car lets this phone's key authorize a command that changes its state. Charging Manager
+ * covers reads and charging, and Tesla refuses the charge port to it, so the stack stays away from
+ * every other role. The car reports the role with the key's whitelist entry.
+ */
+val Role?.authorizesVehicleControl: Boolean
+    get() = this == Role.ROLE_OWNER || this == Role.ROLE_DRIVER
+
+/** How a [QuickAction] ended, for the snackbar that reports it. */
+enum class QuickActionOutcome {
+    /** The request went out; the car has not answered yet. */
+    SENT,
+
+    /** The car was asleep, so it was woken and the action goes out once the session is ready. */
+    WAKING,
+
+    /** Nothing could be sent: no link, no key, no VIN, the car refused it, or the handshake gave up. */
+    FAILED,
+}
+
+data class QuickActionFeedback(
+    val action: QuickAction,
+    val outcome: QuickActionOutcome,
 )
 
 /** One log line, tagged with the car it came from (null for app-wide lines) and when it was written. */

@@ -35,6 +35,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -77,6 +79,7 @@ import com.dzid26.teslable.ble.TeslaAdvert
 import com.dzid26.teslable.ble.TeslaConnection
 import com.dzid26.teslable.ble.Vehicle
 import com.dzid26.teslable.ble.ageLabel
+import com.dzid26.teslable.ble.authorizesVehicleControl
 import com.dzid26.teslable.ble.batteryPercent
 import com.dzid26.teslable.ble.chargingStateText
 import com.dzid26.teslable.ble.connectionDisplay
@@ -169,6 +172,11 @@ internal fun CarScreen(
     homePrice: Float? = null,
     // Injectable for the Paparazzi snapshots, to render the screen scrolled down.
     scrollState: ScrollState = rememberScrollState(),
+    // The quick-action stack's callbacks, and a way to start it open in a snapshot.
+    onChargePort: () -> Unit,
+    onWake: () -> Unit,
+    onActionFeedbackShown: () -> Unit,
+    initialQuickActionsExpanded: Boolean = false,
     // False while the store is still publishing the logs: the whole-history figures follow at once until then.
     historyLoaded: Boolean = true,
 ) {
@@ -238,8 +246,18 @@ internal fun CarScreen(
             refreshing = false
         }
     }
+    // The quick-action stack reports each result once, as a snackbar.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val feedbackText = state.actionFeedback?.let { stringResource(it.message()) }
+    LaunchedEffect(feedbackText) {
+        if (feedbackText != null) {
+            snackbarHostState.showSnackbar(feedbackText)
+            onActionFeedbackShown()
+        }
+    }
     Scaffold(
         modifier = Modifier.countingTouches(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 navigationIcon = {
@@ -295,122 +313,136 @@ internal fun CarScreen(
         val screenContext = LocalContext.current
         // Resolved here, while the composition can see the configuration, not from the callback.
         val blockedText = readBlockedHint(connection, vehicle?.hasSessionVin == true)?.let { stringResource(it.text) }
-        PullToRefreshBox(
-            isRefreshing = refreshing,
-            onRefresh = {
-                refreshing = true
-                // A pull that cannot read should say why instead of silently doing nothing.
-                blockedText?.let { Toast.makeText(screenContext, it, Toast.LENGTH_LONG).show() }
-                onRefresh()
-            },
-            state = pullState,
+        Box(
             modifier =
                 Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-            indicator = {
-                RefreshPill(
-                    state = pullState,
-                    isRefreshing = refreshing,
-                    pullLabel = pullLabel,
-                    refreshingLabel = refreshingLabel,
-                )
-            },
         ) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState)
-                        .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+            PullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh = {
+                    refreshing = true
+                    // A pull that cannot read should say why instead of silently doing nothing.
+                    blockedText?.let { Toast.makeText(screenContext, it, Toast.LENGTH_LONG).show() }
+                    onRefresh()
+                },
+                state = pullState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    RefreshPill(
+                        state = pullState,
+                        isRefreshing = refreshing,
+                        pullLabel = pullLabel,
+                        refreshingLabel = refreshingLabel,
+                    )
+                },
             ) {
-                val context = LocalContext.current
-                val priceChanges =
-                    remember { homePrice?.let { listOf(PriceChange(0L, it)) } ?: EnergyPriceStore(context).priceChanges() }
-                val pricePerKwh = priceChanges.lastOrNull()?.pricePerKwh
-                val currencyCode = remember { EnergyPriceStore(context).currencyCode() }
-                val unitStore = remember { UnitStore(context) }
-                val distanceUnit = remember { unitStore.preference().resolve() }
-                var efficiencyUnit by remember { mutableStateOf(unitStore.efficiency()) }
-                val cycleEfficiencyUnit: () -> Unit =
-                    remember {
-                        {
-                            efficiencyUnit = efficiencyUnit.next()
-                            unitStore.setEfficiency(efficiencyUnit)
-                        }
-                    }
-                CompositionLocalProvider(
-                    LocalDistanceUnit provides distanceUnit,
-                    LocalEfficiencyUnit provides efficiencyUnit,
-                    LocalCycleEfficiencyUnit provides cycleEfficiencyUnit,
-                    LocalCurrencyCode provides currencyCode,
-                    LocalPricePerKwh provides pricePerKwh,
-                    LocalPriceChanges provides priceChanges,
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = QuickActionsContentPadding),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    HeroCard(
-                        pricePerKwh = pricePerKwh,
-                        bluetoothOn = state.bluetoothOn,
-                        connection = connection,
-                        // A discovery for this car is running, or the last one ended without it. The
-                        // view says so instead of leaving a silent "Disconnected".
-                        discovering = state.discovering && connection?.phase != ConnectionPhase.READY,
-                        discoveryMissed = state.discoveryMissed && connection?.phase != ConnectionPhase.READY,
-                        advert = advert,
-                        vehicle = vehicle,
-                        history = vehicleHistory,
-                        statusHistory = vehicleStatuses,
-                        nowMillis = nowMillis ?: rememberNowMillis(connection?.chargeAtMillis),
-                        scale = scale,
-                    )
-                    // Without a VIN the car's BLE session cannot be personalised, so reads and
-                    // controls go nowhere; the standing hint stands right under the hero.
-                    if (vehicle != null && !vehicle.hasSessionVin) {
-                        VinNeededCard(onAddVin = onAddVin)
-                    }
-                    // Once the app key is enrolled the hero carries its status; the
-                    // card only exists for pairing, so it disappears when there is
-                    // nothing to do.
-                    if (!paired) {
-                        KeyCard(connection, vehicle, onPair)
-                    }
-                    val liveRoute = activeRoute(vehicle?.let { routes[it.bleName] }, nowMillis ?: rememberNowMillis())
-                    TripSection(
-                        route = liveRoute,
-                        latest = vehicleHistory.lastOrNull(),
-                        scale = scale,
-                        ratedKwhPerMile = health?.ratedKwhPerMile,
-                        pricePerKwh = pricePerKwh,
-                    )
-                    HistoryCard(
-                        logs.battery,
-                        logs.drives,
-                        context = sleepLogs.copy(scale = scale),
-                        ratedKwhPerMile = health?.ratedKwhPerMile,
-                        // The ticking clock, not a fresh wall-clock read: that changed on every recomposition (each
-                        // RSSI poll), so the card redid its projections and redrew its chart every time.
-                        view = HistoryView(nowMillis = nowMillis ?: rememberNowMillis()),
-                    )
-                    val vehicleTrips = vehicle?.let { trips[it.bleName] }.orEmpty()
-                    PastTripsCard(
-                        trips = remember(vehicleTrips, liveRoute) { vehicleTrips.markingLive(liveRoute) },
-                        samples = logs.battery,
-                        scale = scale,
-                        ratedKwhPerMile = health?.ratedKwhPerMile,
-                        pricePerKwh = pricePerKwh,
-                    )
-                    // Keyed on the minute as well, so a charge that ended while no sample came in stops saying "charging".
-                    val sessionsMinute = (nowMillis ?: rememberNowMillis()) / MILLIS_PER_MINUTE
-                    ChargeSessionsCard(
-                        remember(logs, vehicleCharges, sessionsMinute) {
-                            withLiveTail(vehicleCharges) { from ->
-                                chargeSessions(logs.battery.fromTime(from) { it.timestampMillis }, sessionsMinute * MILLIS_PER_MINUTE)
+                    val context = LocalContext.current
+                    val priceChanges =
+                        remember { homePrice?.let { listOf(PriceChange(0L, it)) } ?: EnergyPriceStore(context).priceChanges() }
+                    val pricePerKwh = priceChanges.lastOrNull()?.pricePerKwh
+                    val currencyCode = remember { EnergyPriceStore(context).currencyCode() }
+                    val unitStore = remember { UnitStore(context) }
+                    val distanceUnit = remember { unitStore.preference().resolve() }
+                    var efficiencyUnit by remember { mutableStateOf(unitStore.efficiency()) }
+                    val cycleEfficiencyUnit: () -> Unit =
+                        remember {
+                            {
+                                efficiencyUnit = efficiencyUnit.next()
+                                unitStore.setEfficiency(efficiencyUnit)
                             }
-                        },
-                    )
-                    rest?.let { DrainStatsCard(it, current) }
-                    health?.let { BatteryHealthCard(it) }
+                        }
+                    CompositionLocalProvider(
+                        LocalDistanceUnit provides distanceUnit,
+                        LocalEfficiencyUnit provides efficiencyUnit,
+                        LocalCycleEfficiencyUnit provides cycleEfficiencyUnit,
+                        LocalCurrencyCode provides currencyCode,
+                        LocalPricePerKwh provides pricePerKwh,
+                        LocalPriceChanges provides priceChanges,
+                    ) {
+                        HeroCard(
+                            pricePerKwh = pricePerKwh,
+                            bluetoothOn = state.bluetoothOn,
+                            connection = connection,
+                            // A discovery for this car is running, or the last one ended without it. The
+                            // view says so instead of leaving a silent "Disconnected".
+                            discovering = state.discovering && connection?.phase != ConnectionPhase.READY,
+                            discoveryMissed = state.discoveryMissed && connection?.phase != ConnectionPhase.READY,
+                            advert = advert,
+                            vehicle = vehicle,
+                            history = vehicleHistory,
+                            statusHistory = vehicleStatuses,
+                            nowMillis = nowMillis ?: rememberNowMillis(connection?.chargeAtMillis),
+                            scale = scale,
+                        )
+                        // Without a VIN the car's BLE session cannot be personalised, so reads and
+                        // controls go nowhere; the standing hint stands right under the hero.
+                        if (vehicle != null && !vehicle.hasSessionVin) {
+                            VinNeededCard(onAddVin = onAddVin)
+                        }
+                        // Once the app key is enrolled the hero carries its status; the
+                        // card only exists for pairing, so it disappears when there is
+                        // nothing to do.
+                        if (!paired) {
+                            KeyCard(connection, vehicle, onPair)
+                        }
+                        val liveRoute = activeRoute(vehicle?.let { routes[it.bleName] }, nowMillis ?: rememberNowMillis())
+                        TripSection(
+                            route = liveRoute,
+                            latest = vehicleHistory.lastOrNull(),
+                            scale = scale,
+                            ratedKwhPerMile = health?.ratedKwhPerMile,
+                            pricePerKwh = pricePerKwh,
+                        )
+                        HistoryCard(
+                            logs.battery,
+                            logs.drives,
+                            context = sleepLogs.copy(scale = scale),
+                            ratedKwhPerMile = health?.ratedKwhPerMile,
+                            // The ticking clock, not a fresh wall-clock read: that changed on every recomposition (each
+                            // RSSI poll), so the card redid its projections and redrew its chart every time.
+                            view = HistoryView(nowMillis = nowMillis ?: rememberNowMillis()),
+                        )
+                        val vehicleTrips = vehicle?.let { trips[it.bleName] }.orEmpty()
+                        PastTripsCard(
+                            trips = remember(vehicleTrips, liveRoute) { vehicleTrips.markingLive(liveRoute) },
+                            samples = logs.battery,
+                            scale = scale,
+                            ratedKwhPerMile = health?.ratedKwhPerMile,
+                            pricePerKwh = pricePerKwh,
+                        )
+                        // Keyed on the minute as well, so a charge that ended while no sample came in stops saying "charging".
+                        val sessionsMinute = (nowMillis ?: rememberNowMillis()) / MILLIS_PER_MINUTE
+                        ChargeSessionsCard(
+                            remember(logs, vehicleCharges, sessionsMinute) {
+                                withLiveTail(vehicleCharges) { from ->
+                                    chargeSessions(logs.battery.fromTime(from) { it.timestampMillis }, sessionsMinute * MILLIS_PER_MINUTE)
+                                }
+                            },
+                        )
+                        rest?.let { DrainStatsCard(it, current) }
+                        health?.let { BatteryHealthCard(it) }
+                    }
                 }
+            }
+            // A car with no key or no VIN cannot be controlled, and the car only lets an Owner or Driver
+            // key authorize a state change, so the stack stays away entirely for any other role.
+            if (paired && vehicle?.hasSessionVin == true && connection?.keyRole.authorizesVehicleControl == true) {
+                CarQuickActionsHost(
+                    connection = connection,
+                    onChargePort = onChargePort,
+                    onWake = onWake,
+                    initiallyExpanded = initialQuickActionsExpanded,
+                )
             }
         }
     }

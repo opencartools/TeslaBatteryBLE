@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.protocol
 
+import com.tesla.generated.keys.Role
 import com.tesla.generated.vcsec.WhitelistEntryInfo
 import com.tesla.generated.vcsec.WhitelistInfo
 
@@ -71,6 +72,9 @@ interface PairingHost {
     /** Shows [slot] as this phone's key slot on the link and in the saved vehicle; null clears it. */
     fun publishKeySlot(slot: Int?)
 
+    /** The role the car has for this phone's key: what the key may authorize. */
+    fun publishKeyRole(role: Role)
+
     /** The link already shows a key slot (used to skip a redundant lookup). */
     fun hasConnectionKeySlot(): Boolean
 
@@ -83,13 +87,11 @@ interface PairingHost {
     /** The car just confirmed an enrollment that was under way, so its reads start from fresh. */
     fun onFreshlyEnrolled()
 
-    /** Runs [PairingFlow.onTimer] for [timer] after [delayMs]; replaces a pending run of the same timer. */
-    fun schedule(
+    /** Schedules [timer] for [delayMs], or cancels it when null. */
+    fun setTimer(
         timer: PairingTimer,
-        delayMs: Long,
+        delayMs: Long?,
     )
-
-    fun cancel(timer: PairingTimer)
 }
 
 /**
@@ -127,7 +129,7 @@ class PairingFlow(
         setPairing(PairingPhase.CHECKING)
         host.log("checking whether the key is already enrolled")
         host.transmitVcsec(TeslaVcsec.buildWhitelistInfoRequest(), PairingReason.PAIRING)
-        host.schedule(PairingTimer.RESPONSE_TIMEOUT, RESPONSE_TIMEOUT_MS)
+        host.setTimer(PairingTimer.RESPONSE_TIMEOUT, RESPONSE_TIMEOUT_MS)
     }
 
     /** Looks up which slot holds this phone's key, unless the link already shows it. */
@@ -173,8 +175,8 @@ class PairingFlow(
     }
 
     fun cancelTimers() {
-        host.cancel(PairingTimer.WHITELIST_POLL)
-        host.cancel(PairingTimer.RESPONSE_TIMEOUT)
+        host.setTimer(PairingTimer.WHITELIST_POLL, null)
+        host.setTimer(PairingTimer.RESPONSE_TIMEOUT, null)
     }
 
     /** The link closed: a lookup or check in flight will never be answered. */
@@ -218,9 +220,9 @@ class PairingFlow(
             setPairing(PairingPhase.ERROR)
             host.log("failed to send pairing request")
         } else {
-            host.schedule(PairingTimer.RESPONSE_TIMEOUT, RESPONSE_TIMEOUT_MS)
+            host.setTimer(PairingTimer.RESPONSE_TIMEOUT, RESPONSE_TIMEOUT_MS)
             whitelistPollAttempts = 0
-            host.schedule(PairingTimer.WHITELIST_POLL, WHITELIST_POLL_MS)
+            host.setTimer(PairingTimer.WHITELIST_POLL, WHITELIST_POLL_MS)
         }
     }
 
@@ -258,7 +260,7 @@ class PairingFlow(
             return
         }
         host.transmitVcsec(TeslaVcsec.buildWhitelistInfoRequest(), PairingReason.PAIRING)
-        host.schedule(PairingTimer.WHITELIST_POLL, WHITELIST_POLL_MS)
+        host.setTimer(PairingTimer.WHITELIST_POLL, WHITELIST_POLL_MS)
     }
 
     private fun requestNextKeySlot() {
@@ -281,7 +283,7 @@ class PairingFlow(
                 null
             }
         if (pairing == null) return false
-        host.cancel(PairingTimer.RESPONSE_TIMEOUT)
+        host.setTimer(PairingTimer.RESPONSE_TIMEOUT, null)
         val newPhase =
             when (pairing) {
                 TeslaPairing.Result.OK -> PairingPhase.OK
@@ -313,7 +315,7 @@ class PairingFlow(
         val storedKeyId = keys.keyId()
         val enrolled = storedKeyId != null && whitelist.lists(storedKeyId)
         if (storedKeyId != null && enrolled) {
-            host.cancel(PairingTimer.WHITELIST_POLL)
+            host.setTimer(PairingTimer.WHITELIST_POLL, null)
             pendingPairCheck = false
             when (phase) {
                 PairingPhase.SENDING, PairingPhase.WAITING_FOR_CARD, PairingPhase.CHECKING -> {
@@ -387,6 +389,7 @@ class PairingFlow(
         if (matches) {
             keySlotQueue = emptyList()
             host.publishKeySlot(entry.slot)
+            host.publishKeyRole(entry.keyRole)
             if (phase == PairingPhase.ERROR) {
                 // The slot proves enrollment; clear the stale failure.
                 setPairing(PairingPhase.IDLE, null)
