@@ -7,6 +7,12 @@ through our fork [`opencartools/vehicle-command`](https://github.com/opencartool
 that adds the fields the car sends and Tesla's protos lack (the proto revision is
 pinned in [`protocol/src/main/proto/TESLA_COMMIT`](../../protocol/src/main/proto/TESLA_COMMIT)).
 
+To bump the protos, merge the change in the fork, write the new commit hash to
+`TESLA_COMMIT`, copy `vehicle.proto` and `signatures.proto` (and any other proto
+the build lists) from `pkg/protocol/protobuf` at that commit, then regenerate
+`docs/reference/fleet-telemetry-vs-ble.md` with `tools/signal-matrix/generate.py`.
+CI's go-vectors job and the generated-doc check fail if any of these is stale.
+
 ## Transport
 
 | Item | Value |
