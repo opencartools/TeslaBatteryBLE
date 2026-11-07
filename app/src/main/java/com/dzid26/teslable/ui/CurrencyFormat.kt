@@ -30,13 +30,17 @@ internal fun currencyOrNull(code: String?): Currency? =
 internal fun localeCurrencyOrNull(): Currency? =
     runCatching { Currency.getInstance(Locale.getDefault()) }.getOrNull()?.takeIf { it.defaultFractionDigits >= 0 }
 
+/** The ISO 4217 code [code] stands for, resolved the way [currencyFormat] does: the code to store with a price. */
+internal fun resolvedCurrencyCode(code: String?): String =
+    (currencyOrNull(code) ?: localeCurrencyOrNull() ?: Currency.getInstance(FALLBACK_CODE)).currencyCode
+
 /**
  * A money formatter for [code]; blank or invalid follows the phone's currency, and USD when it has none.
  * A currency the phone's language has no symbol for (PLN on an English phone prints "PLN 1.50") is written
  * the way its own country does, "1,50 zł".
  */
 internal fun currencyFormat(code: String?): NumberFormat {
-    val chosen = currencyOrNull(code) ?: localeCurrencyOrNull() ?: Currency.getInstance(FALLBACK_CODE)
+    val chosen = Currency.getInstance(resolvedCurrencyCode(code))
     val locale = formatLocale(chosen)
     return NumberFormat.getCurrencyInstance(locale).apply {
         currency = chosen

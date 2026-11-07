@@ -1,6 +1,6 @@
 # ADR-0014: Room storage for raw records and derived data
 
-Status: Proposed (raw records in `history.db`, and the long-term samples and sessions in `derived.db` landed; `owner.db` and day rollups are open)
+Status: Proposed (raw records in `history.db`, the long-term samples and sessions in `derived.db`, and the owner's charge prices in `owner.db` landed; places are open)
 Date: 2026-10-21
 Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
 
@@ -55,11 +55,15 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   (`(page_count - freelist_count) * page_size`): 2 GB for `history.db`, 256 MB for `events.db` (90 days at
   the current rate is 50 to 60 MB, so that one is a backstop). While over it, the rows older than a cutoff
   go, the oldest tenth of the file's time span, all series together, in one transaction.
-- **Four files, as the charging plan needs them; three exist now.**
+- **Four files, as the charging plan needs them.**
   - `history.db` (not backed up): the car's raw records, above.
   - `events.db` (not backed up): the phone's own logs, above.
-  - `owner.db` (backed up, later): prices and places, the only data that cannot be rebuilt. Schema export is
-    binding from the first normal release.
+  - `owner.db` (backed up, journal mode TRUNCATE so the backed-up file is whole): what the owner entered,
+    the only data that cannot be rebuilt. Schema export is binding from the first normal release. It holds
+    only the owner's edits, such as a charge session's price, matched to the derived session by time overlap
+    because a re-cut can shift a session's start; the automatic price is worked out when it is read. The readings
+    are not backed up, so on a new phone the restored edits wait, kept, until the logs are imported; restored
+    costs do not show before that. A currency is stored as its code, never as "the locale's".
   - `derived.db` (not backed up, versioned): the thinned long-term samples the charts and stats read, and later
     session and day summaries per ADR-0012, stored as plain columns. Rebuildable from the raw records only while they cover the period; once raw ages out, the
     summaries are the only copy.

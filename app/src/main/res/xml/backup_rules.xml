@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- API 27-30 cannot require client-side encryption for backup, so keep the
      vehicle key out of backup here; re-pair with an NFC card tap instead.
-     Battery readings are live state, not settings: they stay on the device. -->
+     Battery readings are live state, not settings: they stay on the device.
+     owner.db (the owner's own prices) is backed up. -->
 <full-backup-content>
     <exclude domain="sharedpref" path="pairing_key.xml" />
     <exclude domain="file" path="battery-history" />

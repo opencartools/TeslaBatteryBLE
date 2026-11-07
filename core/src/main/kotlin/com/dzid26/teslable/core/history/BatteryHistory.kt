@@ -32,6 +32,8 @@ data class BatterySample(
     val chargerVoltage: Int? = null,
     /** `charge_rate_mph`: the car's own charging speed in rated miles per hour; null when absent or not charging. */
     val chargeRateMph: Float? = null,
+    /** `fast_charger_present`: true while a DC fast charger is connected; null when the car sent none. */
+    val fastChargerPresent: Boolean? = null,
     /**
      * `usable_battery_level`: the level the rated range stands for. The car holds back part of a cold
      * battery, so it reads up to a point below [batteryLevel]. Defaults to the displayed level when the car sent none.
