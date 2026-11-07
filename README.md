@@ -56,6 +56,8 @@ On Windows, use `.\gradlew`. Test, lint and CI details: [`CONTRIBUTING.md`](CONT
 
 Three modules: `protocol/` (pure-JVM Tesla BLE protocol), `core/` (battery domain, no Android) and `app/` (Compose UI, BLE, tracking service). See [`docs/README.md`](docs/README.md#code-layout), [`docs/protocol/`](docs/protocol/) and [`docs/adr/`](docs/adr/).
 
+The protocol definitions in `protocol/src/main/proto` are vendored from our fork, [`opencartools/vehicle-command`](https://github.com/opencartools/vehicle-command), of Tesla's [`vehicle-command`](https://github.com/teslamotors/vehicle-command). The fork adds fields the car sends that Tesla's protos lack; the commit is pinned in `protocol/src/main/proto/TESLA_COMMIT`.
+
 ## Contributing
 
 Contributions are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) — dev
