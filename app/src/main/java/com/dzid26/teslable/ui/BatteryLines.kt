@@ -175,7 +175,11 @@ internal fun labelsAt(values: List<Double>): VerticalAxis.ItemPlacer {
 
 /** Two labels, a quarter in from each end: at the very edges a date label would need a wide margin to fit. */
 @Composable
-internal fun rememberTimeAxis(formatter: CartesianValueFormatter): HorizontalAxis<Axis.Position.Horizontal.Bottom> {
+internal fun rememberTimeAxis(
+    formatter: CartesianValueFormatter,
+    // Zoomed in, the labels sit on round clock times; null at full view, where they split the window in quarters.
+    clock: ClockSteps? = null,
+): HorizontalAxis<Axis.Position.Horizontal.Bottom> {
     val style = rememberAxisStyle()
     return HorizontalAxis.rememberBottom(
         valueFormatter = formatter,
@@ -183,7 +187,11 @@ internal fun rememberTimeAxis(formatter: CartesianValueFormatter): HorizontalAxi
         line = style.line,
         tick = style.tick,
         guideline = style.guideline,
-        itemPlacer = remember { HorizontalAxis.ItemPlacer.aligned(spacing = { 2 }, offset = { 1 }, addExtremeLabelPadding = false) },
+        itemPlacer =
+            remember(clock) {
+                val aligned = HorizontalAxis.ItemPlacer.aligned(spacing = { 2 }, offset = { 1 }, addExtremeLabelPadding = false)
+                if (clock == null) aligned else ClockLabels(aligned, clock)
+            },
     )
 }
 

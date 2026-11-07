@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
@@ -112,33 +113,40 @@ internal fun Modifier.scrubbing(
             CursorDismiss.chartGesture = CursorDismiss.gesture
             val before = pin.canvasX
             val restoredBefore = pin.restoredX
+            // The point the cursor stood on, which a pan or zoom keeps it on.
+            val shownBefore = pin.shownX?.takeIf { before != null || restoredBefore != null }
             pin.canvasX = down.position.x
             pin.restoredX = null
-            if (!followScrub(pin, down, slop, viewport)) {
-                pin.canvasX = before
-                pin.restoredX = restoredBefore
+            val (step, pinch) = followScrub(pin, down, slop, viewport)
+            when {
+                pinch != null && viewport != null -> {
+                    pin.canvasX = null
+                    pin.restoredX = shownBefore
+                    followPinch(viewport, pinch, slop)
+                }
+                step == ScrubStep.SCROLL -> {
+                    pin.canvasX = before
+                    pin.restoredX = restoredBefore
+                }
             }
         }
     }
 
 /**
- * Follows one gesture; false when it turned out to be a page scroll or a two-finger pan and zoom, which leave the
- * cursor where it stood before.
+ * Follows one gesture to its end, or to a second finger landing: the step it ended on ([ScrubStep.UNDECIDED] for a
+ * tap), and the event that brought the second finger, which starts a pinch, or null.
  */
 private suspend fun AwaitPointerEventScope.followScrub(
     pin: CursorPin,
     down: PointerInputChange,
     slop: Float,
     viewport: ChartViewport?,
-): Boolean {
+): Pair<ScrubStep, PointerEvent?> {
     var step = ScrubStep.UNDECIDED
     var change: PointerInputChange? = down
     while (change != null && change.pressed && step != ScrubStep.SCROLL) {
         val event = awaitPointerEvent()
-        if (viewport != null && event.changes.count { it.pressed } >= 2) {
-            followPinch(viewport, event, slop)
-            return false
-        }
+        if (viewport != null && event.changes.count { it.pressed } >= 2) return step to event
         change = event.changes.firstOrNull { it.id == down.id }
         if (change == null || !change.pressed) break
         step =
@@ -153,7 +161,7 @@ private suspend fun AwaitPointerEventScope.followScrub(
             change.consume()
         }
     }
-    return step != ScrubStep.SCROLL
+    return step to null
 }
 
 /** Draws Vico's marker at the cursor, snapped to the nearest plotted point. */

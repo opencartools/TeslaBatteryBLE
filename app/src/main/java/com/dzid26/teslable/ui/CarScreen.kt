@@ -42,10 +42,10 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -929,13 +929,14 @@ internal fun TimeHistory(
     // Injectable for the Paparazzi snapshots; production call sites use the
     // default, which is the same wall-clock read as before.
     nowMillis: Long = System.currentTimeMillis(),
-    // Injectable for the Paparazzi snapshots; production opens on the day range.
-    initialRange: HistoryRange = HistoryRange.DAY,
+    // The chosen range, held by the history card so it survives a switch of axis; production opens on the day range.
+    rangeState: MutableState<HistoryRange> = remember { mutableStateOf(HistoryRange.DAY) },
     // The status log and the Sentry and climate readings: when the car sat locked and alone, for the sleep drain rate.
     sleepLogs: ProjectionContext = ProjectionContext(),
 ) {
-    var range by rememberSaveable { mutableStateOf(initialRange) }
-    val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
+    var range by rangeState
+    // A new range starts unzoomed; a tap on the range already chosen zooms back out.
+    val viewport = rememberChartViewport(range)
     val now = nowMillis
     // Fitted off the main thread: the stats, the projection and the chart all read it. The car screen's own fit of
     // the same samples is cached, so this one is usually a lookup.
@@ -958,7 +959,7 @@ internal fun TimeHistory(
             HistoryRange.entries.forEach { entry ->
                 FilterChip(
                     selected = range == entry,
-                    onClick = { range = entry },
+                    onClick = { if (range == entry) viewport.reset() else range = entry },
                     label = { Text(entry.label()) },
                 )
             }
@@ -971,7 +972,7 @@ internal fun TimeHistory(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            TimeChart(figures, scale, range, now, is24Hour)
+            TimeChart(figures, scale, range, now, viewport)
         }
         stats?.let {
             Spacer(Modifier.height(8.dp))
@@ -995,8 +996,9 @@ private fun TimeChart(
     scale: FullRangeScale?,
     range: HistoryRange,
     now: Long,
-    is24Hour: Boolean,
+    viewport: ChartViewport,
 ) {
+    val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
     val visible = figures.visible
     val baseMillis = figures.baseMillis
     val charge = figures.charge
@@ -1021,8 +1023,7 @@ private fun TimeChart(
             Modifier
                 .fillMaxWidth()
                 .height(160.dp),
-        // A new range starts unzoomed.
-        viewport = remember(range) { ChartViewport() },
+        viewport = viewport,
     )
     charge?.let { ChargeProjectionLine(it, is24Hour) }
     discharge?.let {

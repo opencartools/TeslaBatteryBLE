@@ -99,4 +99,17 @@ class ChartViewportTest {
     private companion object {
         const val EPS = 1e-9
     }
+
+    @Test
+    fun zoomedTimeLabelsLandOnRoundClockTimes() {
+        // A window starting at 13:37 UTC, zoomed to 5 hours: hour steps from midnight, so 15:00, 16:00, 17:00.
+        val start =
+            java.time.Instant
+                .parse("2026-11-07T13:37:00Z")
+                .toEpochMilli()
+        val clock = clockSteps(start, spanHours = 5.0, zone = java.time.ZoneOffset.UTC)
+        assertEquals(2.0, clock.stepHours, 0.0)
+        val hours = clock.inside(1.0..6.0).map { it + 13 + 37.0 / 60 }
+        assertEquals(listOf(16.0, 18.0), hours.map { Math.round(it * 60) / 60.0 })
+    }
 }

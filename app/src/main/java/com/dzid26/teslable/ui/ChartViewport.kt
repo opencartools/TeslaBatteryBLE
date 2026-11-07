@@ -2,9 +2,12 @@
 
 package com.dzid26.teslable.ui
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.withSave
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
@@ -21,15 +24,28 @@ import kotlin.math.abs
 
 /** The part of a chart's full x range on screen, as fractions of it: 0 to 1 is the whole chart. */
 @Stable
-internal class ChartViewport {
-    var start by mutableDoubleStateOf(0.0)
+internal class ChartViewport(
+    start: Double = 0.0,
+    end: Double = 1.0,
+) {
+    var start by mutableDoubleStateOf(start)
         private set
-    var end by mutableDoubleStateOf(1.0)
+    var end by mutableDoubleStateOf(end)
         private set
 
     val isFull: Boolean get() = start <= 0.0 && end >= 1.0
 
-    /** The plotting area in the chart's canvas, px, kept current by [ViewportTracker]. */
+    /** Back to the whole chart: a tap on the range chip already chosen. */
+    fun reset() {
+        start = 0.0
+        end = 1.0
+    }
+
+    /*
+     * The plotting area in the chart's canvas, px, kept current by [ViewportTracker] while drawing. Deliberately not
+     * Compose state: only the gesture handler reads them, and a state write from draw would recompose the chart on
+     * every frame.
+     */
     var layerLeft = 0f
     var layerWidth = 0f
 
@@ -112,6 +128,15 @@ internal suspend fun AwaitPointerEventScope.followPinch(
         event = awaitPointerEvent()
     }
 }
+
+/** Keeps the zoom across a rotation, like the cursor; the plotting area is measured again on the next draw. */
+internal val ChartViewportSaver =
+    Saver<ChartViewport, DoubleArray>(save = { doubleArrayOf(it.start, it.end) }, restore = { ChartViewport(it[0], it[1]) })
+
+/** A viewport that a change of any of [keys] (the range or window) resets, and that survives a rotation. */
+@Composable
+internal fun rememberChartViewport(vararg keys: Any?): ChartViewport =
+    rememberSaveable(*keys, saver = ChartViewportSaver) { ChartViewport() }
 
 /** Keeps [viewport]'s idea of the plotting area current, so a finger's px maps onto the chart. Draws nothing. */
 internal class ViewportTracker(

@@ -108,15 +108,12 @@ internal fun BatteryChart(
     val charge = data.charge
     val discharge = data.discharge
     val scale = data.scale
-    val windowStart = axis.windowStart
-    val windowEnd = axis.windowEnd
-    val showDate = axis.showDate
-    val is24Hour = axis.is24Hour
     val lineColor = MaterialTheme.colorScheme.primary
     val chargingColor = chargingChartColor
     // Keyed on the minute: the card passes a fresh wall-clock read on every recomposition, which
     // would rebuild the model and drop a cursor mid-press.
-    val window = remember(windowStart / MILLIS_PER_MINUTE, windowEnd / MILLIS_PER_MINUTE) { Window(windowStart, windowEnd) }
+    val window =
+        remember(axis.windowStart / MILLIS_PER_MINUTE, axis.windowEnd / MILLIS_PER_MINUTE) { Window(axis.windowStart, axis.windowEnd) }
     val spanHours = window.spanHours
 
     val shape =
@@ -124,9 +121,13 @@ internal fun BatteryChart(
             batteryShape(data, window, lineColor, chargingColor)
         }
     val lines = rememberBatteryLines(lineColor, chargingColor, parkedMuted = charge != null)
-    val timeFormatter = rememberTimeFormatter(window, showDate, is24Hour)
+    val timeFormatter = rememberTimeFormatter(window, axis.showDate, axis.is24Hour)
     val view = remember(shape, spanHours, viewport.start, viewport.end) { shape.view(spanHours, viewport) }
     val xStep = (view.maxX - view.minX) / X_LABEL_STEPS
+    val clock =
+        remember(window, view.maxX - view.minX, viewport.isFull) {
+            if (viewport.isFull) null else clockSteps(window.start, view.maxX - view.minX)
+        }
     val description = remember(samples, scale) { chartDescription(samples, scale) }
 
     val pin = rememberCursorPin()
@@ -145,7 +146,7 @@ internal fun BatteryChart(
                         remember(view) { view.rangeProvider() },
                 ),
                 startAxis = rememberPercentAxis(view.gridlines),
-                bottomAxis = rememberTimeAxis(timeFormatter),
+                bottomAxis = rememberTimeAxis(timeFormatter, clock),
                 decorations =
                     remember(shape.specs, shape.beams, pin, cursor, lineColor, viewport) {
                         listOf(
