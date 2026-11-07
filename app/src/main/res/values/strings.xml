@@ -213,6 +213,7 @@
     <string name="charge_controls_limit_decrease">Decrease charge limit</string>
     <string name="charge_controls_limit_failed">Couldn\'t change the charge limit.</string>
     <string name="charge_controls_limit_increase">Increase charge limit</string>
+    <string name="charge_controls_no_answer">The car didn\'t answer.</string>
     <string name="charge_controls_percent">%1$d%%</string>
     <string name="charge_controls_start">Start charging</string>
     <string name="charge_controls_start_failed">Couldn\'t start charging.</string>

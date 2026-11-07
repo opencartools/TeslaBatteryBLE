@@ -43,9 +43,9 @@ class ChargeControlsTest {
     }
 
     @Test
-    fun `the controls show unplugged and stay away on a fast charger`() {
+    fun `the controls show unplugged and on a fast charger`() {
         assertTrue(showsChargeControls(charge(state = ChargeState.ChargingState(Disconnected = Void()))))
-        assertFalse(showsChargeControls(charge(state = ChargeState.ChargingState(Disconnected = Void()), fast = true)))
+        assertTrue(showsChargeControls(charge(state = ChargeState.ChargingState(Charging = Void()), fast = true)))
         assertFalse(showsChargeControls(null))
     }
 

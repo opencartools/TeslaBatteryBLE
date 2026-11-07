@@ -71,6 +71,7 @@ import com.dzid26.teslable.EnergyPriceStore
 import com.dzid26.teslable.R
 import com.dzid26.teslable.UnitStore
 import com.dzid26.teslable.ble.ActuationKey
+import com.dzid26.teslable.ble.ActuationResult
 import com.dzid26.teslable.ble.BatteryPercent
 import com.dzid26.teslable.ble.BleUiState
 import com.dzid26.teslable.ble.ConnectionDisplay
@@ -257,7 +258,8 @@ internal fun CarScreen(
     }
     LaunchedEffect(feedback) {
         val quiet = feedback?.takeIf { !it.key.reportsInSnackbar } ?: return@LaunchedEffect
-        quietFailure = quiet.key
+        // A lost answer is not a refusal: the value or the next read decides, so leave the line alone.
+        if (quiet.result != ActuationResult.NO_ANSWER) quietFailure = quiet.key
         onActionFeedbackShown()
     }
     Scaffold(

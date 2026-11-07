@@ -53,13 +53,12 @@ internal fun nextChargingAmps(
 ): Int = (current + delta).coerceIn(minOf(MIN_CHARGING_AMPS, max), max)
 
 /**
- * Whether the charge controls have anything to show: not while a DC fast charger is in use, and
- * nothing at all until the car has reported a limit, a current or a charging state. An unplugged car
- * still shows them, initialized from its last values, so the limit can be set before a cable is attached.
+ * Whether the charge controls have anything to show: nothing until the car has reported a limit, a
+ * current or a charging state. A DC fast charger still shows the card, with the current control
+ * disabled; an unplugged car still shows them, so the limit can be set before a cable is attached.
  */
 internal fun showsChargeControls(charge: ChargeState?): Boolean =
     charge != null &&
-        charge.fast_charger_present != true &&
         (charge.charge_limit_soc != null || (charge.charge_current_request ?: 0) > 0 || chargeButton(charge) != ChargeButton.NONE)
 
 /** The card's callbacks, grouped so the composable stays within the parameter limit. */

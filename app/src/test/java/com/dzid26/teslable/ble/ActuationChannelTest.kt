@@ -7,7 +7,6 @@ import com.tesla.generated.carserver.server.ActionStatus
 import com.tesla.generated.carserver.server.OperationStatus_E
 import com.tesla.generated.carserver.server.Response
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -37,7 +36,7 @@ class ActuationChannelTest {
 
         channel.onReply(ActuationKey.CHARGE_LIMIT, actionStatus(ok = true))
 
-        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, accepted = true), host.feedback.single())
+        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, ActuationResult.ACCEPTED), host.feedback.single())
         assertTrue(host.pendingStates.last().isEmpty())
         assertTrue(host.resumedReads == 1)
     }
@@ -93,7 +92,17 @@ class ActuationChannelTest {
 
         channel.onReply(ActuationKey.CHARGE_LIMIT, actionStatus(ok = false))
 
-        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, accepted = false), host.feedback.single())
+        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, ActuationResult.REFUSED), host.feedback.single())
+        assertEquals(false, host.lastResumeAccepted)
+    }
+
+    @Test
+    fun `an unusable answer is not a refusal`() {
+        sendLimit()
+
+        channel.onReply(ActuationKey.CHARGE_LIMIT, plaintext = null)
+
+        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, ActuationResult.NO_ANSWER), host.feedback.single())
         assertEquals(false, host.lastResumeAccepted)
     }
 
@@ -106,8 +115,8 @@ class ActuationChannelTest {
 
         assertEquals(
             listOf(
-                ActuationFeedback(ActuationKey.CHARGE_LIMIT, accepted = false),
-                ActuationFeedback(ActuationKey.CHARGING_AMPS, accepted = false),
+                ActuationFeedback(ActuationKey.CHARGE_LIMIT, ActuationResult.NO_ANSWER),
+                ActuationFeedback(ActuationKey.CHARGING_AMPS, ActuationResult.FAILED),
             ),
             host.feedback,
         )
@@ -121,7 +130,7 @@ class ActuationChannelTest {
 
         channel.onInterrupted()
 
-        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, accepted = false), host.feedback.single())
+        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, ActuationResult.FAILED), host.feedback.single())
     }
 
     @Test
@@ -133,7 +142,7 @@ class ActuationChannelTest {
         assertEquals(setOf(ActuationKey.CHARGE_LIMIT), host.pendingStates.last())
 
         channel.onStopped()
-        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, accepted = false), host.feedback.single())
+        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, ActuationResult.FAILED), host.feedback.single())
         assertEquals(1, host.forgetCalls)
     }
 
@@ -145,7 +154,7 @@ class ActuationChannelTest {
 
         channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
 
-        assertFalse(host.feedback.single().accepted)
+        assertEquals(ActuationResult.FAILED, host.feedback.single().result)
         assertTrue(host.pendingStates.last().isEmpty())
     }
 

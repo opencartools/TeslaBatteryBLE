@@ -19,10 +19,18 @@ enum class ActuationKey {
     val reportsInSnackbar: Boolean get() = this == CHARGE_START || this == CHARGE_STOP
 }
 
-/** The channel's terminal result for one [key]: the car accepted it, or the request failed. */
+/** How a control ended: the car accepted it, refused it, never answered, or it could not be sent. */
+enum class ActuationResult {
+    ACCEPTED,
+    REFUSED,
+    NO_ANSWER,
+    FAILED,
+}
+
+/** The channel's terminal result for one [key]. */
 data class ActuationFeedback(
     val key: ActuationKey,
-    val accepted: Boolean,
+    val result: ActuationResult,
 )
 
 /** What the channel needs from the vehicle link; the link owns the transport and the sessions. */
@@ -125,22 +133,25 @@ internal class ActuationChannel(
         plaintext: ByteArray?,
     ): Boolean {
         if (inFlight != key) return false
-        val accepted =
-            plaintext != null &&
+        val result =
+            when {
+                plaintext == null -> ActuationResult.NO_ANSWER
                 runCatching { TeslaCommands.parseActionStatus(plaintext) }.getOrNull() ==
-                OperationStatus_E.OPERATIONSTATUS_OK
+                    OperationStatus_E.OPERATIONSTATUS_OK -> ActuationResult.ACCEPTED
+                else -> ActuationResult.REFUSED
+            }
         inFlight = null
-        host.publish(pending.keys.toSet(), ActuationFeedback(key, accepted))
-        host.resumeRead(accepted)
+        host.publish(pending.keys.toSet(), ActuationFeedback(key, result))
+        host.resumeRead(result == ActuationResult.ACCEPTED)
         sendNext()
-        return accepted
+        return result == ActuationResult.ACCEPTED
     }
 
     /** The car never answered [key]: the queued values are dropped with it. */
     fun onExpired(key: ActuationKey) {
         if (inFlight != key) return
         inFlight = null
-        host.publish(pending.keys.toSet(), ActuationFeedback(key, accepted = false))
+        host.publish(pending.keys.toSet(), ActuationFeedback(key, ActuationResult.NO_ANSWER))
         failAll(forgetWake = true)
     }
 
@@ -179,7 +190,7 @@ internal class ActuationChannel(
             inFlight = key
             publishPending()
         } else {
-            host.publish(pending.keys.toSet(), ActuationFeedback(key, accepted = false))
+            host.publish(pending.keys.toSet(), ActuationFeedback(key, ActuationResult.FAILED))
             failAll(forgetWake = false)
         }
     }
@@ -191,7 +202,7 @@ internal class ActuationChannel(
         inFlight = null
         wakeRequested = false
         if (forgetWake) host.forgetWake()
-        failed.forEach { host.publish(emptySet(), ActuationFeedback(it, accepted = false)) }
+        failed.forEach { host.publish(emptySet(), ActuationFeedback(it, ActuationResult.FAILED)) }
         host.publish(emptySet())
     }
 

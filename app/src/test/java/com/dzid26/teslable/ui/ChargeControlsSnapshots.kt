@@ -72,6 +72,17 @@ class ChargeControlsSnapshots {
         }
 
     @Test
+    fun chargeControlsCardFastCharging() =
+        paparazzi.snapCard("charge-controls-card_fast-charging") {
+            ChargeControlsCard(
+                charge = charge(charging, fast = true),
+                actuating = emptySet(),
+                failure = null,
+                actions = actions,
+            )
+        }
+
+    @Test
     fun chargeControlsCardLargeFont() {
         paparazzi.unsafeUpdateConfig(
             deviceConfig = DeviceConfig.NEXUS_5.copy(fontScale = 1.5f),
@@ -144,6 +155,7 @@ class ChargeControlsSnapshots {
         state: ChargeState.ChargingState,
         limit: Int = 85,
         amps: Int = 16,
+        fast: Boolean = false,
     ) = ChargeState(
         charging_state = state,
         charge_limit_soc = limit,
@@ -151,6 +163,7 @@ class ChargeControlsSnapshots {
         charge_limit_soc_max = 100,
         charge_current_request = amps,
         charge_current_request_max = 32,
+        fast_charger_present = fast,
         battery_level = 78,
         usable_battery_level = 78,
         battery_range = 234f,

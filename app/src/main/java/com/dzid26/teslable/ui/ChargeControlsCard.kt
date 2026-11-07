@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 import com.dzid26.teslable.ble.ActuationFeedback
 import com.dzid26.teslable.ble.ActuationKey
+import com.dzid26.teslable.ble.ActuationResult
 import com.tesla.generated.carserver.vehicle.ChargeState
 import kotlinx.coroutines.delay
 
@@ -136,12 +137,13 @@ private fun ChargeCurrentRow(
     }
     val max = maxOf(current, charge.charge_current_request_max ?: current)
     val shown = draft ?: current
+    val enabled = charge.fast_charger_present != true
     StepperRow(
         Stepper(
             label = stringResource(R.string.charge_controls_current),
             value = stringResource(R.string.charge_controls_amps, shown),
-            canDecrease = shown > minOf(MIN_CHARGING_AMPS, max),
-            canIncrease = shown < max,
+            canDecrease = enabled && shown > minOf(MIN_CHARGING_AMPS, max),
+            canIncrease = enabled && shown < max,
             decreaseLabel = stringResource(R.string.charge_controls_current_decrease),
             increaseLabel = stringResource(R.string.charge_controls_current_increase),
             onDecrease = {
@@ -287,10 +289,18 @@ internal fun ActuationKey.failureMessage(): Int? =
 internal fun ActuationFeedback.message(): Int =
     when (key) {
         ActuationKey.CHARGE_START ->
-            if (accepted) R.string.charge_controls_started else R.string.charge_controls_start_failed
+            when (result) {
+                ActuationResult.ACCEPTED -> R.string.charge_controls_started
+                ActuationResult.NO_ANSWER -> R.string.charge_controls_no_answer
+                ActuationResult.REFUSED, ActuationResult.FAILED -> R.string.charge_controls_start_failed
+            }
 
         ActuationKey.CHARGE_STOP ->
-            if (accepted) R.string.charge_controls_stopped else R.string.charge_controls_stop_failed
+            when (result) {
+                ActuationResult.ACCEPTED -> R.string.charge_controls_stopped
+                ActuationResult.NO_ANSWER -> R.string.charge_controls_no_answer
+                ActuationResult.REFUSED, ActuationResult.FAILED -> R.string.charge_controls_stop_failed
+            }
 
         ActuationKey.CHARGE_LIMIT -> R.string.charge_controls_limit_failed
         ActuationKey.CHARGING_AMPS -> R.string.charge_controls_current_failed
