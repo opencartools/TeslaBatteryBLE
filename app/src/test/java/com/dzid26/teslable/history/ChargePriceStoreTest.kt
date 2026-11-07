@@ -9,6 +9,9 @@ import com.dzid26.teslable.core.health.PriceChange
 import com.dzid26.teslable.core.health.PriceDefaults
 import com.dzid26.teslable.core.health.SessionPrice
 import com.dzid26.teslable.core.health.StoredChargePrice
+import com.dzid26.teslable.core.history.BatterySample
+import com.dzid26.teslable.protocol.ChargingStateKind
+import com.dzid26.teslable.protocol.LastPaidCharge
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -83,6 +86,15 @@ class ChargePriceStoreTest {
             ),
             prices.value.toSet(),
         )
+    }
+
+    @Test
+    fun `a battery sample keeps the car's paid charge through derived db`() {
+        val paid = LastPaidCharge(1_780_411_979_000, 4.22f, "EUR", 0.28f)
+        val sample = BatterySample(1_000, 50, ChargingStateKind.Disconnected, 80, "carA", lastPaidCharge = paid)
+
+        assertEquals(sample, sample.toRow().toSample())
+        assertEquals(sample.copy(lastPaidCharge = null), sample.copy(lastPaidCharge = null).toRow().toSample())
     }
 
     private companion object {

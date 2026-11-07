@@ -4,6 +4,7 @@ package com.dzid26.teslable.core.history
 
 import com.dzid26.teslable.protocol.chargingMph
 import com.dzid26.teslable.protocol.chargingStateKind
+import com.dzid26.teslable.protocol.lastPaidCharge
 import com.tesla.generated.carserver.vehicle.ChargeState
 
 // One-way conversion: raw car ChargeState records kept in the history log
@@ -28,6 +29,7 @@ fun ChargeState.toBatterySample(vehicleId: String): BatterySample? {
         chargerVoltage = charger_voltage,
         chargeRateMph = chargingMph,
         fastChargerPresent = fast_charger_present,
+        lastPaidCharge = lastPaidCharge,
         usableLevel = usable_battery_level ?: level,
     )
 }

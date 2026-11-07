@@ -9,6 +9,7 @@ import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.health.PriceDefaults
 import com.dzid26.teslable.core.health.SessionPrice
 import com.dzid26.teslable.core.health.StoredChargePrice
+import com.dzid26.teslable.core.health.paidCharges
 import com.dzid26.teslable.core.history.ActivitySample
 import com.dzid26.teslable.core.history.ActivityThinner
 import com.dzid26.teslable.core.history.AppState
@@ -237,7 +238,9 @@ class HistoryStore internal constructor(
                 loadSessions()
                 // Every finished session's price is stored, and follows its session when a re-cut moves it.
                 runCatching {
-                    ownerProvider.value?.let { owner -> priceStore?.follow(_chargeSessions.value, owner.defaults()) }
+                    ownerProvider.value?.let { owner ->
+                        priceStore?.follow(_chargeSessions.value, owner.defaults().copy(paidCharges = paidCharges(_samples.value)))
+                    }
                 }.onFailure { log("charge prices: follow failed: $it") }
             }.isSuccess
         }

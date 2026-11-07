@@ -33,6 +33,11 @@ internal data class BatterySampleRow(
     val chargeRateMph: Float?,
     val readAt: Long?,
     val fastChargerPresent: Boolean? = null,
+    /** The car's last paid charge (`LastPaidCharge`), all null when it sent none. */
+    val paidAt: Long? = null,
+    val paidCost: Float? = null,
+    val paidCurrency: String? = null,
+    val paidPricePerKwh: Float? = null,
 )
 
 /** One kept [com.dzid26.teslable.core.history.DriveSample]; [shiftState] is the `ShiftStateKind` name. */
@@ -190,9 +195,9 @@ internal interface DerivedReadDao {
     ],
     // 2 adds the session tables; the samples and marks of 1 stay as they are. 3 adds the charger kind of a charge
     // session and re-cuts every car's sessions so the stored ones get it.
-    version = 3,
+    version = 4,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
 )
 internal abstract class DerivedDatabase : RoomDatabase() {
     abstract fun derived(): DerivedDao
