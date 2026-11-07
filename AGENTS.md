@@ -9,7 +9,7 @@ Master plan: `docs/master-plan.md` — read it first and update its checkboxes w
 - `app/` — Android UI (Compose), BLE integration, foreground service. minSdk 27.
 - `protocol/` — Tesla BLE protocol (Kotlin/JVM, Wire protos): framing, keys, pairing, sessions, commands. Knows nothing of the battery app, so it can ship as a library. **No Android dependencies allowed.**
 - `core/` — battery domain (history, health, the app's own records) on top of `protocol`. **No Android dependencies allowed.**
-- `tools/go-fixtures/` — fixture generator run against `teslamotors/vehicle-command`; `expected.txt` is diffed in CI.
+- `tools/go-fixtures/` — fixture generator run against the pinned fork, `opencartools/vehicle-command` (see `protocol/src/main/proto/TESLA_COMMIT`); `expected.txt` is diffed in CI.
 - `docs/` — master plan, ADRs, protocol notes.
 
 ## Commands

@@ -402,6 +402,12 @@ message ChargeState {
     oneof optional_home_location { LatLong home_location = 176; }
     oneof optional_work_location { LatLong work_location = 177; }
     oneof optional_outlet_max_timer_minutes { int32 outlet_max_timer_minutes = 178; }
+
+    // Most recent paid super-charging session.
+    oneof optional_last_charge_cost { float last_charge_cost = 183; } // total billed, in last_charge_currency
+    oneof optional_last_charge_currency { string last_charge_currency = 184; } // ISO 4217 code
+    oneof optional_last_charge_price_per_kwh { float last_charge_price_per_kwh = 185; } // in last_charge_currency
+    google.protobuf.Timestamp last_charge_timestamp = 190;
 }
 
 message ManagedChargingState {

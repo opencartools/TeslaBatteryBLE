@@ -7,9 +7,11 @@ only (AGPL-3.0-only). See [LICENSE](LICENSE).
 
 - `protocol/src/main/proto/*.proto` are copied from
   [teslamotors/vehicle-command](https://github.com/teslamotors/vehicle-command)
-  (Apache-2.0). The pinned revision is recorded in
-  `protocol/src/main/proto/TESLA_COMMIT`.
-- The Kotlin protocol implementation in `core/` is a port of the Go
+  (Apache-2.0) through our fork
+  [opencartools/vehicle-command](https://github.com/opencartools/vehicle-command),
+  which adds the fields the car sends that the upstream protos lack. The pinned
+  revision is recorded in `protocol/src/main/proto/TESLA_COMMIT`.
+- The Kotlin protocol implementation in `protocol/` is a port of the Go
   implementation (Apache-2.0) and of the MIT-licensed Swift ports
   ([misakatao/TeslaBLEKeyKit](https://github.com/misakatao/TeslaBLEKeyKit),
   [shoujiaxin/swift-tesla-ble](https://github.com/shoujiaxin/swift-tesla-ble)).

@@ -4,14 +4,11 @@ package com.dzid26.teslable.history
 
 import com.dzid26.teslable.core.history.BleRecord
 import com.dzid26.teslable.protocol.LastPaidCharge
-import com.squareup.wire.ProtoAdapter
-import com.squareup.wire.ProtoWriter
 import com.tesla.generated.carserver.common.Void
 import com.tesla.generated.carserver.vehicle.ChargeState
 import com.tesla.generated.carserver.vehicle.DriveState
 import com.tesla.generated.carserver.vehicle.ShiftState
 import com.tesla.generated.vcsec.VehicleStatus
-import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -54,17 +51,19 @@ class DerivedBuilderTest {
             .batteryBefore(Long.MAX_VALUE)
             .map { it.time / 1000 - START }
 
-    /** A reading that carries the car's last paid charge in its undefined fields 183, 184 and 190. */
+    /** A reading that carries the car's last paid charge. */
     private fun paidCharge(
         seconds: Long,
         paidAt: Long,
     ): BleRecord {
-        val fields = Buffer()
-        val writer = ProtoWriter(fields)
-        ProtoAdapter.FLOAT.encodeWithTag(writer, 183, 4.22f)
-        ProtoAdapter.STRING.encodeWithTag(writer, 184, "EUR")
-        ProtoAdapter.INSTANT.encodeWithTag(writer, 190, at(paidAt))
-        val state = ChargeState(timestamp = at(seconds), battery_level = 50, unknownFields = fields.readByteString())
+        val state =
+            ChargeState(
+                timestamp = at(seconds),
+                battery_level = 50,
+                last_charge_cost = 4.22f,
+                last_charge_currency = "EUR",
+                last_charge_timestamp = at(paidAt),
+            )
         return BleRecord(device_timestamp = at(seconds), charge_state = state)
     }
 

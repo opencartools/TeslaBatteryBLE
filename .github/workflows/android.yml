@@ -679,8 +679,20 @@ jobs:
         run: |
           git init -q /tmp/vehicle-command
           git -C /tmp/vehicle-command fetch -q --depth 1 \
-            https://github.com/teslamotors/vehicle-command.git "$(cat protocol/src/main/proto/TESLA_COMMIT)"
+            https://github.com/opencartools/vehicle-command.git "$(cat protocol/src/main/proto/TESLA_COMMIT)"
           git -C /tmp/vehicle-command checkout -q FETCH_HEAD
+
+      # A bump that forgets to copy a proto would otherwise pass every check:
+      # additive fields leave the fixtures unchanged, so only this diff sees it.
+      # Both directions: the pin can also drop a proto we still vendor.
+      - name: Check the vendored protos match the pin
+        run: |
+          for proto in /tmp/vehicle-command/pkg/protocol/protobuf/*.proto; do
+            diff -u --strip-trailing-cr "protocol/src/main/proto/$(basename "$proto")" "$proto"
+          done
+          for proto in protocol/src/main/proto/*.proto; do
+            diff -u --strip-trailing-cr "$proto" "/tmp/vehicle-command/pkg/protocol/protobuf/$(basename "$proto")"
+          done
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
