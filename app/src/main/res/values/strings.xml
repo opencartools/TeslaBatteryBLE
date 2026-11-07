@@ -138,6 +138,8 @@
     <string name="main_keep_open">Keep the app open and stay near the car.</string>
     <string name="main_pull_down">Pull down to scan.</string>
 
+    <string name="history_axis_distance">Distance</string>
+    <string name="history_axis_time">Time</string>
     <string name="history_no_samples">No samples yet. SOC is recorded while the car is awake.</string>
     <string name="history_parked_projected">Parked · projected</string>
     <string name="history_parked_range">%1$d–%2$d%%</string>

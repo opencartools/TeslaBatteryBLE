@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package com.dzid26.teslable.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.dzid26.teslable.R
+import com.dzid26.teslable.core.history.BatterySample
+import com.dzid26.teslable.core.history.DriveSample
+import com.dzid26.teslable.core.history.DriveWindow
+import com.dzid26.teslable.core.history.HistoryRange
+import com.dzid26.teslable.core.history.ProjectionContext
+import com.dzid26.teslable.history.FullRangeScales
+
+/** What the history card's x-axis measures: time, or distance driven. */
+internal enum class HistoryAxis { TIME, DISTANCE }
+
+/**
+ * The moment the history card measures up to, and where it opens: its axis, the time range and the distance window.
+ * Production passes the ticking clock and opens on the defaults; the Paparazzi snapshots pin them all.
+ */
+internal data class HistoryView(
+    val nowMillis: Long = System.currentTimeMillis(),
+    val axis: HistoryAxis = HistoryAxis.TIME,
+    val range: HistoryRange = HistoryRange.DAY,
+    val window: DriveWindow = DriveWindow.MEDIUM,
+)
+
+/**
+ * Battery history, one chart with two axes: over time (the range chips, projections and the last charge) or over
+ * distance driven (the distance windows, regen and the drive figures). A switch in the header picks the axis; each
+ * axis keeps its own chips, so switching back finds the range where it was left.
+ */
+@Composable
+internal fun HistoryCard(
+    samples: List<BatterySample>,
+    drives: List<DriveSample>,
+    // The fitted full-range scale (the car screen fits it once for all its cards), and the status log and the Sentry and
+    // climate readings for the sleep drain rate.
+    context: ProjectionContext = ProjectionContext(scale = remember(samples) { FullRangeScales.of(samples) }),
+    // The learned rated constant (kWh per rated mile); null hides the energy and efficiency figures.
+    ratedKwhPerMile: Float? = null,
+    view: HistoryView = HistoryView(),
+) {
+    var axis by rememberSaveable { mutableStateOf(view.axis) }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Battery history", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                AxisSwitch(axis) { axis = it }
+            }
+            when (axis) {
+                HistoryAxis.TIME -> TimeHistory(samples, drives, view.nowMillis, view.range, context)
+                HistoryAxis.DISTANCE -> DistanceHistory(samples, drives, view.window, context.scale, ratedKwhPerMile)
+            }
+        }
+    }
+}
+
+/** Time or Distance, as a two-part segmented button. */
+@Composable
+private fun AxisSwitch(
+    axis: HistoryAxis,
+    onAxis: (HistoryAxis) -> Unit,
+) {
+    SingleChoiceSegmentedButtonRow {
+        HistoryAxis.entries.forEachIndexed { index, entry ->
+            SegmentedButton(
+                selected = axis == entry,
+                onClick = { onAxis(entry) },
+                shape = SegmentedButtonDefaults.itemShape(index, HistoryAxis.entries.size),
+                icon = {},
+            ) {
+                Text(
+                    stringResource(if (entry == HistoryAxis.TIME) R.string.history_axis_time else R.string.history_axis_distance),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
+    }
+}

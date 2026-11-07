@@ -374,15 +374,15 @@ internal fun CarScreen(
                         ratedKwhPerMile = health?.ratedKwhPerMile,
                         pricePerKwh = pricePerKwh,
                     )
-                    BatteryHistoryCard(
+                    HistoryCard(
                         logs.battery,
                         logs.drives,
+                        context = sleepLogs.copy(scale = scale),
+                        ratedKwhPerMile = health?.ratedKwhPerMile,
                         // The ticking clock, not a fresh wall-clock read: that changed on every recomposition (each
                         // RSSI poll), so the card redid its projections and redrew its chart every time.
-                        nowMillis = nowMillis ?: rememberNowMillis(),
-                        sleepLogs = sleepLogs,
+                        view = HistoryView(nowMillis = nowMillis ?: rememberNowMillis()),
                     )
-                    DriveHistoryCard(logs.battery, logs.drives, scale = scale, ratedKwhPerMile = health?.ratedKwhPerMile)
                     val vehicleTrips = vehicle?.let { trips[it.bleName] }.orEmpty()
                     PastTripsCard(
                         trips = remember(vehicleTrips, liveRoute) { vehicleTrips.markingLive(liveRoute) },
@@ -913,8 +913,9 @@ private fun ChargeProjectionLine(
     )
 }
 
+/** The history card's time axis: the range chips, the battery chart with its projections, and the last charge. */
 @Composable
-internal fun BatteryHistoryCard(
+internal fun TimeHistory(
     samples: List<BatterySample>,
     drives: List<DriveSample>,
     // Injectable for the Paparazzi snapshots; production call sites use the
@@ -943,75 +944,84 @@ internal fun BatteryHistoryCard(
     val lastChargePrice =
         rememberInBackground(null, stats, samples, priceChanges) { stats?.let { priceForCharge(priceChanges, samples, it.sinceMillis) } }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
-            Text("Battery history", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(8.dp))
-            // Five chips overflow a narrow phone; they scroll sideways rather than squeeze.
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HistoryRange.entries.forEach { entry ->
-                    FilterChip(
-                        selected = range == entry,
-                        onClick = { range = entry },
-                        label = { Text(entry.label()) },
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            if (visible.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.history_no_samples),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                val baseMillis = figures.baseMillis
-                val charge = figures.charge
-                val discharge = figures.discharge
-                // The projection gets room on the x-axis: its round-figure horizon ahead.
-                val windowEnd =
-                    if (charge != null || discharge != null) {
-                        now + projectionHorizonMillis(baseMillis)
-                    } else {
-                        now
-                    }
-                BatteryChart(
-                    data = ChartData(visible, charge, discharge, scale),
-                    axis =
-                        TimeAxis(
-                            windowStart = range.durationMillis?.let { now - it } ?: visible.first().timestampMillis,
-                            windowEnd = windowEnd,
-                            showDate = range != HistoryRange.SIX_HOURS,
-                            is24Hour = is24Hour,
-                        ),
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(160.dp),
-                )
-                charge?.let { ChargeProjectionLine(it, is24Hour) }
-                discharge?.let {
-                    Spacer(Modifier.height(6.dp))
-                    ParkedProjectionLine(
-                        projection = it,
-                        // The chart's measured line colour, as the charging line matches its green.
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-            stats?.let {
-                Spacer(Modifier.height(8.dp))
-                val energy = sessionEnergyText(it.energyKwh, lastChargePrice, LocalCurrencyCode.current)
-                Text(
-                    text =
-                        "Last charge:\u00A0${formatPercent(
-                            it.chargePercent(scale),
-                        )}% · ${agoText(now - it.sinceMillis)}" +
-                            energy?.let { e -> " · $e" }.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
+    Column {
+        // Five chips overflow a narrow phone; they scroll sideways rather than squeeze.
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HistoryRange.entries.forEach { entry ->
+                FilterChip(
+                    selected = range == entry,
+                    onClick = { range = entry },
+                    label = { Text(entry.label()) },
                 )
             }
         }
+        Spacer(Modifier.height(8.dp))
+        if (visible.isEmpty()) {
+            Text(
+                text = stringResource(R.string.history_no_samples),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            TimeChart(figures, scale, range, now, is24Hour)
+        }
+        stats?.let {
+            Spacer(Modifier.height(8.dp))
+            val energy = sessionEnergyText(it.energyKwh, lastChargePrice, LocalCurrencyCode.current)
+            Text(
+                text =
+                    "Last charge:\u00A0${formatPercent(
+                        it.chargePercent(scale),
+                    )}% · ${agoText(now - it.sinceMillis)}" +
+                        energy?.let { e -> " · $e" }.orEmpty(),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/** The battery chart over the chosen range, with the projection lines under it. */
+@Composable
+private fun TimeChart(
+    figures: BatteryHistoryFigures,
+    scale: FullRangeScale?,
+    range: HistoryRange,
+    now: Long,
+    is24Hour: Boolean,
+) {
+    val visible = figures.visible
+    val baseMillis = figures.baseMillis
+    val charge = figures.charge
+    val discharge = figures.discharge
+    // The projection gets room on the x-axis: its round-figure horizon ahead.
+    val windowEnd =
+        if (charge != null || discharge != null) {
+            now + projectionHorizonMillis(baseMillis)
+        } else {
+            now
+        }
+    BatteryChart(
+        data = ChartData(visible, charge, discharge, scale),
+        axis =
+            TimeAxis(
+                windowStart = range.durationMillis?.let { now - it } ?: visible.first().timestampMillis,
+                windowEnd = windowEnd,
+                showDate = range != HistoryRange.SIX_HOURS,
+                is24Hour = is24Hour,
+            ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(160.dp),
+    )
+    charge?.let { ChargeProjectionLine(it, is24Hour) }
+    discharge?.let {
+        Spacer(Modifier.height(6.dp))
+        ParkedProjectionLine(
+            projection = it,
+            // The chart's measured line colour, as the charging line matches its green.
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
