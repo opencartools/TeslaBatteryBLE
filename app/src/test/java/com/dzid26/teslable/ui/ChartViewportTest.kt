@@ -112,4 +112,21 @@ class ChartViewportTest {
         val hours = clock.inside(1.0..6.0).map { it + 13 + 37.0 / 60 }
         assertEquals(listOf(16.0, 18.0), hours.map { Math.round(it * 60) / 60.0 })
     }
+
+    @Test
+    fun aHeldSpanZoomsToTheStretchBetweenItsEnds() {
+        val viewport =
+            ChartViewport().apply {
+                layerLeft = 100f
+                layerWidth = 1000f
+            }
+        // Dragged right to left, from 70% across to 30%.
+        viewport.zoomBetween(800f, 400f)
+        assertEquals(0.3, viewport.start, 1e-6)
+        assertEquals(0.7, viewport.end, 1e-6)
+        // Again inside that view: its middle half.
+        viewport.zoomBetween(350f, 850f)
+        assertEquals(0.4, viewport.start, 1e-6)
+        assertEquals(0.6, viewport.end, 1e-6)
+    }
 }
