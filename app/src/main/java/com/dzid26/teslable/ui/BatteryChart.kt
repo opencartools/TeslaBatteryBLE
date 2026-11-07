@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.dzid26.teslable.core.history.BatterySample
@@ -133,7 +134,7 @@ internal fun BatteryChart(
     val pin = rememberCursorPin()
 
     ProvideVicoTheme(rememberM3VicoTheme()) {
-        val cursor = rememberCursorMarker(window, axis, samples, scale)
+        val cursor = rememberCursorMarker(window, axis, samples, scale, pin)
         val chart =
             rememberCartesianChart(
                 rememberLineCartesianLayer(
@@ -161,7 +162,7 @@ internal fun BatteryChart(
         CartesianChartHost(
             chart = chart,
             model = remember(shape.specs) { batteryModel(shape.specs) },
-            modifier = modifier.scrubbing(pin, viewport).semantics { contentDescription = description },
+            modifier = modifier.scrubbing(pin, viewport, LocalHapticFeedback.current).semantics { contentDescription = description },
             scrollState = rememberVicoScrollState(scrollEnabled = false),
             zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content),
         )
@@ -185,6 +186,7 @@ private fun rememberCursorMarker(
     axis: TimeAxis,
     samples: List<BatterySample>,
     scale: FullRangeScale?,
+    pin: CursorPin,
 ): DefaultCartesianMarker {
     val unit = LocalDistanceUnit.current
     val separator = remember { DecimalFormatSymbols.getInstance().decimalSeparator }
@@ -206,7 +208,14 @@ private fun rememberCursorMarker(
                 cursorText(y.toFloat(), projected, formatTime(millis, axis.showDate, axis.is24Hour), rangeText)
             }
         }
-    return rememberChartCursor(describer)
+    val span =
+        remember(window) {
+            SpanDescriber { from, to ->
+                fun at(point: Pair<Double, Double>) = window.start + (point.first * MILLIS_PER_HOUR).roundToLong() to point.second.toFloat()
+                timeSpanText(at(from), at(to))
+            }
+        }
+    return rememberChartCursor(describer, span, pin)
 }
 
 /** What TalkBack reads for the chart: the span of the measured levels. */
