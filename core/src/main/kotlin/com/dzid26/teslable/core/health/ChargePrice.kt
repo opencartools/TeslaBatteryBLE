@@ -36,3 +36,22 @@ fun priceForCharge(
         .maxByOrNull { it.atMillis }
         ?.pricePerKwh
 }
+
+/**
+ * The price each of [sessions] (oldest first) was billed at, by the rule of [priceForCharge]: a change takes
+ * effect from the start of the latest session that had begun when it was made. Reads the session starts
+ * instead of re-cutting the samples, so it also prices the stored sessions older than the readings in memory.
+ */
+fun pricesForSessions(
+    changes: List<PriceChange>,
+    sessions: List<ChargeSession>,
+): List<Float?> {
+    val starts = sessions.map { it.startMillis }
+    val effectiveFrom = changes.map { change -> starts.lastOrNull { it <= change.atMillis } ?: Long.MIN_VALUE }
+    return sessions.map { session ->
+        changes.indices
+            .filter { effectiveFrom[it] <= session.startMillis }
+            .maxByOrNull { changes[it].atMillis }
+            ?.let { changes[it].pricePerKwh }
+    }
+}
