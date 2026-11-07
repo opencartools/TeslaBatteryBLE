@@ -35,6 +35,21 @@ internal class ChartViewport(
 
     val isFull: Boolean get() = start <= 0.0 && end >= 1.0
 
+    /** Zooms to the stretch between canvas x [a] and [b] (a span selected with a held press), within the whole chart. */
+    fun zoomBetween(
+        a: Float,
+        b: Float,
+    ) {
+        if (layerWidth <= 0f) return
+        val span = end - start
+        val from = start + minOf(viewFraction(a), viewFraction(b)).coerceIn(0.0, 1.0) * span
+        val to = start + maxOf(viewFraction(a), viewFraction(b)).coerceIn(0.0, 1.0) * span
+        val width = (to - from).coerceAtLeast(MIN_VIEW_SPAN)
+        val newStart = (from + (to - from - width) / 2).coerceIn(0.0, 1.0 - width)
+        start = newStart
+        end = newStart + width
+    }
+
     /** Back to the whole chart: a tap on the range chip already chosen. */
     fun reset() {
         start = 0.0

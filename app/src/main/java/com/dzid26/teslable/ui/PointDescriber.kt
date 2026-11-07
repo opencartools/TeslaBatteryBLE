@@ -26,9 +26,19 @@ internal fun interface PointDescriber {
     ): String
 }
 
-/** Feeds the first point under the cursor to a [PointDescriber]. */
+/** The hint while a span is selected: from the held point to the finger's, each as data x and y. */
+internal fun interface SpanDescriber {
+    fun describe(
+        from: Pair<Double, Double>,
+        to: Pair<Double, Double>,
+    ): String
+}
+
+/** Feeds the first point under the cursor to a [PointDescriber], or the span to [span] while one is selected. */
 private class PointFormatter(
     private val describer: PointDescriber,
+    private val span: SpanDescriber?,
+    private val pin: CursorPin?,
 ) : DefaultCartesianMarker.ValueFormatter {
     override fun format(
         context: CartesianDrawingContext,
@@ -40,7 +50,12 @@ private class PointFormatter(
                 .firstOrNull()
                 ?.points
                 ?.firstOrNull()
-        return point?.let { describer.describe(it.entry.x, it.entry.y) }.orEmpty()
+        val anchor = pin?.anchorPoint?.takeIf { pin.anchorX != null }
+        return when {
+            point == null -> ""
+            anchor != null && span != null -> span.describe(anchor, point.entry.x to point.entry.y)
+            else -> describer.describe(point.entry.x, point.entry.y)
+        }
     }
 }
 
@@ -50,7 +65,12 @@ private class PointFormatter(
  * draws neither the line nor a themed label).
  */
 @Composable
-internal fun rememberChartCursor(describer: PointDescriber): DefaultCartesianMarker {
+internal fun rememberChartCursor(
+    describer: PointDescriber,
+    // The hint while a held press selects a span on [pin]; null keeps the point hint throughout.
+    span: SpanDescriber? = null,
+    pin: CursorPin? = null,
+): DefaultCartesianMarker {
     val line = Fill(MaterialTheme.colorScheme.onSurfaceVariant)
     val bubble =
         rememberShapeComponent(fill = Fill(MaterialTheme.colorScheme.surfaceContainerHigh), shape = RoundedCornerShape(cornerRadius))
@@ -61,7 +81,7 @@ internal fun rememberChartCursor(describer: PointDescriber): DefaultCartesianMar
                 background = bubble,
                 padding = Insets(paddingX, paddingY),
             ),
-        valueFormatter = remember(describer) { PointFormatter(describer) },
+        valueFormatter = remember(describer, span, pin) { PointFormatter(describer, span, pin) },
         guideline = rememberAxisGuidelineComponent(fill = line),
     )
 }
