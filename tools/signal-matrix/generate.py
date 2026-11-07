@@ -12,7 +12,7 @@ Usage:
   python tools/signal-matrix/generate.py            # regenerate the doc (offline)
   python tools/signal-matrix/generate.py --check    # fail if the doc is stale
   python tools/signal-matrix/generate.py --refresh  # update vendored fleet protos from upstream
-  python tools/signal-matrix/generate.py --status   # print pinned vs upstream SHAs
+  python tools/signal-matrix/generate.py --status   # print pinned, fork and upstream SHAs
   python tools/signal-matrix/generate.py --dump     # list parsed message fields
 """
 
@@ -35,10 +35,12 @@ DOCS_TSV = TOOL_DIR / "upstream" / "tesla-docs" / "available-data.tsv"
 TESLA_COMMIT = REPO / "protocol" / "src" / "main" / "proto" / "TESLA_COMMIT"
 
 FT_API = "https://api.github.com/repos/teslamotors/fleet-telemetry"
-VC_REPO = "opencartools/vehicle-command"  # our fork of teslamotors/vehicle-command
-# The pin is a commit of the fork, but the drift watch still compares against Tesla's
-# upstream: that is the repository the fork has to be rebased on.
-VC_API = "https://api.github.com/repos/teslamotors/vehicle-command"
+# The pin points into our fork: comparing it with the fork tip says whether the pin is current.
+VC_REPO = "opencartools/vehicle-command"
+VC_API = f"https://api.github.com/repos/{VC_REPO}"
+# Tesla upstream: printed as the next rebase target, never compared for equality
+# (a fork commit can never equal an upstream SHA).
+VC_UPSTREAM_API = "https://api.github.com/repos/teslamotors/vehicle-command"
 VC_PROTO_PATH = "pkg/protocol/protobuf"
 
 # ---------------------------------------------------------------------------
@@ -303,10 +305,13 @@ def status():
     ft_latest = latest_path_commit(FT_API, "protos")
     vc_pinned = TESLA_COMMIT.read_text(encoding="utf-8").strip()
     vc_latest = latest_path_commit(VC_API, VC_PROTO_PATH)
+    vc_upstream = latest_path_commit(VC_UPSTREAM_API, VC_PROTO_PATH)
     print(f"Fleet Telemetry: pinned `{ft_pinned}` · upstream latest `{ft_latest}`"
           f" ({'up to date' if ft_pinned == ft_latest else 'DRIFT'})")
-    print(f"vehicle-command: pinned `{vc_pinned}` · upstream latest touching {VC_PROTO_PATH} "
-          f"`{vc_latest}` ({'up to date' if vc_pinned == vc_latest else 'DRIFT - bump the pinned protos deliberately'})")
+    print(f"vehicle-command: pinned `{vc_pinned}` · fork latest touching {VC_PROTO_PATH} "
+          f"`{vc_latest}` ({'up to date' if vc_pinned == vc_latest else 'DRIFT - bump the pin'})")
+    print(f"  Tesla upstream latest touching {VC_PROTO_PATH}: `{vc_upstream}` "
+          f"(rebase the fork when upstream moves)")
     return 0 if ft_pinned == ft_latest else 1
 
 
@@ -627,7 +632,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="fail if the committed doc is stale")
     parser.add_argument("--refresh", action="store_true", help="update vendored fleet protos from upstream")
-    parser.add_argument("--status", action="store_true", help="print pinned vs upstream SHAs")
+    parser.add_argument("--status", action="store_true", help="print pinned, fork and upstream SHAs")
     parser.add_argument("--dump", action="store_true", help="dump parsed message fields")
     parser.add_argument("--import-docs", metavar="MARKDOWN",
                         help="import a rendered Tesla Available Data page (markdown)")

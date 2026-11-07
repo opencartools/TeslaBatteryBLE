@@ -21,7 +21,7 @@ vehicle data as the Fleet API JSON) versus what is readable over **local BLE**
 python tools/signal-matrix/generate.py            # regenerate the doc (offline, deterministic)
 python tools/signal-matrix/generate.py --check    # fail if the committed doc is stale (CI)
 python tools/signal-matrix/generate.py --refresh  # update vendored Fleet Telemetry protos from upstream
-python tools/signal-matrix/generate.py --status   # print pinned vs upstream SHAs
+python tools/signal-matrix/generate.py --status   # print pinned, fork and upstream SHAs
 python tools/signal-matrix/generate.py --dump     # list parsed message fields (mapping authoring)
 python tools/signal-matrix/generate.py --import-docs <markdown>  # refresh Tesla's Available Data snapshot
 ```
@@ -61,8 +61,8 @@ The docs page is client-rendered, so refresh is a manual step:
 - Signals in the Field enum that are neither mapped nor ignored show up under
   *Unreviewed upstream signals* in the doc. That table is the review queue; keep it empty.
 - BLE protos are **never auto-bumped**: `protocol/src/main/proto` changes are deliberate,
-  tested changes. The weekly workflow only reports when upstream vehicle-command moves
-  ahead of `TESLA_COMMIT`.
+  tested changes. The weekly workflow reports when the fork moves ahead of `TESLA_COMMIT`
+  and prints Tesla upstream's latest proto commit as the next rebase target.
 
 ## Drift workflow
 
