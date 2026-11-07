@@ -4,6 +4,7 @@ package com.dzid26.teslable.core.history
 
 import com.dzid26.teslable.core.infotainment.InfotainmentPollPolicy
 import com.dzid26.teslable.protocol.PairingReason
+import com.dzid26.teslable.protocol.TeslaChargeCommands
 import com.dzid26.teslable.protocol.TeslaCommands
 import com.dzid26.teslable.protocol.TeslaPairing
 import com.dzid26.teslable.protocol.TeslaSessionRequests
@@ -94,6 +95,25 @@ class CommandRecordsTest {
                 ?.vehicleAction
                 ?.getVehicleData
                 ?.getClimateState,
+        )
+    }
+
+    @Test
+    fun `a charge control is kept as a user action`() {
+        val command =
+            CommandRecords.authenticated(
+                Command.Reason.USER_ACTION,
+                Domain.DOMAIN_INFOTAINMENT,
+                TeslaChargeCommands.buildChargeLimitRequest(90),
+            )
+
+        assertEquals(Command.Reason.USER_ACTION, command.reason)
+        assertEquals(
+            90,
+            command.infotainment
+                ?.vehicleAction
+                ?.chargingSetLimitAction
+                ?.percent,
         )
     }
 
