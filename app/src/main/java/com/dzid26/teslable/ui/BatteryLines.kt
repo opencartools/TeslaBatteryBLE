@@ -210,7 +210,7 @@ internal class InteriorLabels(
         visibleXRange: ClosedFloatingPointRange<Double>,
         fullXRange: ClosedFloatingPointRange<Double>,
         maxLabelWidth: Float,
-    ): List<Double> = roundSteps(visibleXRange, context.ranges.xStep)
+    ): List<Double> = roundSteps(context.ranges.minX..context.ranges.maxX, context.ranges.xStep)
 
     override fun getWidthMeasurementLabelValues(
         context: CartesianMeasuringContext,
@@ -225,21 +225,24 @@ internal class InteriorLabels(
         maxLabelWidth: Float,
     ): List<Double>? =
         placer.getLineValues(context, visibleXRange, fullXRange, maxLabelWidth)
-            ?: getLabelValues(context, visibleXRange, fullXRange, maxLabelWidth)
+            ?: roundSteps(context.ranges.minX..context.ranges.maxX, context.ranges.xStep, withEdges = true)
 
     // The drive chart's full range starts at 0 and ends on a label step, so the outer two labels are the edges. A
-    // zoomed range ends anywhere, so the drawn labels are the whole steps strictly inside it (roundSteps).
+    // zoomed range ends anywhere, so the drawn labels are the whole steps strictly inside it (roundSteps). Inside the
+    // plotted x range, not Vico's visible range, which reaches into the edge padding and would label the edges.
     private fun List<Double>.interior() = sorted().drop(1).dropLast(1)
 }
 
-/** The multiples of [step] strictly inside [range]. */
+/** The multiples of [step] strictly inside [range], or also on its ends [withEdges] (the gridlines there). */
 internal fun roundSteps(
     range: ClosedFloatingPointRange<Double>,
     step: Double,
+    withEdges: Boolean = false,
 ): List<Double> {
     if (step <= 0.0) return emptyList()
-    val edge = step * EDGE_TOLERANCE
-    return generateSequence(ceil((range.start + edge) / step) * step) { it + step }
+    val edge = step * EDGE_TOLERANCE * if (withEdges) -1 else 1
+    // Adding 0.0 turns the -0.0 that ceil gives just under zero into 0.0.
+    return generateSequence(ceil((range.start + edge) / step) * step + 0.0) { it + step }
         .takeWhile { it < range.endInclusive - edge }
         .toList()
 }

@@ -83,6 +83,9 @@ class ChartViewportTest {
         assertEquals(listOf(10.0, 15.0, 20.0), roundSteps(7.3..21.0, 5.0))
         // Edges that land on a step get no label.
         assertEquals(listOf(5.0, 10.0), roundSteps(0.0..15.0, 5.0))
+        // Gridlines keep them.
+        assertEquals(listOf(0.0, 5.0, 10.0, 15.0), roundSteps(0.0..15.0, 5.0, withEdges = true))
+        assertEquals(listOf(10.0, 15.0, 20.0), roundSteps(7.3..21.0, 5.0, withEdges = true))
     }
 
     @Test
