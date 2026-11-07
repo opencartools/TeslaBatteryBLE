@@ -95,10 +95,15 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
             Spacer(Modifier.height(8.dp))
             ChargeSessionSelector(priced.asReversed(), settingsCurrency, selectedIndex) { selectedStart = it.startMillis }
             Spacer(Modifier.height(8.dp))
-            ChargeSessionStats(priced[selectedIndex], currencyCode)
-            if (pricing != null && !session.inProgress) {
-                TextButton(onClick = { editing = true }) { Text(stringResource(R.string.charge_session_edit_price)) }
-            }
+            ChargeSessionStats(
+                priced[selectedIndex],
+                currencyCode,
+                onEdit =
+                    { editing = true }.takeIf {
+                        pricing != null &&
+                            !session.inProgress
+                    },
+            )
         }
     }
     if (editing && pricing != null) {
@@ -122,6 +127,7 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
 private fun ChargeSessionStats(
     priced: PricedSession,
     currencyCode: String?,
+    onEdit: (() -> Unit)?,
 ) {
     val session = priced.session
     val cost = priced.cost
@@ -132,20 +138,29 @@ private fun ChargeSessionStats(
             session.averageKw?.let { TripStat("${formatKw(it)}kW", stringResource(R.string.charge_session_average_label)) }
             compactDuration(session.durationMillis)?.let { TripStat(it, stringResource(R.string.charge_session_duration_label)) }
             // Last, like the trip card: its cost (or energy) closes the row.
-            val kwh = session.energyAddedKwh?.let(::formatKwh)
-            when {
-                cost != null && priced.price is SessionPrice.Total ->
-                    TripStat(
-                        formatMoney(cost, currencyCode),
-                        kwh?.let { stringResource(R.string.charge_session_total_kwh_label, it) }
-                            ?: stringResource(R.string.charge_session_total_label),
-                    )
-                cost != null && kwh != null ->
-                    TripStat(
-                        formatMoney(cost, currencyCode),
-                        stringResource(R.string.charge_session_cost_label, kwh),
-                    )
-                kwh != null -> TripStat("${kwh}kWh", stringResource(R.string.charge_session_energy_label))
+            // Edit price sits under the price it changes.
+            Column {
+                val kwh = session.energyAddedKwh?.let(::formatKwh)
+                when {
+                    cost != null && priced.price is SessionPrice.Total ->
+                        TripStat(
+                            formatMoney(cost, currencyCode),
+                            kwh?.let { stringResource(R.string.charge_session_total_kwh_label, it) }
+                                ?: stringResource(R.string.charge_session_total_label),
+                        )
+                    cost != null && kwh != null ->
+                        TripStat(
+                            formatMoney(cost, currencyCode),
+                            stringResource(R.string.charge_session_cost_label, kwh),
+                        )
+                    kwh != null -> TripStat("${kwh}kWh", stringResource(R.string.charge_session_energy_label))
+                }
+                onEdit?.let {
+                    TextButton(
+                        onClick = it,
+                        contentPadding = PaddingValues(0.dp),
+                    ) { Text(stringResource(R.string.charge_session_edit_price)) }
+                }
             }
         }
         Spacer(Modifier.height(8.dp))
