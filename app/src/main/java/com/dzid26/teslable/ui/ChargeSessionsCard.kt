@@ -43,11 +43,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 import com.dzid26.teslable.core.health.ChargeSession
+import com.dzid26.teslable.core.health.ChargeSessionPrice
 import com.dzid26.teslable.core.health.SessionPrice
 import com.dzid26.teslable.core.health.cost
-import com.dzid26.teslable.core.health.matchOverrides
 import com.dzid26.teslable.core.health.sessionPrices
 import com.dzid26.teslable.core.history.compactDuration
+import com.dzid26.teslable.resolvedCurrencyCode
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -68,13 +69,11 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
     val settingsCurrency = LocalCurrencyCode.current
     val priceChanges = LocalPriceChanges.current
     val pricing = LocalChargePricing.current
-    val overrides = pricing?.overrides.orEmpty()
+    val stored = pricing?.stored.orEmpty()
     // Each session's price, owner's edit first; an edited one stays in the currency it was set in.
     val priced =
-        remember(sessions, priceChanges, overrides) {
-            val prices = sessionPrices(sessions, overrides, priceChanges)
-            val matched = matchOverrides(sessions, overrides)
-            sessions.indices.map { PricedSession(sessions[it], prices[it], matched[it]?.currencyCode) }
+        remember(sessions, priceChanges, stored) {
+            sessions.zip(sessionPrices(sessions, stored, priceChanges)) { session, price -> PricedSession(session, price) }
         }
     val currencyCode = priced[selectedIndex].currencyCode ?: settingsCurrency
     var editing by remember { mutableStateOf(false) }
@@ -93,12 +92,11 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
     if (editing && pricing != null) {
         val picked = priced[selectedIndex]
         EditPriceDialog(
-            current = picked.price,
-            edited = picked.edited,
+            picked = picked,
             currencyCode = picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency),
             onSave = { price ->
                 editing = false
-                pricing.onSet(session, price, picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency))
+                pricing.onSet(session, price, picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency), picked.place)
             },
             onClear = {
                 editing = false
@@ -152,36 +150,37 @@ private fun ChargeSessionStats(
     }
 }
 
-/** A session with the price it is billed at, the currency of the owner's edit (null when it is not edited). */
+/** A session with the price it is billed at (and the currency of an edit or stored price; null is the settings one). */
 private class PricedSession(
     val session: ChargeSession,
-    val price: SessionPrice?,
-    val currencyCode: String?,
+    private val billed: ChargeSessionPrice,
 ) {
-    val edited get() = currencyCode != null
+    val price get() = billed.price
+    val currencyCode get() = billed.currencyCode
+    val place get() = billed.place
+    val edited get() = billed.byOwner
     val cost get() = price?.cost(session.energyAddedKwh)
 }
+
+private fun priceText(price: SessionPrice?): String =
+    when (price) {
+        is SessionPrice.PerKwh -> price.pricePerKwh.toString()
+        is SessionPrice.Total -> price.amount.toString()
+        null -> ""
+    }
 
 /** Sets a session's price per kWh or as a total, or takes it back to the automatic one. */
 @Composable
 private fun EditPriceDialog(
-    current: SessionPrice?,
-    edited: Boolean,
+    picked: PricedSession,
     currencyCode: String,
     onSave: (SessionPrice) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val current = picked.price
     var total by rememberSaveable { mutableStateOf(current is SessionPrice.Total) }
-    var text by rememberSaveable {
-        mutableStateOf(
-            when (current) {
-                is SessionPrice.PerKwh -> current.pricePerKwh.toString()
-                is SessionPrice.Total -> current.amount.toString()
-                null -> ""
-            },
-        )
-    }
+    var text by rememberSaveable { mutableStateOf(priceText(current)) }
     val value =
         text
             .trim()
@@ -225,7 +224,7 @@ private fun EditPriceDialog(
         },
         dismissButton = {
             Row {
-                if (edited) TextButton(onClick = onClear) { Text(stringResource(R.string.charge_session_price_automatic)) }
+                if (picked.edited) TextButton(onClick = onClear) { Text(stringResource(R.string.charge_session_price_automatic)) }
                 TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
             }
         },
