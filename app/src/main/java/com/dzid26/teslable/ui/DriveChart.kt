@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.LinearGradientShader
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.core.units.DistanceUnit
@@ -118,7 +119,7 @@ internal fun RangeChart(
     val cursorDescriber = rememberDriveDescriber(points, unit, pin)
 
     ProvideVicoTheme(rememberM3VicoTheme()) {
-        val cursor = rememberChartCursor(cursorDescriber)
+        val cursor = rememberChartCursor(cursorDescriber, rememberDriveSpan(unit), pin)
         val chart =
             rememberCartesianChart(
                 rememberLineCartesianLayer(
@@ -151,7 +152,7 @@ internal fun RangeChart(
         CartesianChartHost(
             chart = chart,
             model = remember(trips) { rangeModel(trips) },
-            modifier = modifier.scrubbing(pin, viewport),
+            modifier = modifier.scrubbing(pin, viewport, LocalHapticFeedback.current),
             scrollState = rememberVicoScrollState(scrollEnabled = false),
             zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content),
         )
