@@ -36,7 +36,9 @@ TESLA_COMMIT = REPO / "protocol" / "src" / "main" / "proto" / "TESLA_COMMIT"
 
 FT_API = "https://api.github.com/repos/teslamotors/fleet-telemetry"
 VC_REPO = "opencartools/vehicle-command"  # our fork of teslamotors/vehicle-command
-VC_API = f"https://api.github.com/repos/{VC_REPO}"
+# The pin is a commit of the fork, but the drift watch still compares against Tesla's
+# upstream: that is the repository the fork has to be rebased on.
+VC_API = "https://api.github.com/repos/teslamotors/vehicle-command"
 VC_PROTO_PATH = "pkg/protocol/protobuf"
 
 # ---------------------------------------------------------------------------
@@ -304,7 +306,7 @@ def status():
     print(f"Fleet Telemetry: pinned `{ft_pinned}` · upstream latest `{ft_latest}`"
           f" ({'up to date' if ft_pinned == ft_latest else 'DRIFT'})")
     print(f"vehicle-command: pinned `{vc_pinned}` · upstream latest touching {VC_PROTO_PATH} "
-          f"`{vc_latest}` ({'up to date' if vc_pinned == vc_latest else 'DRIFT - bump core protos deliberately'})")
+          f"`{vc_latest}` ({'up to date' if vc_pinned == vc_latest else 'DRIFT - bump the pinned protos deliberately'})")
     return 0 if ft_pinned == ft_latest else 1
 
 
