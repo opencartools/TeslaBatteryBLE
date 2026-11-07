@@ -49,6 +49,8 @@ import com.dzid26.teslable.core.health.cost
 import com.dzid26.teslable.core.health.sessionPrices
 import com.dzid26.teslable.core.history.compactDuration
 import com.dzid26.teslable.resolvedCurrencyCode
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -94,13 +96,10 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
         EditPriceDialog(
             picked = picked,
             currencyCode = picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency),
+            latestPerKwh = priceChanges.lastOrNull()?.pricePerKwh,
             onSave = { price ->
                 editing = false
                 pricing.onSet(session, price, picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency), picked.place)
-            },
-            onClear = {
-                editing = false
-                pricing.onClear(session)
             },
             onDismiss = { editing = false },
         )
@@ -162,31 +161,40 @@ private class PricedSession(
     val cost get() = price?.cost(session.energyAddedKwh)
 }
 
-private fun priceText(price: SessionPrice?): String =
-    when (price) {
-        is SessionPrice.PerKwh -> price.pricePerKwh.toString()
-        is SessionPrice.Total -> price.amount.toString()
-        null -> ""
-    }
+/** A number for an edit box: up to four decimals, no trailing zeros, "" for none. */
+private fun editText(value: Float?): String =
+    value
+        ?.takeIf { it.isFinite() }
+        ?.let { BigDecimal(it.toDouble()).setScale(EDIT_DECIMALS, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString() }
+        .orEmpty()
 
-/** Sets a session's price per kWh or as a total, or takes it back to the automatic one. */
+private fun parseEdit(text: String): Float? =
+    text
+        .trim()
+        .replace(',', '.')
+        .toFloatOrNull()
+        ?.takeIf { it.isFinite() && it >= 0f }
+
+/**
+ * Sets a session's price per kWh or its total. Each has its own box, filled from the session's current price: the
+ * total box holds its cost. [latestPerKwh] (the home price set now) fills the per-kWh box on "Use latest".
+ */
 @Composable
 private fun EditPriceDialog(
     picked: PricedSession,
     currencyCode: String,
+    latestPerKwh: Float?,
     onSave: (SessionPrice) -> Unit,
-    onClear: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val current = picked.price
+    val kwh = picked.session.energyAddedKwh?.takeIf { it > 0f }
     var total by rememberSaveable { mutableStateOf(current is SessionPrice.Total) }
-    var text by rememberSaveable { mutableStateOf(priceText(current)) }
-    val value =
-        text
-            .trim()
-            .replace(',', '.')
-            .toFloatOrNull()
-            ?.takeIf { it.isFinite() && it >= 0f }
+    var perKwhText by rememberSaveable {
+        mutableStateOf(editText((current as? SessionPrice.PerKwh)?.pricePerKwh ?: kwh?.let { picked.cost?.div(it) }))
+    }
+    var totalText by rememberSaveable { mutableStateOf(editText(picked.cost)) }
+    val value = parseEdit(if (total) totalText else perKwhText)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.charge_session_edit_price)) },
@@ -206,12 +214,13 @@ private fun EditPriceDialog(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
+                // Two boxes, one shown: switching keeps what was typed in each.
                 OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
+                    value = if (total) totalText else perKwhText,
+                    onValueChange = { if (total) totalText = it else perKwhText = it },
                     singleLine = true,
-                    isError = text.isNotBlank() && value == null,
-                    suffix = { Text(currencyCode) },
+                    isError = value == null && (if (total) totalText else perKwhText).isNotBlank(),
+                    suffix = { Text(if (total) currencyCode else "$currencyCode/kWh") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
@@ -224,12 +233,19 @@ private fun EditPriceDialog(
         },
         dismissButton = {
             Row {
-                if (picked.edited) TextButton(onClick = onClear) { Text(stringResource(R.string.charge_session_price_automatic)) }
+                latestPerKwh?.let { latest ->
+                    TextButton(onClick = {
+                        total = false
+                        perKwhText = editText(latest)
+                    }) { Text(stringResource(R.string.charge_session_price_use_latest)) }
+                }
                 TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
             }
         },
     )
 }
+
+private const val EDIT_DECIMALS = 4
 
 /** The chosen session as a button; a tap lists every session (with its cost, or null) by start time and cost, newest first. */
 @Composable

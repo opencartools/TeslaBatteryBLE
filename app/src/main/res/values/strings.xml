@@ -3,10 +3,10 @@
     <string name="app_name">TeslaBatteryBLE</string>
 
     <string name="charge_session_edit_price">Edit price</string>
-    <string name="charge_session_price_automatic">Automatic</string>
     <string name="charge_session_price_per_kwh">Per kWh</string>
     <string name="charge_session_price_save">Save</string>
     <string name="charge_session_price_total">Total</string>
+    <string name="charge_session_price_use_latest">Use latest</string>
     <string name="charge_session_total_label">total</string>
     <string name="closure_alert_channel_name">Open closure alerts</string>
     <string name="closure_alert_channel_description">Pops up when a door, trunk or tonneau is open as you leave the car.</string>

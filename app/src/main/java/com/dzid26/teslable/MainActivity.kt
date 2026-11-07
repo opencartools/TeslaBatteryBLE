@@ -86,7 +86,6 @@ class MainActivity : ComponentActivity() {
                         ChargePricing(
                             chargePrices,
                             controller.historyStore::setChargePrice,
-                            controller.historyStore::clearChargePrice,
                         )
                     }
                 val historyLoaded by controller.historyLoaded.collectAsState()
