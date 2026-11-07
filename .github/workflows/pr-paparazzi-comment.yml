@@ -216,8 +216,11 @@ jobs:
                     printf '</details>\n\n'
                   fi
                 elif [ -f "$SHOTS_DIR/after/${stem}_jelly_light.png" ]; then
-                  printf '### %s · narrow only\n\n' "$(shot_title "$stem")"
+                  # Only the narrow render changed: same heading, the narrow image in its spoiler as above.
+                  printf '### %s\n\n' "$(shot_title "$stem")"
+                  printf '<details><summary>Narrow (Jelly Star) changed</summary>\n\n'
                   post_theme "${stem}_jelly" light
+                  printf '</details>\n\n'
                 else
                   printf '### %s · dark only\n\n' "$(shot_title "$stem")"
                   post_theme "$stem" dark
