@@ -68,15 +68,11 @@ class ChargePriceTest {
     }
 
     @Test
-    fun `a session is priced by the change in effect at the start of the latest charge begun by then`() {
+    fun `session prices follow the same rule as priceForCharge`() {
         val sessions = chargeSessions(samples)
         val changes = listOf(PriceChange(at(-10), 0.20f), PriceChange(at(120), 0.30f), PriceChange(at(630), 0.40f))
         assertEquals(listOf(0.30f, 0.40f), pricesForSessions(changes, sessions))
-    }
-
-    @Test
-    fun `no price for a time where no charge ends`() {
-        assertNull(priceForCharge(listOf(PriceChange(at(-10), 0.20f)), samples, at(30)))
+        assertEquals(sessions.map { priceForCharge(changes, samples, it.endMillis) }, pricesForSessions(changes, sessions))
     }
 
     @Test

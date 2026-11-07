@@ -43,11 +43,11 @@ import kotlin.math.roundToInt
 
 /**
  * The charge sessions, one at a time: a selector by start time and cost (or energy without a price), and for
- * the chosen session its duration, average power and cost in big type (the cost last, like the trip card), the level it went from and to, and
- * the rated range it added. The cost is the energy the car added times the home price in effect for that
- * session (see `pricesForSessions`), like the trip card's; without a price the energy shows instead.
- * A session the car reported no energy for shows what it has. Shows nothing until there is a session. [sessions] are
- * oldest first; the newest is open by default.
+ * the chosen session its average power, duration and cost in big type (the cost last, like the trip card), the
+ * level it went from and to, and the rated range it added. The cost is the energy the car added times the home
+ * price in effect for that session (`pricesForSessions`); without a price the energy shows instead. A session the
+ * car reported no energy for shows what it has. Shows nothing until there is a session. [sessions] are oldest
+ * first; the newest is open by default.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -72,8 +72,8 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
             Spacer(Modifier.height(8.dp))
             // The stats wrap whole on a narrow phone instead of squeezing the digits.
             FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                compactDuration(session.durationMillis)?.let { TripStat(it, stringResource(R.string.charge_session_duration_label)) }
                 session.averageKw?.let { TripStat("${formatKw(it)}kW", stringResource(R.string.charge_session_average_label)) }
+                compactDuration(session.durationMillis)?.let { TripStat(it, stringResource(R.string.charge_session_duration_label)) }
                 // Last, like the trip card: its cost (or energy) closes the row.
                 val kwh = session.energyAddedKwh?.let(::formatKwh)
                 when {
