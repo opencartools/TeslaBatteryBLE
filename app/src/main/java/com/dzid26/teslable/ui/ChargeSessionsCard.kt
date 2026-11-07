@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -267,19 +268,19 @@ private fun ChargeSessionSelector(
     val description = stringResource(R.string.charge_session_selector_description)
     val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
     Column {
-        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth().semantics { contentDescription = description }) {
-            Text(
-                sessionLabel(selected, settingsCurrency, is24Hour),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+        // Slim side padding: at the Jelly Star's width the default leaves no room for the time beside the cost.
+        OutlinedButton(
+            onClick = { open = true },
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = description },
+            contentPadding = PaddingValues(start = 16.dp, end = 8.dp),
+        ) {
+            SessionLabel(selected, settingsCurrency, is24Hour, Modifier.weight(1f))
             Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(sessionLabel(option, settingsCurrency, is24Hour), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    text = { SessionLabel(option, settingsCurrency, is24Hour) },
                     onClick = {
                         open = false
                         onSelect(option.session)
@@ -292,24 +293,36 @@ private fun ChargeSessionSelector(
 
 /**
  * "Oct 19, 2:05 PM · $6.92", or "· 22.5kWh" without a price, with "Charging" for the live session and just the
- * time when the car reported no energy.
+ * time when the car reported no energy. On a narrow phone the time gives way; the cost never does.
  */
 @Composable
-private fun sessionLabel(
+private fun SessionLabel(
     priced: PricedSession,
     settingsCurrency: String?,
     is24Hour: Boolean,
-): String {
+    modifier: Modifier = Modifier,
+) {
     val session = priced.session
     val cost = priced.cost
-    val currencyCode = priced.currencyCode ?: settingsCurrency
     val time = formatTime(session.startMillis, showDate = true, is24Hour = is24Hour)
     val energy = session.energyAddedKwh?.let(::formatKwh)
-    return when {
-        session.inProgress -> stringResource(R.string.charge_session_option_live, time)
-        cost != null -> stringResource(R.string.charge_session_option_cost, time, formatMoney(cost, currencyCode))
-        energy != null -> stringResource(R.string.charge_session_option, time, energy)
-        else -> time
+    val tail =
+        when {
+            session.inProgress -> null
+            cost != null -> stringResource(R.string.charge_session_option_cost, formatMoney(cost, priced.currencyCode ?: settingsCurrency))
+            energy != null -> stringResource(R.string.charge_session_option, energy)
+            else -> null
+        }
+    Row(modifier) {
+        Text(
+            if (session.inProgress) stringResource(R.string.charge_session_option_live, time) else time,
+            maxLines = 1,
+            // No wrap: a wrapped line would cut at the space and drop the whole time.
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        tail?.let { Text(" $it", maxLines = 1, softWrap = false) }
     }
 }
 
