@@ -27,6 +27,7 @@ import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.component.LineComponent
 import com.patrykandpatrick.vico.compose.common.component.TextComponent
 import com.patrykandpatrick.vico.compose.common.data.ExtraStore
+import kotlin.math.ceil
 
 @Composable
 internal fun rememberBatteryLines(
@@ -209,7 +210,7 @@ internal class InteriorLabels(
         visibleXRange: ClosedFloatingPointRange<Double>,
         fullXRange: ClosedFloatingPointRange<Double>,
         maxLabelWidth: Float,
-    ): List<Double> = placer.getLabelValues(context, visibleXRange, fullXRange, maxLabelWidth).interior()
+    ): List<Double> = roundSteps(visibleXRange, context.ranges.xStep)
 
     override fun getWidthMeasurementLabelValues(
         context: CartesianMeasuringContext,
@@ -224,8 +225,24 @@ internal class InteriorLabels(
         maxLabelWidth: Float,
     ): List<Double>? =
         placer.getLineValues(context, visibleXRange, fullXRange, maxLabelWidth)
-            ?: placer.getLabelValues(context, visibleXRange, fullXRange, maxLabelWidth)
+            ?: getLabelValues(context, visibleXRange, fullXRange, maxLabelWidth)
 
-    // The drive chart's range starts at 0 and ends on a label step, so the outer two labels are the edges.
+    // The drive chart's full range starts at 0 and ends on a label step, so the outer two labels are the edges. A
+    // zoomed range ends anywhere, so the drawn labels are the whole steps strictly inside it (roundSteps).
     private fun List<Double>.interior() = sorted().drop(1).dropLast(1)
 }
+
+/** The multiples of [step] strictly inside [range]. */
+internal fun roundSteps(
+    range: ClosedFloatingPointRange<Double>,
+    step: Double,
+): List<Double> {
+    if (step <= 0.0) return emptyList()
+    val edge = step * EDGE_TOLERANCE
+    return generateSequence(ceil((range.start + edge) / step) * step) { it + step }
+        .takeWhile { it < range.endInclusive - edge }
+        .toList()
+}
+
+/** How close to an edge, in steps, a label counts as on it: float sums of steps land a hair off. */
+private const val EDGE_TOLERANCE = 1e-6

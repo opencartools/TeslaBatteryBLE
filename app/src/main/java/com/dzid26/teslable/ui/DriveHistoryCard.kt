@@ -93,7 +93,8 @@ internal fun DistanceHistory(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            RangeChart(points = plotted, modifier = Modifier.fillMaxWidth().height(160.dp))
+            // A new window starts unzoomed.
+            RangeChart(points = plotted, modifier = Modifier.fillMaxWidth().height(160.dp), viewport = remember(window) { ChartViewport() })
             Spacer(Modifier.height(6.dp))
             Legend()
             Spacer(Modifier.height(6.dp))

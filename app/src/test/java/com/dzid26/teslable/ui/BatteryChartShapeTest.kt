@@ -32,6 +32,29 @@ class BatteryChartShapeTest {
     ) = batteryShape(ChartData(samples, charge, null, null), Window(0L, windowEnd), Color.Blue, Color.Green)
 
     @Test
+    fun aZoomedViewFitsThePercentAxisToWhatIsOnScreen() {
+        // Ten hours from 90% down to 40%, then the middle two hours (4 to 6 h, about 70-60%) on screen.
+        val shape = shape((0..10).map { sample(it.toDouble(), 90 - it * 5) })
+        val viewport = ChartViewport().apply { layerWidth = 100f }
+        viewport.transform(previousX = 50f, x = 50f, previousSpan = 10f, span = 50f, minFingerSpan = 8f)
+        val view = shape.view(10.0, viewport)
+        assertEquals(4.0, view.minX, 1e-9)
+        assertEquals(6.0, view.maxX, 1e-9)
+        // The fit takes in 3 h and 7 h too (75% and 55%), the points the line runs to past the edges.
+        assertTrue(view.gridlines.first() <= 55.0 && view.gridlines.last() >= 75.0)
+        assertTrue(view.gridlines.last() - view.gridlines.first() < shape.yMax - shape.yMin)
+    }
+
+    @Test
+    fun theFullViewKeepsTheWholeAxis() {
+        val shape = shape((0..10).map { sample(it.toDouble(), 90 - it * 5) })
+        val view = shape.view(10.0, ChartViewport())
+        assertEquals(0.0, view.minX, 0.0)
+        assertEquals(10.0, view.maxX, 0.0)
+        assertEquals(shape.gridlines, view.gridlines)
+    }
+
+    @Test
     fun runsTakeTheColourOfTheirEndingSample() {
         val kinds =
             shape(listOf(sample(0.0, 50), sample(1.0, 51), sample(2.0, 52, true), sample(3.0, 53, true), sample(4.0, 52)))

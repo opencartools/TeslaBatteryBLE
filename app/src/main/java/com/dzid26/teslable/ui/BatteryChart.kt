@@ -61,6 +61,15 @@ internal class SeriesSpec(
     val xs: List<Double>,
     val ys: List<Double>,
 ) {
+    /** The percents within [shown], with the point just before and just after it; [xs] ascending. */
+    fun ysAround(shown: ClosedFloatingPointRange<Double>): List<Double> {
+        val first = xs.insertionPoint(shown.start, after = false)
+        val last = xs.insertionPoint(shown.endInclusive, after = true) - 1
+        val from = (first - 1).coerceAtLeast(0)
+        val to = (last + 1).coerceAtMost(xs.lastIndex)
+        return if (from > to) emptyList() else ys.subList(from, to + 1)
+    }
+
     /** Vico wants ascending, unique x; the readings carry no such promise, so sort them and keep the last of equal times. */
     fun normalized(): SeriesSpec {
         val pairs = xs.zip(ys).sortedBy { it.first }.distinctBy { it.first }
@@ -85,14 +94,15 @@ internal class Beam(
  * Battery percent over time: the measured line (green while charging) with a
  * dot per measurement, and the dashed charge or parked-drain projection with
  * its beam. Pressing the chart shows a cursor with the value and the time at
- * the nearest point. Scroll and zoom are off and the window is fixed, like
- * the drive chart.
+ * the nearest point. Two fingers pan and zoom it sideways ([viewport]); the
+ * percent axis fits what is on screen.
  */
 @Composable
 internal fun BatteryChart(
     data: ChartData,
     axis: TimeAxis,
     modifier: Modifier = Modifier,
+    viewport: ChartViewport = remember { ChartViewport() },
 ) {
     val samples = data.samples
     val charge = data.charge
@@ -115,7 +125,8 @@ internal fun BatteryChart(
         }
     val lines = rememberBatteryLines(lineColor, chargingColor, parkedMuted = charge != null)
     val timeFormatter = rememberTimeFormatter(window, showDate, is24Hour)
-    val xStep = spanHours / X_LABEL_STEPS
+    val view = remember(shape, spanHours, viewport.start, viewport.end) { shape.view(spanHours, viewport) }
+    val xStep = (view.maxX - view.minX) / X_LABEL_STEPS
     val description = remember(samples, scale) { chartDescription(samples, scale) }
 
     val pin = rememberCursorPin()
@@ -131,20 +142,17 @@ internal fun BatteryChart(
                             lines,
                         ) { LineCartesianLayer.LineProvider.series(shape.specs.map { lines.getValue(it.kind) }) },
                     rangeProvider =
-                        remember(shape) {
-                            CartesianLayerRangeProvider.fixed(
-                                minX = 0.0,
-                                maxX = spanHours,
-                                minY = shape.range.start,
-                                maxY = shape.range.endInclusive,
-                            )
-                        },
+                        remember(view) { view.rangeProvider() },
                 ),
-                startAxis = rememberPercentAxis(shape.gridlines),
+                startAxis = rememberPercentAxis(view.gridlines),
                 bottomAxis = rememberTimeAxis(timeFormatter),
                 decorations =
-                    remember(shape.specs, shape.beams, pin, cursor, lineColor) {
-                        listOf(Beams(shape.beams), ScrubCursor(pin, cursor, shape.specs.flatMap { it.xs.zip(it.ys) }, lineColor))
+                    remember(shape.specs, shape.beams, pin, cursor, lineColor, viewport) {
+                        listOf(
+                            ViewportTracker(viewport),
+                            ClippedWhenZoomed(Beams(shape.beams), viewport),
+                            ScrubCursor(pin, cursor, shape.specs.flatMap { it.xs.zip(it.ys) }, lineColor),
+                        )
                     },
                 layerPadding = rememberEdgePadding(),
                 getXStep = { _, _, _ -> xStep },
@@ -152,7 +160,7 @@ internal fun BatteryChart(
         CartesianChartHost(
             chart = chart,
             model = remember(shape.specs) { batteryModel(shape.specs) },
-            modifier = modifier.scrubbing(pin).semantics { contentDescription = description },
+            modifier = modifier.scrubbing(pin, viewport).semantics { contentDescription = description },
             scrollState = rememberVicoScrollState(scrollEnabled = false),
             zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content),
         )
@@ -221,6 +229,32 @@ internal class BatteryShape(
 
     /** Bottom, middle and top gridlines, at the axis bounds rather than the padded range. */
     val gridlines = listOf(yMin, (yMin + yMax) / 2, yMax)
+
+    /**
+     * What [viewport] shows of the window, [spanHours] wide: its hours, and a percent axis fitted to the points on
+     * screen (with the nearest point past each edge, which the line runs to). At full view, the whole chart's axis.
+     */
+    fun view(
+        spanHours: Double,
+        viewport: ChartViewport,
+    ): BatteryView {
+        val shown = viewport.visible(0.0, spanHours)
+        val ys = if (viewport.isFull) emptyList() else specs.flatMap { it.ysAround(shown) }
+        if (ys.isEmpty()) return BatteryView(shown.start, shown.endInclusive, range, gridlines)
+        val (low, high) = roundedBounds(ys.min().toFloat(), ys.max().toFloat())
+        val fitted = BatteryShape(specs, beams, low.toDouble(), high.toDouble())
+        return BatteryView(shown.start, shown.endInclusive, fitted.range, fitted.gridlines)
+    }
+}
+
+/** The x range on screen, in hours since the window start, and the percent axis fitted to it. */
+internal data class BatteryView(
+    val minX: Double,
+    val maxX: Double,
+    val range: ClosedFloatingPointRange<Double>,
+    val gridlines: List<Double>,
+) {
+    fun rangeProvider() = CartesianLayerRangeProvider.fixed(minX = minX, maxX = maxX, minY = range.start, maxY = range.endInclusive)
 }
 
 /** Where a time falls on the x axis: hours since the window start, kept inside the window. */
@@ -268,6 +302,14 @@ internal fun yBounds(
 ): Pair<Int, Int> {
     val minPercent = minOf(socs.min(), discharge?.let { it.lowSoc ?: it.projectedSoc } ?: PERCENT_FULL)
     val maxPercent = maxOf(socs.max(), (charge?.targetPercent ?: 0).toFloat())
+    return roundedBounds(minPercent, maxPercent)
+}
+
+/** [minPercent] to [maxPercent] widened by a margin and rounded out to whole multiples of [AXIS_ROUND]. */
+internal fun roundedBounds(
+    minPercent: Float,
+    maxPercent: Float,
+): Pair<Int, Int> {
     val yMin = ((minPercent - Y_MARGIN).toInt().coerceAtLeast(0) / AXIS_ROUND) * AXIS_ROUND
     val yMax = (((maxPercent + Y_MARGIN).toInt().coerceAtMost(PERCENT_FULL.toInt()) + AXIS_ROUND - 1) / AXIS_ROUND) * AXIS_ROUND
     val base =

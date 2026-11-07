@@ -1021,6 +1021,8 @@ private fun TimeChart(
             Modifier
                 .fillMaxWidth()
                 .height(160.dp),
+        // A new range starts unzoomed.
+        viewport = remember(range) { ChartViewport() },
     )
     charge?.let { ChargeProjectionLine(it, is24Hour) }
     discharge?.let {

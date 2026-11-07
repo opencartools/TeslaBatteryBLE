@@ -100,8 +100,12 @@ internal fun scrubStep(
 }
 
 /** The chart's own touch handling; see the notes at the top of this file. */
-internal fun Modifier.scrubbing(pin: CursorPin): Modifier =
-    pointerInput(pin) {
+internal fun Modifier.scrubbing(
+    pin: CursorPin,
+    // Two fingers pan and zoom it sideways (ChartViewport.kt); null keeps one-finger handling only.
+    viewport: ChartViewport? = null,
+): Modifier =
+    pointerInput(pin, viewport) {
         val slop = viewConfiguration.touchSlop
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
@@ -110,23 +114,32 @@ internal fun Modifier.scrubbing(pin: CursorPin): Modifier =
             val restoredBefore = pin.restoredX
             pin.canvasX = down.position.x
             pin.restoredX = null
-            if (!followScrub(pin, down, slop)) {
+            if (!followScrub(pin, down, slop, viewport)) {
                 pin.canvasX = before
                 pin.restoredX = restoredBefore
             }
         }
     }
 
-/** Follows one gesture; false when it turned out to be a page scroll. */
+/**
+ * Follows one gesture; false when it turned out to be a page scroll or a two-finger pan and zoom, which leave the
+ * cursor where it stood before.
+ */
 private suspend fun AwaitPointerEventScope.followScrub(
     pin: CursorPin,
     down: PointerInputChange,
     slop: Float,
+    viewport: ChartViewport?,
 ): Boolean {
     var step = ScrubStep.UNDECIDED
     var change: PointerInputChange? = down
     while (change != null && change.pressed && step != ScrubStep.SCROLL) {
-        change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
+        val event = awaitPointerEvent()
+        if (viewport != null && event.changes.count { it.pressed } >= 2) {
+            followPinch(viewport, event, slop)
+            return false
+        }
+        change = event.changes.firstOrNull { it.id == down.id }
         if (change == null || !change.pressed) break
         step =
             when {

@@ -103,8 +103,11 @@ internal fun RangeChart(
     points: List<Plotted>,
     modifier: Modifier = Modifier,
     pin: CursorPin = LocalDriveCursor.current ?: rememberCursorPin(),
+    viewport: ChartViewport = remember { ChartViewport() },
 ) {
-    val axes = remember(points) { axisSpec(points) }
+    val full = remember(points) { axisSpec(points) }
+    val distances = remember(points) { points.map { it.distance } }
+    val axes = remember(full, distances, viewport.start, viewport.end) { full.view(points, distances, viewport) }
     val trips = remember(points) { points.groupBy { it.trip }.values.toList() }
     // The gradient joins moving readings with no fall in rated range where one end is a green dot; at one odometer value
     // it has no width.
@@ -134,10 +137,11 @@ internal fun RangeChart(
                         itemPlacer = remember { InteriorLabels(HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = false)) },
                     ),
                 decorations =
-                    remember(gainBands, points, pin, cursor) {
+                    remember(gainBands, points, pin, cursor, viewport) {
                         listOf(
-                            GainBands(gainBands, chargingChartColor),
-                            ReadingDots(points, driveChartColor, chargingChartColor),
+                            ViewportTracker(viewport),
+                            ClippedWhenZoomed(GainBands(gainBands, chargingChartColor), viewport),
+                            ClippedWhenZoomed(ReadingDots(points, driveChartColor, chargingChartColor), viewport),
                             ScrubCursor(pin, cursor, points.map { it.distance to it.value.toDouble() }, driveChartColor),
                         )
                     },
@@ -147,7 +151,7 @@ internal fun RangeChart(
         CartesianChartHost(
             chart = chart,
             model = remember(trips) { rangeModel(trips) },
-            modifier = modifier.scrubbing(pin),
+            modifier = modifier.scrubbing(pin, viewport),
             scrollState = rememberVicoScrollState(scrollEnabled = false),
             zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content),
         )
