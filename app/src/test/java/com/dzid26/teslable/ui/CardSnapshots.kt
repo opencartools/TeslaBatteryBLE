@@ -675,6 +675,9 @@ class CardSnapshots {
                 onRefresh = {},
                 onOpenSettings = {},
                 onToggleTracking = {},
+                onChargePort = {},
+                onWake = {},
+                onActionFeedbackShown = {},
                 nowMillis = NOW,
             )
         }
@@ -756,6 +759,9 @@ class CardSnapshots {
                 onRefresh = {},
                 onOpenSettings = {},
                 onToggleTracking = {},
+                onChargePort = {},
+                onWake = {},
+                onActionFeedbackShown = {},
                 nowMillis = NOW,
                 // A home price, so the last-charge line shows its cost (the sessions card below the fold has its own snapshots).
                 homePrice = 0.30f,

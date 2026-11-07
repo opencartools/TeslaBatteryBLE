@@ -17,6 +17,7 @@ import com.dzid26.teslable.protocol.ShiftStateKind
 import com.dzid26.teslable.protocol.TeslaNames
 import com.tesla.generated.carserver.common.Void
 import com.tesla.generated.carserver.vehicle.ChargeState
+import com.tesla.generated.keys.Role
 import com.tesla.generated.vcsec.UserPresence_E
 import com.tesla.generated.vcsec.VehicleLockState_E
 import com.tesla.generated.vcsec.VehicleSleepStatus_E
@@ -112,6 +113,7 @@ internal object DemoScreenFixtures {
         phase = ConnectionPhase.READY,
         status = status,
         keySlot = KEY_SLOT,
+        keyRole = Role.ROLE_DRIVER,
         charge = charge,
         chargeAtMillis = nowMillis - MINUTE,
         pairing = pairing,

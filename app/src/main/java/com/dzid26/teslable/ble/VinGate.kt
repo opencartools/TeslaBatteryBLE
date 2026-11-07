@@ -11,6 +11,9 @@ sealed interface VinIntent {
 
     /** Wake the car, from the car screen or the notification. */
     data object Wake : VinIntent
+
+    /** Open the charge port: it moves the car, so it needs the same VIN a read does. */
+    data object Control : VinIntent
 }
 
 /**
