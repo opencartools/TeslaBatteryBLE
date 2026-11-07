@@ -100,7 +100,7 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
             picked = picked,
             currencyCode = picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency),
             // A fast charge is never at home: no home price to offer there.
-            latestPerKwh = priceChanges.lastOrNull()?.pricePerKwh?.takeIf { session.chargerKind != ChargerKind.DC },
+            homePerKwh = priceChanges.lastOrNull()?.pricePerKwh?.takeIf { session.chargerKind != ChargerKind.DC },
             onSave = { price ->
                 editing = false
                 pricing.onSet(session, price, picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency), null)
@@ -185,13 +185,13 @@ internal fun parseEdit(text: String): Float? =
 
 /**
  * Sets a session's price per kWh or its total. Each has its own box, filled from the session's current price: the
- * total box holds its cost. [latestPerKwh] (the home price set now) fills the per-kWh box on "Use latest".
+ * total box holds its cost. [homePerKwh] (the home price set now) fills the per-kWh box from a button that names it ("Home $0.30").
  */
 @Composable
 private fun EditPriceDialog(
     picked: PricedSession,
     currencyCode: String,
-    latestPerKwh: Float?,
+    homePerKwh: Float?,
     onSave: (SessionPrice) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -241,11 +241,11 @@ private fun EditPriceDialog(
         },
         dismissButton = {
             Row {
-                latestPerKwh?.let { latest ->
+                homePerKwh?.let { latest ->
                     TextButton(onClick = {
                         total = false
                         perKwhText = editText(latest)
-                    }) { Text(stringResource(R.string.charge_session_price_use_latest)) }
+                    }) { Text(stringResource(R.string.charge_session_price_use_home, formatMoney(latest, currencyCode))) }
                 }
                 TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
             }
