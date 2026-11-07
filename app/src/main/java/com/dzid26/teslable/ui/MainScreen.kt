@@ -121,6 +121,11 @@ fun MainScreen(
     onRequestVin: (String) -> Unit,
     onDismissVin: () -> Unit,
     onOpenSettings: () -> Unit,
+    onSetChargeLimit: (Int) -> Unit,
+    onSetChargingAmps: (Int) -> Unit,
+    onStartCharging: () -> Unit,
+    onStopCharging: () -> Unit,
+    onActionFeedbackShown: () -> Unit,
 ) {
     var viewingBleName by rememberSaveable { mutableStateOf<String?>(null) }
     var vinTarget by rememberSaveable { mutableStateOf<String?>(null) }
@@ -182,6 +187,11 @@ fun MainScreen(
             onAddVin = { onRequestVin(bleName) },
             onOpenSettings = onOpenSettings,
             onToggleTracking = onToggleTracking,
+            onSetChargeLimit = onSetChargeLimit,
+            onSetChargingAmps = onSetChargingAmps,
+            onStartCharging = onStartCharging,
+            onStopCharging = onStopCharging,
+            onActionFeedbackShown = onActionFeedbackShown,
         )
     } else {
         ConnectionsScreen(

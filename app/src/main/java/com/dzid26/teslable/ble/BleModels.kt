@@ -40,6 +40,8 @@ data class TeslaConnection(
     val disconnectedAtMillis: Long? = null,
     /** How far the Infotainment read in flight has come; null when none is. The VCSEC status poll does not count. */
     val readProgress: ReadProgress? = null,
+    /** The charge controls waiting for a wake, a session or the car's reply. */
+    val actuating: Set<ActuationKey> = emptySet(),
     /**
      * When the idle poll reads the car next, while it waits out the safety interval; null while reads
      * run every ten seconds (active, holding, asleep, or no read yet). The status pill shows Paused
@@ -92,6 +94,8 @@ data class BleUiState(
     val locationNeeded: Boolean = false,
     /** The last discovery scan ended without reaching a known car: the car view says it was not seen nearby. */
     val discoveryMissed: Boolean = false,
+    /** The last charge control's result, for the car screen's snackbar or inline line; null once shown. */
+    val actionFeedback: ActuationFeedback? = null,
     /**
      * A VIN prompt waiting for the owner, for the car that asked for one. The Compose layer renders it
      * as a blocking dialog; saving the VIN clears it and replays [VinRequest.replay] once.

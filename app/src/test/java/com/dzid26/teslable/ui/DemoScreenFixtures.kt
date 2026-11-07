@@ -46,6 +46,8 @@ internal object DemoScreenFixtures {
     private const val LIVE_PERCENT = 78
     private const val LIVE_TOP_UP_START_MINUTES = 90L
     private const val CHARGE_LIMIT = 85
+    private const val CHARGE_AMPS = 16
+    private const val CHARGE_AMPS_MAX = 32
     private const val RATED_MILES_PER_PERCENT = 3.0f
     private const val KWH_PER_PERCENT = 0.75f
     private const val ODOMETER = 1_234_567
@@ -73,6 +75,10 @@ internal object DemoScreenFixtures {
         ChargeState(
             charging_state = ChargeState.ChargingState(Charging = Void()),
             charge_limit_soc = CHARGE_LIMIT,
+            charge_limit_soc_min = 50,
+            charge_limit_soc_max = 100,
+            charge_current_request = CHARGE_AMPS,
+            charge_current_request_max = CHARGE_AMPS_MAX,
             battery_range = LIVE_PERCENT * RATED_MILES_PER_PERCENT,
             battery_level = LIVE_PERCENT,
             usable_battery_level = LIVE_PERCENT,
@@ -82,10 +88,16 @@ internal object DemoScreenFixtures {
         ChargeState(
             charging_state = ChargeState.ChargingState(Disconnected = Void()),
             charge_limit_soc = CHARGE_LIMIT,
+            charge_limit_soc_min = 50,
+            charge_limit_soc_max = 100,
+            charge_current_request = CHARGE_AMPS,
+            charge_current_request_max = CHARGE_AMPS_MAX,
             battery_range = LIVE_PERCENT * RATED_MILES_PER_PERCENT,
             battery_level = LIVE_PERCENT,
             usable_battery_level = LIVE_PERCENT,
         )
+
+    private val fastCharging = charging.copy(fast_charger_present = true)
 
     private val awakeLocked =
         VehicleStatus(
@@ -153,6 +165,12 @@ internal object DemoScreenFixtures {
     fun drivingState(nowMillis: Long) =
         carState(nowMillis).copy(
             connections = mapOf(DEMO_ADDRESS to connection(nowMillis, PairingPhase.OK, driving, atTheWheel)),
+        )
+
+    /** The car on a DC fast charger: the charge controls stay away. */
+    fun fastChargingState(nowMillis: Long) =
+        carState(nowMillis).copy(
+            connections = mapOf(DEMO_ADDRESS to connection(nowMillis, PairingPhase.OK, fastCharging)),
         )
 
     /** [history] without the live top-up, which began 90 minutes ago. */

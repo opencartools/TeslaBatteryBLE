@@ -35,6 +35,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -68,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.EnergyPriceStore
 import com.dzid26.teslable.R
 import com.dzid26.teslable.UnitStore
+import com.dzid26.teslable.ble.ActuationKey
 import com.dzid26.teslable.ble.BatteryPercent
 import com.dzid26.teslable.ble.BleUiState
 import com.dzid26.teslable.ble.ConnectionDisplay
@@ -162,6 +165,11 @@ internal fun CarScreen(
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
     onToggleTracking: (Boolean) -> Unit,
+    onSetChargeLimit: (Int) -> Unit,
+    onSetChargingAmps: (Int) -> Unit,
+    onStartCharging: () -> Unit,
+    onStopCharging: () -> Unit,
+    onActionFeedbackShown: () -> Unit,
     // Injectable for the Paparazzi snapshots; production call sites use the
     // default, which keeps the same ticking clocks as before.
     nowMillis: Long? = null,
@@ -238,6 +246,20 @@ internal fun CarScreen(
             refreshing = false
         }
     }
+    val snackbarHostState = remember { SnackbarHostState() }
+    var quietFailure by remember { mutableStateOf<ActuationKey?>(null) }
+    val feedback = state.actionFeedback
+    val snackbarText = feedback?.takeIf { it.key.reportsInSnackbar }?.let { stringResource(it.message()) }
+    LaunchedEffect(feedback) {
+        if (feedback == null || !feedback.key.reportsInSnackbar) return@LaunchedEffect
+        snackbarHostState.showSnackbar(snackbarText ?: return@LaunchedEffect)
+        onActionFeedbackShown()
+    }
+    LaunchedEffect(feedback) {
+        val quiet = feedback?.takeIf { !it.key.reportsInSnackbar } ?: return@LaunchedEffect
+        quietFailure = quiet.key
+        onActionFeedbackShown()
+    }
     Scaffold(
         modifier = Modifier.countingTouches(),
         topBar = {
@@ -290,6 +312,7 @@ internal fun CarScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         val pullState = rememberPullToRefreshState()
         val screenContext = LocalContext.current
@@ -373,6 +396,30 @@ internal fun CarScreen(
                     // nothing to do.
                     if (!paired) {
                         KeyCard(connection, vehicle, onPair)
+                    }
+                    val charge = connection?.charge
+                    val showChargeControls =
+                        paired &&
+                            vehicle?.hasSessionVin == true &&
+                            connection?.phase == ConnectionPhase.READY &&
+                            showsChargeControls(charge)
+                    LaunchedEffect(showChargeControls) {
+                        if (!showChargeControls) quietFailure = null
+                    }
+                    if (connection != null && charge != null && showChargeControls) {
+                        ChargeControlsCard(
+                            charge = charge,
+                            actuating = connection.actuating,
+                            failure = quietFailure,
+                            actions =
+                                ChargeControlActions(
+                                    setLimit = onSetChargeLimit,
+                                    setAmps = onSetChargingAmps,
+                                    start = onStartCharging,
+                                    stop = onStopCharging,
+                                    clearFailure = { quietFailure = null },
+                                ),
+                        )
                     }
                     val liveRoute = activeRoute(vehicle?.let { routes[it.bleName] }, nowMillis ?: rememberNowMillis())
                     TripSection(

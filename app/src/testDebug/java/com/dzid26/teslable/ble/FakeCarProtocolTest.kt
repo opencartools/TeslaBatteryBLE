@@ -5,6 +5,7 @@ package com.dzid26.teslable.ble
 import com.dzid26.teslable.protocol.AntiReplayWindow
 import com.dzid26.teslable.protocol.ChargingStateKind
 import com.dzid26.teslable.protocol.ShiftStateKind
+import com.dzid26.teslable.protocol.TeslaChargeCommands
 import com.dzid26.teslable.protocol.TeslaCommands
 import com.dzid26.teslable.protocol.TeslaCrypto
 import com.dzid26.teslable.protocol.TeslaKeys
@@ -29,6 +30,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.tesla.generated.carserver.server.OperationStatus_E as CarServerStatus
 
 /**
  * Round-trips the simulated car against the real client code: every request is
@@ -156,6 +158,53 @@ class FakeCarProtocolTest {
     }
 
     @Test
+    fun chargeLimitIsAcknowledgedAndStored() {
+        val session = session(Domain.DOMAIN_INFOTAINMENT)
+        val reply = authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaChargeCommands.buildChargeLimitRequest(HIGH_CHARGE_LIMIT))
+
+        assertEquals(CarServerStatus.OPERATIONSTATUS_OK, TeslaCommands.parseActionStatus(reply))
+        assertEquals(HIGH_CHARGE_LIMIT, protocol.chargeLimit)
+        val charge =
+            TeslaCommands.parseChargeState(
+                authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaCommands.buildChargeStateRequest()),
+            )
+        assertEquals(HIGH_CHARGE_LIMIT, charge?.charge_limit_soc)
+    }
+
+    @Test
+    fun chargingAmpsAreAcknowledgedAndStored() {
+        val session = session(Domain.DOMAIN_INFOTAINMENT)
+        val reply = authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaChargeCommands.buildChargingAmpsRequest(CURRENT_AMPS))
+
+        assertEquals(CarServerStatus.OPERATIONSTATUS_OK, TeslaCommands.parseActionStatus(reply))
+        assertEquals(CURRENT_AMPS, protocol.chargingAmps)
+        val charge =
+            TeslaCommands.parseChargeState(
+                authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaCommands.buildChargeStateRequest()),
+            )
+        assertEquals(CURRENT_AMPS, charge?.charge_current_request)
+    }
+
+    @Test
+    fun startAndStopChargingChangeTheState() {
+        val session = session(Domain.DOMAIN_INFOTAINMENT)
+        val startReply = authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaChargeCommands.buildChargeStartRequest())
+        assertEquals(CarServerStatus.OPERATIONSTATUS_OK, TeslaCommands.parseActionStatus(startReply))
+        val started =
+            TeslaCommands.parseChargeState(
+                authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaCommands.buildChargeStateRequest()),
+            )
+        assertEquals(ChargingStateKind.Charging, started?.chargingStateKind)
+
+        authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaChargeCommands.buildChargeStopRequest())
+        val stopped =
+            TeslaCommands.parseChargeState(
+                authenticated(session, Domain.DOMAIN_INFOTAINMENT, TeslaCommands.buildChargeStateRequest()),
+            )
+        assertEquals(ChargingStateKind.Disconnected, stopped?.chargingStateKind)
+    }
+
+    @Test
     fun `drive decrypts to a parked drive state stamped by the car`() {
         val session = session(Domain.DOMAIN_INFOTAINMENT)
         val plaintext =
@@ -252,6 +301,11 @@ class FakeCarProtocolTest {
         authenticated(session, Domain.DOMAIN_VEHICLE_SECURITY, TeslaCommands.buildWakeRequest())
         protocol.dischargeOnePercent()
         assertEquals(77, protocol.batteryLevel)
+    }
+
+    private companion object {
+        const val HIGH_CHARGE_LIMIT = 90
+        const val CURRENT_AMPS = 24
     }
 
     private fun session(domain: Domain): TeslaSession {

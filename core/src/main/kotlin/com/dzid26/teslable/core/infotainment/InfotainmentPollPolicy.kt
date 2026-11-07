@@ -201,6 +201,12 @@ class InfotainmentPollPolicy {
         if (moved) tireReadAfterMove = true
     }
 
+    /** The replies a read starting at [nowMillis] expects: charge, drive, closures, climate, and the optional reads. */
+    fun expectedReplies(nowMillis: Long): Int =
+        BASE_READ_REPLIES +
+            (if (wantsLocation(nowMillis)) 1 else 0) +
+            (if (wantsTirePressure(nowMillis)) 1 else 0)
+
     /**
      * Feeds one VCSEC status and answers whether an Infotainment read is due now. Returns true at
      * most once per due read: it records the read, so the caller must then send it. With
@@ -290,6 +296,9 @@ class InfotainmentPollPolicy {
     companion object {
         /** Reads while active or holding, matching the VCSEC status cadence. */
         const val READ_INTERVAL_MS = 10_000L
+
+        /** Charge, drive, closures and climate: the replies every read waits for. */
+        private const val BASE_READ_REPLIES = 4
 
         /** How long after a status change reads continue while the person is in or near the car. */
         const val HOLD_PRESENT_MS = 600_000L
