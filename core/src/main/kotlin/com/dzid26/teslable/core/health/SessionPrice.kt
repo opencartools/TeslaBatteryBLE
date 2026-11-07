@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.core.health
 
-import kotlin.math.abs
-
 /** How the car charged: through its own charger from AC, or from a DC fast charger. */
 enum class ChargerKind { AC, DC }
 
@@ -27,101 +25,100 @@ fun SessionPrice.cost(energyAddedKwh: Float?): Float? =
     }
 
 /**
- * The price the owner set for one charge session, as `owner.db` keeps it: the only part of a session the owner
- * edits, with the currency it is in. [startMillis] and [endMillis] are the session's as last cut: an override
- * belongs to the stored session it overlaps, not to an exact start, so a re-cut that moves a session by a reading
- * keeps its price. A session without one takes the automatic price, worked out when it is read.
+ * One charge session's price as `owner.db` keeps it, so a finished session's cost never changes after the fact:
+ * the automatic price frozen when the session was finished, or the owner's edit ([byOwner]). [price] null is an
+ * empty price, kept as such (a charge away from home or work that the owner did not price). [startMillis] and
+ * [endMillis] are the session's as last cut: a stored price belongs to the session it overlaps, not to an exact
+ * start, since a re-cut can move a session's start by a reading.
  */
-data class ChargePriceOverride(
+data class StoredChargePrice(
     val vehicleId: String,
     val startMillis: Long,
     val endMillis: Long,
-    val price: SessionPrice,
-    /** The ISO 4217 code, resolved when the owner set it: a backup restored on a phone of another locale keeps it. */
+    /**
+     * Null is empty. An empty automatic price means unpriced (a DC charge, or none set yet), which a later source such
+     * as the car's own Supercharger cost may fill; an empty edit is the owner's choice and is never filled.
+     */
+    val price: SessionPrice?,
+    /** The ISO 4217 code, resolved when stored: a backup restored on a phone of another locale keeps it. */
+    val currencyCode: String,
+    val byOwner: Boolean,
+    /**
+     * Where the car charged: one of [ChargePlace] or the owner's own name for it; null when not known. A name the owner
+     * types that equals a [ChargePlace] means that place.
+     */
+    val place: String? = null,
+)
+
+/** The places a session's price comes from; the owner can also name a place of their own. */
+object ChargePlace {
+    const val HOME = "Home"
+    const val WORK = "Work"
+    const val SUPERCHARGER = "Supercharger"
+}
+
+/** What a new session is priced at when nobody priced it: the home price changes, and the currency to store. */
+data class PriceDefaults(
+    val homeChanges: List<PriceChange>,
     val currencyCode: String,
 )
 
-/**
- * Which of [overrides] belongs to each of [sessions] (one car, both oldest first). A pair matches when they
- * overlap, their ends stretched by [MATCH_SLACK_MILLIS] so a session of a single reading still finds its own. The
- * best pairs are taken first, across all sessions: the longest overlap, then the nearest start. So of two charges
- * minutes apart, each keeps its own override. Each override goes to one session at most; one that matches none is
- * kept for the owner, never dropped.
- */
-fun matchOverrides(
-    sessions: List<ChargeSession>,
-    overrides: List<ChargePriceOverride>,
-): List<ChargePriceOverride?> {
-    val pairs =
-        sessions.indices.flatMap { s ->
-            overrides.indices.mapNotNull { o -> MatchPair(s, o, sessions[s], overrides[o]).takeIf { it.overlaps } }
-        }
-    val matched = arrayOfNulls<ChargePriceOverride>(sessions.size)
-    val taken = BooleanArray(overrides.size)
-    pairs.sortedWith(compareByDescending<MatchPair> { it.overlap }.thenBy { it.startGap }).forEach { pair ->
-        if (matched[pair.session] == null && !taken[pair.override]) {
-            matched[pair.session] = overrides[pair.override]
-            taken[pair.override] = true
-        }
-    }
-    return matched.toList()
-}
-
-private class MatchPair(
-    val session: Int,
-    val override: Int,
-    s: ChargeSession,
-    o: ChargePriceOverride,
-) {
-    val overlaps = o.startMillis <= s.endMillis + MATCH_SLACK_MILLIS && o.endMillis >= s.startMillis - MATCH_SLACK_MILLIS
-    val overlap = minOf(o.endMillis, s.endMillis) - maxOf(o.startMillis, s.startMillis)
-    val startGap = abs(o.startMillis - s.startMillis)
-}
+/** A session's price for the screens, in [currencyCode]; null currency is the one chosen in settings. */
+data class ChargeSessionPrice(
+    val price: SessionPrice?,
+    val currencyCode: String?,
+    val byOwner: Boolean,
+    val place: String?,
+)
 
 /**
- * The overrides of one car whose session moved in a re-cut, at the session's new start and end: the old ones to
- * replace and their moved copies. Matching tolerates a shift, but keeping the times in step stops shifts adding up.
+ * The automatic price of [session]: [homePricePerKwh], the home price in effect when it ran (`pricesForSessions`).
+ * There is no location yet, so every charge is taken as home except a DC one, since a fast charger is never at home:
+ * that stays empty until the car's own Supercharger cost is read.
  */
-fun movedOverrides(
-    sessions: List<ChargeSession>,
-    overrides: List<ChargePriceOverride>,
-): List<Pair<ChargePriceOverride, ChargePriceOverride>> =
-    sessions.zip(matchOverrides(sessions, overrides)).mapNotNull { (session, override) ->
-        override
-            ?.takeIf { it.startMillis != session.startMillis || it.endMillis != session.endMillis }
-            ?.let { it to it.copy(startMillis = session.startMillis, endMillis = session.endMillis) }
-    }
-
-/**
- * The price a session is billed at: the owner's [override] when there is one, else the automatic price. For now
- * that is [homePricePerKwh], the home price in effect when the session ran (`pricesForSessions`), so changing the
- * home price never re-prices past sessions; a DC session has none until the car's own fast-charging cost is read.
- * Place defaults follow once the car's location is.
- */
-fun sessionPrice(
+fun automaticPrice(
     session: ChargeSession,
-    override: ChargePriceOverride?,
     homePricePerKwh: Float?,
 ): SessionPrice? =
-    override?.price
-        ?: homePricePerKwh
-            ?.takeIf { session.chargerKind != ChargerKind.DC && it.isFinite() && it > 0f }
-            ?.let { SessionPrice.PerKwh(it) }
+    homePricePerKwh
+        ?.takeIf { session.chargerKind != ChargerKind.DC && it.isFinite() && it > 0f }
+        ?.let { SessionPrice.PerKwh(it) }
 
 /**
- * The price each of [sessions] (one car, oldest first) is billed at by [sessionPrice]: the owner's override matched
- * to it, else the home price that [homeChanges] had in effect for it (`pricesForSessions`). The one entry point the
+ * The price each of [sessions] (one car, oldest first) shows: its stored price, even an empty one, read by the exact
+ * start and end each build writes it at (`reconcilePrices`), else (the newest session, until a build stores it) the
+ * automatic price in the settings currency. The one entry point the
  * screens read, so a charge shows the same price everywhere.
  */
 fun sessionPrices(
     sessions: List<ChargeSession>,
-    overrides: List<ChargePriceOverride>,
+    stored: List<StoredChargePrice>,
     homeChanges: List<PriceChange>,
-): List<SessionPrice?> {
-    val matched = matchOverrides(sessions, overrides)
+): List<ChargeSessionPrice> {
+    val byShape = stored.associateBy { Triple(it.vehicleId, it.startMillis, it.endMillis) }
     val home = pricesForSessions(homeChanges, sessions)
-    return sessions.indices.map { sessionPrice(sessions[it], matched[it], home[it]) }
+    return sessions.indices.map { i ->
+        byShape[Triple(sessions[i].vehicleId, sessions[i].startMillis, sessions[i].endMillis)]?.let {
+            ChargeSessionPrice(
+                it.price,
+                it.currencyCode,
+                it.byOwner,
+                it.place,
+            )
+        }
+            ?: ChargeSessionPrice(automaticPrice(sessions[i], home[i]), null, byOwner = false, place = automaticPlace(sessions[i]))
+    }
 }
 
-/** How far apart an override and a session may lie and still be the same charge: a few of the history's charging reads. */
-private const val MATCH_SLACK_MILLIS = 5 * 60_000L
+internal fun overlaps(
+    session: ChargeSession,
+    row: StoredChargePrice,
+): Boolean = row.startMillis <= session.endMillis + MATCH_SLACK_MILLIS && row.endMillis >= session.startMillis - MATCH_SLACK_MILLIS
+
+internal fun overlap(
+    session: ChargeSession,
+    row: StoredChargePrice,
+): Long = minOf(row.endMillis, session.endMillis) - maxOf(row.startMillis, session.startMillis)
+
+/** How far apart a stored price and a session may lie and still be the same charge: a few of the history's charging reads. */
+internal const val MATCH_SLACK_MILLIS = 5 * 60_000L

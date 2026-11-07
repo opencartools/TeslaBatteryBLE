@@ -4,11 +4,11 @@ package com.dzid26.teslable.core.health
 import com.dzid26.teslable.core.history.BatterySample
 
 private const val EDIT_WINDOW_MILLIS = 5 * 60_000L
-private const val MAX_CHANGES = 50
 
 /**
  * [changes] plus [change]. Typing a price changes it with every key, so the earlier changes of that edit,
- * those within five minutes before [change], are replaced rather than kept. Only the newest fifty stay.
+ * those within five minutes before [change], are replaced rather than kept. Every other change stays: a re-cut
+ * session is priced again by the change of its own time, however old.
  */
 fun recordPriceChange(
     changes: List<PriceChange>,
@@ -16,7 +16,6 @@ fun recordPriceChange(
 ): List<PriceChange> =
     (changes.filter { it.atMillis < change.atMillis - EDIT_WINDOW_MILLIS } + change)
         .sortedBy { it.atMillis }
-        .takeLast(MAX_CHANGES)
 
 /**
  * The price a charge that ended at [chargeEndMillis] (the time of its last charging sample) was billed at: its

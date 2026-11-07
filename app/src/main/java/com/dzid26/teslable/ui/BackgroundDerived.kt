@@ -36,6 +36,40 @@ internal fun <T> rememberInBackground(
 }
 
 /**
+ * The last result of [inBackground] and the keys it was worked out for, held by a caller that outlives the composable
+ * computing it. A composable that leaves the screen and comes back (one axis of the history card while the other is
+ * shown) then shows its figures at once instead of nothing, and works them out again only if its keys changed.
+ */
+internal class BackgroundMemo<T> {
+    internal var keys: List<Any?>? = null
+    internal var value: T? = null
+}
+
+/**
+ * [rememberInBackground] that starts from this memo's last result rather than null, and skips the computation when
+ * [keys] are the ones that result was worked out for. Null only before the first result.
+ */
+@Composable
+internal fun <T> BackgroundMemo<T>.inBackground(
+    vararg keys: Any?,
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    compute: () -> T,
+): T? {
+    if (LocalInspectionMode.current) return remember(*keys) { compute() }
+    val latest by rememberUpdatedState(compute)
+    val result by produceState(value, *keys) {
+        val wanted = keys.toList()
+        if (this@inBackground.keys != wanted) {
+            val computed = withContext(dispatcher) { latest() }
+            this@inBackground.keys = wanted
+            this@inBackground.value = computed
+            value = computed
+        }
+    }
+    return result
+}
+
+/**
  * [value], passed on at most once each [intervalMillis]: the first value at once, then the newest one when the
  * interval is up. A value for which [isLoaded] is false (the logs while the store is still publishing them) starts
  * no pause, so the loaded one follows at once instead of waiting out the interval. For the figures that scan a

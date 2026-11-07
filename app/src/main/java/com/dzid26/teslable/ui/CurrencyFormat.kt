@@ -3,6 +3,8 @@ package com.dzid26.teslable.ui
 
 import androidx.compose.runtime.compositionLocalOf
 import com.dzid26.teslable.core.health.PriceChange
+import com.dzid26.teslable.currencyOrNull
+import com.dzid26.teslable.resolvedCurrencyCode
 import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Currency
@@ -16,23 +18,6 @@ internal val LocalPricePerKwh = compositionLocalOf<Float?> { null }
 
 /** Every price the owner set, for pricing a finished charge by the price in effect when it ended. */
 internal val LocalPriceChanges = compositionLocalOf<List<PriceChange>> { emptyList() }
-
-internal const val FALLBACK_CODE = "USD"
-
-/**
- * The currency for an ISO 4217 [code] such as "eur" or " usd ", or null when it is blank, not a code, or
- * not real money: pseudo codes (XXX, XTS) and funds or metals (XAU) have no fraction digits (negative).
- */
-internal fun currencyOrNull(code: String?): Currency? =
-    runCatching { Currency.getInstance(code?.trim()?.uppercase()) }.getOrNull()?.takeIf { it.defaultFractionDigits >= 0 }
-
-/** The phone's own currency, or null for a locale without a region (plain "en", root). */
-internal fun localeCurrencyOrNull(): Currency? =
-    runCatching { Currency.getInstance(Locale.getDefault()) }.getOrNull()?.takeIf { it.defaultFractionDigits >= 0 }
-
-/** The ISO 4217 code [code] stands for, resolved the way [currencyFormat] does: the code to store with a price. */
-internal fun resolvedCurrencyCode(code: String?): String =
-    (currencyOrNull(code) ?: localeCurrencyOrNull() ?: Currency.getInstance(FALLBACK_CODE)).currencyCode
 
 /**
  * A money formatter for [code]; blank or invalid follows the phone's currency, and USD when it has none.

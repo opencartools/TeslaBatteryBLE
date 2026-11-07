@@ -3,9 +3,12 @@
 package com.dzid26.teslable.history
 
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import com.dzid26.teslable.core.health.ChargePriceOverride
+import com.dzid26.teslable.core.health.ChargePlace
 import com.dzid26.teslable.core.health.ChargeSession
+import com.dzid26.teslable.core.health.PriceChange
+import com.dzid26.teslable.core.health.PriceDefaults
 import com.dzid26.teslable.core.health.SessionPrice
+import com.dzid26.teslable.core.health.StoredChargePrice
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -18,7 +21,8 @@ class ChargePriceStoreTest {
     val folder = TemporaryFolder()
 
     private val db by lazy { OwnerDatabase.inMemory(TestContext(folder.root), onMainThread = true, driver = BundledSQLiteDriver()) }
-    private val overrides = MutableStateFlow<List<ChargePriceOverride>>(emptyList())
+    private val prices = MutableStateFlow<List<StoredChargePrice>>(emptyList())
+    private val defaults = PriceDefaults(listOf(PriceChange(0, 0.2f)), "PLN")
 
     @After
     fun close() = db.close()
@@ -30,47 +34,54 @@ class ChargePriceStoreTest {
     ) = ChargeSession(start, end, 40f, 80f, 20f, null, vehicleId = car)
 
     @Test
-    fun `an edited price replaces the session's earlier one and survives a reopen`() {
-        val store = ChargePriceStore(db, overrides)
-        val charge = session(HOUR, 3 * HOUR)
-        store.set(charge, SessionPrice.PerKwh(0.30f), "EUR")
-        store.set(charge.copy(startMillis = HOUR + MINUTE), SessionPrice.Total(7f), "PLN")
+    fun `a build freezes every finished session, and an edit replaces its price and survives a reopen`() {
+        val store = ChargePriceStore(db, prices)
+        val first = session(HOUR, 3 * HOUR)
+        store.follow(listOf(first, session(10 * HOUR, 11 * HOUR)), defaults)
+        store.set(first, SessionPrice.Total(7f), "EUR", ChargePlace.SUPERCHARGER)
 
-        ChargePriceStore(db, overrides)
+        ChargePriceStore(db, prices)
 
         assertEquals(
-            listOf(ChargePriceOverride("carA", HOUR + MINUTE, 3 * HOUR, SessionPrice.Total(7f), "PLN")),
-            overrides.value,
+            listOf(
+                StoredChargePrice("carA", HOUR, 3 * HOUR, SessionPrice.Total(7f), "EUR", byOwner = true, ChargePlace.SUPERCHARGER),
+            ),
+            prices.value,
         )
     }
 
     @Test
-    fun `clearing takes the session back to the automatic price`() {
-        val store = ChargePriceStore(db, overrides)
-        val charge = session(HOUR, 3 * HOUR)
-        store.set(charge, SessionPrice.PerKwh(0.30f), "EUR")
+    fun `clearing an edit freezes the automatic price again at the next build`() {
+        val store = ChargePriceStore(db, prices)
+        val first = session(HOUR, 3 * HOUR)
+        val sessions = listOf(first, session(10 * HOUR, 11 * HOUR))
+        store.set(first, null, "EUR", null)
 
-        store.clear(charge)
+        store.clear(first)
+        store.follow(sessions, defaults)
 
-        assertEquals(emptyList<ChargePriceOverride>(), overrides.value)
+        assertEquals(
+            listOf(StoredChargePrice("carA", HOUR, 3 * HOUR, SessionPrice.PerKwh(0.2f), "PLN", byOwner = false, ChargePlace.HOME)),
+            prices.value,
+        )
     }
 
     @Test
-    fun `a re-cut session keeps its price and an override with no session stays`() {
-        val store = ChargePriceStore(db, overrides)
-        store.set(session(HOUR, 3 * HOUR), SessionPrice.PerKwh(0.30f), "EUR")
-        store.set(session(10 * HOUR, 11 * HOUR), SessionPrice.Total(5f), "EUR")
-        store.set(session(HOUR, 2 * HOUR, car = "carB"), SessionPrice.Total(9f), "PLN")
+    fun `a re-cut moves stored prices, keeps one with no session and leaves other cars alone`() {
+        val store = ChargePriceStore(db, prices)
+        store.set(session(HOUR, 3 * HOUR), SessionPrice.PerKwh(0.30f), "EUR", ChargePlace.WORK)
+        store.set(session(20 * HOUR, 21 * HOUR), SessionPrice.Total(5f), "EUR", "Gym")
+        store.set(session(HOUR, 2 * HOUR, car = "carB"), SessionPrice.Total(9f), "PLN", null)
 
-        store.follow(listOf(session(HOUR + MINUTE, 4 * HOUR), session(HOUR, 2 * HOUR, car = "carB")))
+        store.follow(listOf(session(HOUR + MINUTE, 4 * HOUR), session(10 * HOUR, 11 * HOUR)), defaults)
 
         assertEquals(
             setOf(
-                ChargePriceOverride("carA", HOUR + MINUTE, 4 * HOUR, SessionPrice.PerKwh(0.30f), "EUR"),
-                ChargePriceOverride("carA", 10 * HOUR, 11 * HOUR, SessionPrice.Total(5f), "EUR"),
-                ChargePriceOverride("carB", HOUR, 2 * HOUR, SessionPrice.Total(9f), "PLN"),
+                StoredChargePrice("carA", HOUR + MINUTE, 4 * HOUR, SessionPrice.PerKwh(0.30f), "EUR", byOwner = true, ChargePlace.WORK),
+                StoredChargePrice("carA", 20 * HOUR, 21 * HOUR, SessionPrice.Total(5f), "EUR", byOwner = true, "Gym"),
+                StoredChargePrice("carB", HOUR, 2 * HOUR, SessionPrice.Total(9f), "PLN", byOwner = true),
             ),
-            overrides.value.toSet(),
+            prices.value.toSet(),
         )
     }
 

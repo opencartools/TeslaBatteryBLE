@@ -1,6 +1,6 @@
 # ADR-0014: Room storage for raw records and derived data
 
-Status: Proposed (raw records in `history.db`, the long-term samples and sessions in `derived.db`, and the owner's charge prices in `owner.db` landed; places are open)
+Status: Proposed (raw records in `history.db`, the long-term samples and sessions in `derived.db`, and every charge session's price in `owner.db` landed; place locations are open)
 Date: 2026-10-21
 Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
 
@@ -60,10 +60,13 @@ Related: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012
   - `events.db` (not backed up): the phone's own logs, above.
   - `owner.db` (backed up, journal mode TRUNCATE so the backed-up file is whole): what the owner entered,
     the only data that cannot be rebuilt. Schema export is binding from the first normal release. It holds
-    only the owner's edits, such as a charge session's price, matched to the derived session by time overlap
-    because a re-cut can shift a session's start; the automatic price is worked out when it is read. The readings
-    are not backed up, so on a new phone the restored edits wait, kept, until the logs are imported; restored
-    costs do not show before that. A currency is stored as its code, never as "the locale's".
+    every finished charge session's price with its place (Home, Work, Supercharger or the owner's own name): the
+    automatic price frozen when the session finished, or the owner's edit, so later rule or setting changes never
+    re-price the past. A price is matched to the derived session by time overlap, because a re-cut can shift a
+    session's start; on a re-cut join the owner's edit wins and totals add up, and on a split a total is shared by
+    energy. The GPS position, which can be rebuilt, belongs with the session in `derived.db`. The readings are not
+    backed up, so on a new phone the restored prices wait, kept, until the logs are imported. A currency is stored
+    as its code, never as "the locale's".
   - `derived.db` (not backed up, versioned): the thinned long-term samples the charts and stats read, and later
     session and day summaries per ADR-0012, stored as plain columns. Rebuildable from the raw records only while they cover the period; once raw ages out, the
     summaries are the only copy.
