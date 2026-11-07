@@ -97,15 +97,6 @@ private fun AppCard() {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (BuildConfig.PR_NUMBER.isNotEmpty()) {
-                val context = LocalContext.current
-                Text(
-                    text = stringResource(R.string.about_pr_build, BuildConfig.PR_NUMBER),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { openUrl(context, "$SOURCE_URL/pull/${BuildConfig.PR_NUMBER}") },
-                )
-            }
             Spacer(Modifier.height(12.dp))
             Text(
                 text = stringResource(R.string.about_description),
@@ -116,8 +107,12 @@ private fun AppCard() {
 }
 
 @Composable
-private fun LinksCard() {
+internal fun LinksCard(prNumber: String = BuildConfig.PR_NUMBER) {
     SectionCard(title = stringResource(R.string.about_links)) {
+        // Only a CI pull request build knows its PR.
+        if (prNumber.isNotEmpty()) {
+            LinkRow(stringResource(R.string.about_pr_build, prNumber), "$SOURCE_URL/pull/$prNumber")
+        }
         LinkRow(stringResource(R.string.about_source_code), SOURCE_URL)
         LinkRow(stringResource(R.string.about_releases), RELEASES_URL)
         LinkRow(stringResource(R.string.about_privacy), PRIVACY_URL)

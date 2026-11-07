@@ -169,6 +169,7 @@ android {
             if (ciDebugBuild) {
                 applicationIdSuffix = ".pr"
                 manifestPlaceholders["appLabel"] = "TeslaBatteryBLE PR$ciPrNumber"
+                // BUILD_LABEL and PR_NUMBER both come from the one ciPrNumber, so they cannot drift apart.
                 buildConfigField("String", "BUILD_LABEL", "\"${if (ciPrNumber.isEmpty()) "PR build" else "PR $ciPrNumber"}\"")
                 buildConfigField("String", "PR_NUMBER", "\"$ciPrNumber\"")
             }
