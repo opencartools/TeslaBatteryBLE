@@ -37,6 +37,13 @@ import com.dzid26.teslable.history.FullRangeScales
 import java.text.DecimalFormatSymbols
 import java.util.Locale
 
+/** What the distance axis keeps while the time axis is shown: the chosen window and its last figures. */
+internal class DistanceAxisMemory(
+    val window: MutableState<DriveWindow>,
+) {
+    val figures = BackgroundMemo<DriveFigures>()
+}
+
 /**
  * The history card's distance axis: battery percent over distance driven, the
  * counterpart of the time axis. Percent is the sub-percent SOC
@@ -50,22 +57,23 @@ import java.util.Locale
 internal fun DistanceHistory(
     samples: List<BatterySample>,
     drives: List<DriveSample>,
-    // The chosen window, held by the history card so it survives a switch of axis; production opens on the middle one.
-    windowState: MutableState<DriveWindow> = remember { mutableStateOf(DriveWindow.MEDIUM) },
+    // The chosen window and the last figures, held by the history card so a switch of axis and back finds both.
+    memory: DistanceAxisMemory = remember { DistanceAxisMemory(mutableStateOf(DriveWindow.MEDIUM)) },
     // The fitted full-range scale; the car screen fits it once for all its cards.
     scale: FullRangeScale? = remember(samples) { FullRangeScales.of(samples) },
     // The learned rated constant (kWh per rated mile); null hides the energy and efficiency stats.
     ratedKwhPerMile: Float? = null,
 ) {
-    var window by windowState
+    var window by memory.window
     // A new window starts unzoomed; a tap on the window already chosen zooms back out.
     val viewport = rememberChartViewport(window)
     val unit = LocalDistanceUnit.current
     val pricePerKwh = LocalPricePerKwh.current
     // Up to 20k samples: matched off the main thread, and only when the data or the window changes. The card shows once
-    // the first match is in; a later change keeps the previous chart up until the next one is ready.
+    // the first match is in; a later change, or a switch back from the time axis, keeps the previous chart up until the
+    // next one is ready.
     val figures =
-        rememberInBackground(null, samples, drives, window, unit, scale, ratedKwhPerMile, pricePerKwh) {
+        memory.figures.inBackground(samples, drives, window, unit, scale, ratedKwhPerMile, pricePerKwh) {
             val points = drivePoints(samples, drives, scale, window.miles(unit), window.sinceLastCharge)
             DriveFigures(
                 plotted =
@@ -111,7 +119,7 @@ internal fun DistanceHistory(
 }
 
 /** What the drive history card plots and sums for one window. */
-private class DriveFigures(
+internal class DriveFigures(
     val plotted: List<Plotted>,
     val used: Float,
     val stats: DriveStats?,
