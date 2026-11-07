@@ -3,10 +3,10 @@
 
 Date: 2026-10-04 (proto rev: a4b43c1eff0e09d77deb9f2dce97031141fe8c8a)
 
-Pinned protos: `core/src/main/proto/*.proto` (rev recorded in
-`core/src/main/proto/TESLA_COMMIT`). Go reference: `teslamotors/vehicle-command`
-at the same rev (paths below are `pkg/vehicle/*.go`, `pkg/protocol/*.md` in
-that repo unless stated otherwise).
+Pinned protos: `protocol/src/main/proto/*.proto` (rev recorded in
+`protocol/src/main/proto/TESLA_COMMIT`). Go reference: `opencartools/vehicle-command`
+(our fork) at the same rev (paths below are `pkg/vehicle/*.go`, `pkg/protocol/*.md`
+in that repo unless stated otherwise).
 
 ## Summary (max 6 bullets)
 
@@ -79,7 +79,7 @@ Also in `common.proto`: `ChargeSchedule`, `PreconditionSchedule`,
 
 ## Battery-relevant reads in detail
 
-All fields below are in `ChargeState`, `core/src/main/proto/vehicle.proto`
+All fields below are in `ChargeState`, `protocol/src/main/proto/vehicle.proto`
 (~field 1–178). Every scalar is `oneof optional_*` = **omitted when the car
 has nothing to report**, so absence ≠ zero. Field numbers in parentheses.
 
@@ -249,14 +249,15 @@ Verified by case-insensitive search of all pinned `*.proto` for each term
 
 ## Sources (numbered, URLs/paths, accessed 2026-10-04)
 
-1. Pinned protos `core/src/main/proto/vehicle.proto` (esp. `ChargeState`
+1. Pinned protos `protocol/src/main/proto/vehicle.proto` (esp. `ChargeState`
    fields 1–178, `DriveState`, `ClimateState`, `VehicleData`), `vcsec.proto`
    (`UnsignedMessage`, `RKEAction_E`, `VehicleStatus`), `car_server.proto`
    (`VehicleAction` oneof, `GetVehicleData`, all `*Action` messages),
    `universal_message.proto` (`Domain`, `RoutableMessage`, `MessageFault_E`,
    `Flags`), `keys.proto` (`Role`), `signatures.proto`, `errors.proto`,
    `common.proto`, `managed_charging.proto`; rev
-   `core/src/main/proto/TESLA_COMMIT` = `a4b43c1…8c8a`.
+   `protocol/src/main/proto/TESLA_COMMIT` = `a4b43c1…8c8a` when catalogued, now
+   `e337e1a…846f`.
 2. `https://github.com/teslamotors/vehicle-command/blob/a4b43c1eff0e09d77deb9f2dce97031141fe8c8a/pkg/protocol/protocol.md` — GATT UUIDs, framing/chunk note, domains, roles, VCSEC connection limits, request/response + retry semantics.
 3. `…/pkg/vehicle/state.go` — `BodyControllerState` works asleep;
    12 `StateCategory` values; `GetState` doc (BLE one-category vs Fleet API
@@ -280,7 +281,7 @@ Verified by case-insensitive search of all pinned `*.proto` for each term
 12. `docs/adr/0001-battery-tracker.md` (ADR-0001) — GATT IDs, MTU 256, NFC-tap
     pairing, CHARGING_MANAGER default, ~10 s polling, never-wake-to-read.
 13. Negative evidence: `grep -in "pack|cell|…|subscri|stream|telemetry|…"
-    core/src/main/proto/*.proto` → no matches (2026-10-04); field
+    protocol/src/main/proto/*.proto` → no matches (2026-10-04); field
     enumerations above double as positive evidence of what *is* present.
 
 ## Confidence & gaps

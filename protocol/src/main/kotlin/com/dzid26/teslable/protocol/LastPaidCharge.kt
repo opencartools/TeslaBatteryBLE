@@ -5,7 +5,7 @@ package com.dzid26.teslable.protocol
 import com.tesla.generated.carserver.vehicle.ChargeState
 
 /**
- * The car's summary of its last paid charge (a Supercharger session), as the car shows it with its invoice. It stays
+ * The car's summary of its last paid charge (a paid charging session), as the car shows it with its invoice. It stays
  * the same in every reply until the next paid charge. The car sends no energy or duration for it.
  */
 data class LastPaidCharge(

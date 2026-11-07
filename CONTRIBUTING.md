@@ -27,7 +27,7 @@ find it (`sdk.dir=...`).
 | `core/` | Battery domain (history, health, the app's log records) on top of `protocol`. **No Android dependencies.** |
 | `app/` | Compose UI, BLE integration, foreground service, storage. |
 | `app/src/debug/` | Simulated car for development and screenshots (no hardware needed). |
-| `tools/go-fixtures/` | Fixture generator diffed against `teslamotors/vehicle-command` in CI. |
+| `tools/go-fixtures/` | Fixture generator diffed against the pinned `opencartools/vehicle-command` fork in CI. |
 | `docs/` | Master plan, ADRs, protocol notes, research. |
 
 ## Test expectations

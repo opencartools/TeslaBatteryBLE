@@ -1,17 +1,18 @@
 # Protocol notes
 
 How TeslaBatteryBLE talks to a Tesla over Bluetooth LE. Implemented in
-[`core/`](../../core) and wired to Android BLE in [`app/`](../../app). Verified
+[`protocol/`](../../protocol) and wired to Android BLE in [`app/`](../../app). Verified
 against Tesla's [`vehicle-command`](https://github.com/teslamotors/vehicle-command),
 through our fork [`opencartools/vehicle-command`](https://github.com/opencartools/vehicle-command)
 that adds the fields the car sends and Tesla's protos lack (the proto revision is
 pinned in [`protocol/src/main/proto/TESLA_COMMIT`](../../protocol/src/main/proto/TESLA_COMMIT)).
 
-To bump the protos, merge the change in the fork, write the new commit hash to
-`TESLA_COMMIT`, copy `vehicle.proto` and `signatures.proto` (and any other proto
-the build lists) from `pkg/protocol/protobuf` at that commit, then regenerate
+To bump the protos, rebase the fork's `main` on `teslamotors/main`, merge the change
+there, write the new commit hash to `TESLA_COMMIT`, copy all nine `.proto` files from
+`pkg/protocol/protobuf` at that commit, then regenerate
 `docs/reference/fleet-telemetry-vs-ble.md` with `tools/signal-matrix/generate.py`.
-CI's go-vectors job and the generated-doc check fail if any of these is stale.
+CI's go-vectors job diffs the copies against the pin, and the generated-doc check
+fails if the matrix is stale.
 
 ## Transport
 
