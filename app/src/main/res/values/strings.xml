@@ -217,11 +217,9 @@
     <string name="charge_controls_start">Start charging</string>
     <string name="charge_controls_start_failed">Couldn\'t start charging.</string>
     <string name="charge_controls_started">Charging started.</string>
-    <string name="charge_controls_starting">Starting charging\u2026</string>
     <string name="charge_controls_stop">Stop charging</string>
     <string name="charge_controls_stop_failed">Couldn\'t stop charging.</string>
     <string name="charge_controls_stopped">Charging stopped.</string>
-    <string name="charge_controls_stopping">Stopping charging\u2026</string>
     <string name="charge_controls_title">Charging</string>
     <string name="charge_session_average_label">average</string>
     <string name="charge_session_cost_label">%1$skWh added</string>

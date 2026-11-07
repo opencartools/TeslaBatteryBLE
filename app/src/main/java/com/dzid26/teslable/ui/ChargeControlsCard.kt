@@ -52,9 +52,22 @@ internal fun ChargeControlsCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(stringResource(R.string.charge_controls_title), style = MaterialTheme.typography.titleMedium)
-            ChargeLimitRow(charge, actuating, failure, actions)
-            ChargeCurrentRow(charge, actuating, failure, actions)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.charge_controls_title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                // One card-level busy state: any queued or in-flight control turns this.
+                if (actuating.isNotEmpty()) {
+                    BusySpinner(size = 16.dp)
+                }
+            }
+            ChargeLimitRow(charge, failure, actions)
+            ChargeCurrentRow(charge, failure, actions)
             ChargeButtonRow(button, actuating, actions)
             ChargeFailureLine(failure)
         }
@@ -65,7 +78,6 @@ internal fun ChargeControlsCard(
 @Composable
 private fun ChargeLimitRow(
     charge: ChargeState,
-    actuating: Set<ActuationKey>,
     failure: ActuationKey?,
     actions: ChargeControlActions,
 ) {
@@ -87,7 +99,6 @@ private fun ChargeLimitRow(
             value = stringResource(R.string.charge_controls_percent, shown),
             canDecrease = shown > range.first,
             canIncrease = shown < range.last,
-            pending = ActuationKey.CHARGE_LIMIT in actuating,
             decreaseLabel = stringResource(R.string.charge_controls_limit_decrease),
             increaseLabel = stringResource(R.string.charge_controls_limit_increase),
             onDecrease = {
@@ -110,7 +121,6 @@ private fun ChargeLimitRow(
 @Composable
 private fun ChargeCurrentRow(
     charge: ChargeState,
-    actuating: Set<ActuationKey>,
     failure: ActuationKey?,
     actions: ChargeControlActions,
 ) {
@@ -132,7 +142,6 @@ private fun ChargeCurrentRow(
             value = stringResource(R.string.charge_controls_amps, shown),
             canDecrease = shown > minOf(MIN_CHARGING_AMPS, max),
             canIncrease = shown < max,
-            pending = ActuationKey.CHARGING_AMPS in actuating,
             decreaseLabel = stringResource(R.string.charge_controls_current_decrease),
             increaseLabel = stringResource(R.string.charge_controls_current_increase),
             onDecrease = {
@@ -199,7 +208,6 @@ private data class Stepper(
     val value: String,
     val canDecrease: Boolean,
     val canIncrease: Boolean,
-    val pending: Boolean,
     val decreaseLabel: String,
     val increaseLabel: String,
     val onDecrease: () -> Unit,
@@ -238,13 +246,6 @@ private fun StepperRow(step: Stepper) {
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                 )
-                if (step.pending) {
-                    Text(
-                        text = "\u2026",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
         }
         IconButton(onClick = step.onIncrease, enabled = step.canIncrease) {
@@ -263,19 +264,12 @@ private fun ControlButton(
     pending: Boolean,
     onClick: () -> Unit,
 ) {
-    val label =
-        when {
-            start && pending -> R.string.charge_controls_starting
-            start -> R.string.charge_controls_start
-            pending -> R.string.charge_controls_stopping
-            else -> R.string.charge_controls_stop
-        }
     FilledTonalButton(
         onClick = onClick,
         enabled = !pending,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(stringResource(label))
+        Text(stringResource(if (start) R.string.charge_controls_start else R.string.charge_controls_stop))
     }
 }
 
