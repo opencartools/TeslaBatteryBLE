@@ -43,9 +43,9 @@ import kotlin.math.roundToInt
 
 /**
  * The charge sessions, one at a time: a selector by start time and cost (or energy without a price), and for
- * the chosen session its cost, duration and average power in big type, the level it went from and to, and
+ * the chosen session its duration, average power and cost in big type (the cost last, like the trip card), the level it went from and to, and
  * the rated range it added. The cost is the energy the car added times the home price in effect for that
- * session (the rule of `priceForCharge`), like the trip card's; without a price the energy shows instead.
+ * session (see `pricesForSessions`), like the trip card's; without a price the energy shows instead.
  * A session the car reported no energy for shows what it has. Shows nothing until there is a session. [sessions] are
  * oldest first; the newest is open by default.
  */
@@ -54,7 +54,8 @@ import kotlin.math.roundToInt
 internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
     if (sessions.isEmpty()) return
     var selectedStart by rememberSaveable { mutableStateOf<Long?>(null) }
-    val session = sessions.firstOrNull { it.startMillis == selectedStart } ?: sessions.last()
+    val selectedIndex = sessions.indexOfFirst { it.startMillis == selectedStart }.takeIf { it >= 0 } ?: sessions.lastIndex
+    val session = sessions[selectedIndex]
     val unit = LocalDistanceUnit.current
     val currencyCode = LocalCurrencyCode.current
     val priceChanges = LocalPriceChanges.current
@@ -62,15 +63,18 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
         remember(sessions, priceChanges) {
             sessions.zip(pricesForSessions(priceChanges, sessions)) { charge, price -> chargeSessionCost(charge.energyAddedKwh, price) }
         }
-    val cost = costs[sessions.indexOf(session)]
+    val cost = costs[selectedIndex]
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(stringResource(R.string.charge_sessions_title_count, sessions.size), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
-            ChargeSessionSelector(sessions.zip(costs).asReversed(), session, currencyCode) { selectedStart = it.startMillis }
+            ChargeSessionSelector(sessions.zip(costs).asReversed(), session, cost, currencyCode) { selectedStart = it.startMillis }
             Spacer(Modifier.height(8.dp))
             // The stats wrap whole on a narrow phone instead of squeezing the digits.
             FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                compactDuration(session.durationMillis)?.let { TripStat(it, stringResource(R.string.charge_session_duration_label)) }
+                session.averageKw?.let { TripStat("${formatKw(it)}kW", stringResource(R.string.charge_session_average_label)) }
+                // Last, like the trip card: its cost (or energy) closes the row.
                 val kwh = session.energyAddedKwh?.let(::formatKwh)
                 when {
                     cost != null && kwh != null ->
@@ -80,8 +84,6 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
                         )
                     kwh != null -> TripStat("${kwh}kWh", stringResource(R.string.charge_session_energy_label))
                 }
-                compactDuration(session.durationMillis)?.let { TripStat(it, stringResource(R.string.charge_session_duration_label)) }
-                session.averageKw?.let { TripStat("${formatKw(it)}kW", stringResource(R.string.charge_session_average_label)) }
             }
             Spacer(Modifier.height(8.dp))
             Text(
@@ -104,10 +106,10 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
 private fun ChargeSessionSelector(
     options: List<Pair<ChargeSession, Float?>>,
     selected: ChargeSession,
+    selectedCost: Float?,
     currencyCode: String?,
     onSelect: (ChargeSession) -> Unit,
 ) {
-    val selectedCost = options.firstOrNull { it.first == selected }?.second
     var open by remember { mutableStateOf(false) }
     val description = stringResource(R.string.charge_session_selector_description)
     val is24Hour = LocalIs24Hour.current ?: DateFormat.is24HourFormat(LocalContext.current)
