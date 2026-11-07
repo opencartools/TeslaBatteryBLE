@@ -682,6 +682,14 @@ jobs:
             https://github.com/opencartools/vehicle-command.git "$(cat protocol/src/main/proto/TESLA_COMMIT)"
           git -C /tmp/vehicle-command checkout -q FETCH_HEAD
 
+      # A bump that forgets to copy a proto would otherwise pass every check:
+      # additive fields leave the fixtures unchanged, so only this diff sees it.
+      - name: Check the vendored protos match the pin
+        run: |
+          for proto in /tmp/vehicle-command/pkg/protocol/protobuf/*.proto; do
+            diff -u "protocol/src/main/proto/$(basename "$proto")" "$proto"
+          done
+
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
