@@ -40,10 +40,11 @@ fun reconcilePrices(
             val session = sessions[i]
             val parts = ownerParts[i].map { Part(it, owner[it], share(sessions, ownerTargets[it], i), overlap(session, owner[it])) }
             // A session that only moved keeps its frozen price; one joined or split from others is frozen again.
+            // An automatic price holds no place (the logs tell it), so none an older build stored is kept.
             val moved = automaticParts[i].singleOrNull()?.takeIf { automaticTargets[it].size == 1 }?.let { automatic[it] }
             when {
                 parts.isNotEmpty() -> joined(parts, used)
-                moved != null -> paidFor[i]?.let { paidPrice(session, it) } ?: moved
+                moved != null -> paidFor[i]?.let { paidPrice(session, it) } ?: moved.copy(place = null)
                 else -> frozen(session, home[i], defaults, paidFor[i]).takeIf { i != sessions.lastIndex }
             }?.copy(startMillis = session.startMillis, endMillis = session.endMillis)
         }

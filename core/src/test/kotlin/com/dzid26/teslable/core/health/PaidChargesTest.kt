@@ -46,6 +46,8 @@ class PaidChargesTest {
         assertEquals(listOf(SessionPrice.PerKwh(0.2f)), atHome.map { it.price })
 
         assertEquals(listOf(supercharged), reconcilePrices(sessions, atHome, defaults, listOf(paid)))
+        val placed = atHome.map { it.copy(place = ChargePlace.HOME) }
+        assertEquals(atHome, reconcilePrices(sessions, placed, defaults))
         val shown = sessionPrices(sessions.take(1), atHome, emptyList(), listOf(paid)).single()
         assertEquals(SessionPrice.Total(4.22f), shown.price)
     }
