@@ -73,7 +73,7 @@ class SessionHandshake(
 
     operator fun get(domain: Domain): TeslaSession? = sessions[domain]
 
-    /** Domains with a session. */
+    /** Domains with a session, as a copy: callers keep it, so do not return the live `keys` view. */
     val established: Set<Domain>
         get() = sessions.keys.toSet()
 
