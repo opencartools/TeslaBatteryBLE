@@ -277,13 +277,6 @@ class HistoryStore internal constructor(
         }
     }
 
-    /** Takes [session] back to its automatic price. */
-    fun clearChargePrice(session: ChargeSession) {
-        scope.launch {
-            buildMutex.withLock { runCatching { priceStore?.clear(session) }.onFailure { log("charge prices: clear failed: $it") } }
-        }
-    }
-
     /** Publishes the stored sessions. */
     private fun loadSessions() {
         val dao = derivedProvider.value?.sessions() ?: return

@@ -6,6 +6,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import app.cash.paparazzi.Paparazzi
 import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.health.PriceChange
+import com.dzid26.teslable.core.health.SessionPrice
+import com.dzid26.teslable.core.health.StoredChargePrice
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -39,15 +41,40 @@ class ChargeSessionSnapshots {
     @Test
     fun chargeSessionsCardNoPrice() = snap("charge-sessions-card_no-price", listOf(earlier, finished), price = null)
 
+    // Editable, with the owner's total in euros for the open session: the Edit price button shows, and the total
+    // keeps its own currency and the energy it paid for.
+    @Test
+    fun chargeSessionsCardEditedTotal() =
+        snap(
+            "charge-sessions-card_edited-total",
+            listOf(earlier, finished),
+            pricing =
+                ChargePricing(
+                    listOf(
+                        StoredChargePrice(
+                            "",
+                            finished.startMillis,
+                            finished.endMillis,
+                            SessionPrice.Total(18.4f),
+                            "EUR",
+                            byOwner = true,
+                            null,
+                        ),
+                    ),
+                ) { _, _, _, _ -> },
+        )
+
     // A home price set before both sessions, so each one shows its cost.
     private fun snap(
         name: String,
         sessions: List<ChargeSession>,
         price: Float? = 0.15f,
+        pricing: ChargePricing? = null,
     ) = paparazzi.snapCard(name) {
         CompositionLocalProvider(
             LocalPriceChanges provides listOfNotNull(price?.let { PriceChange(0L, it) }),
             LocalCurrencyCode provides "USD",
+            LocalChargePricing provides pricing,
         ) {
             ChargeSessionsCard(sessions)
         }

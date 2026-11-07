@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.R
 import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.health.ChargeSessionPrice
+import com.dzid26.teslable.core.health.ChargerKind
 import com.dzid26.teslable.core.health.SessionPrice
 import com.dzid26.teslable.core.health.cost
 import com.dzid26.teslable.core.health.sessionPrices
@@ -78,7 +79,8 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
             sessions.zip(sessionPrices(sessions, stored, priceChanges)) { session, price -> PricedSession(session, price) }
         }
     val currencyCode = priced[selectedIndex].currencyCode ?: settingsCurrency
-    var editing by remember { mutableStateOf(false) }
+    // Saved, so the dialog stays open when the phone turns.
+    var editing by rememberSaveable { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(stringResource(R.string.charge_sessions_title_count, sessions.size), style = MaterialTheme.typography.titleSmall)
@@ -96,10 +98,11 @@ internal fun ChargeSessionsCard(sessions: List<ChargeSession>) {
         EditPriceDialog(
             picked = picked,
             currencyCode = picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency),
-            latestPerKwh = priceChanges.lastOrNull()?.pricePerKwh,
+            // A fast charge is never at home: no home price to offer there.
+            latestPerKwh = priceChanges.lastOrNull()?.pricePerKwh?.takeIf { session.chargerKind != ChargerKind.DC },
             onSave = { price ->
                 editing = false
-                pricing.onSet(session, price, picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency), picked.place)
+                pricing.onSet(session, price, picked.currencyCode ?: resolvedCurrencyCode(settingsCurrency), null)
             },
             onDismiss = { editing = false },
         )
@@ -125,7 +128,11 @@ private fun ChargeSessionStats(
             val kwh = session.energyAddedKwh?.let(::formatKwh)
             when {
                 cost != null && priced.price is SessionPrice.Total ->
-                    TripStat(formatMoney(cost, currencyCode), stringResource(R.string.charge_session_total_label))
+                    TripStat(
+                        formatMoney(cost, currencyCode),
+                        kwh?.let { stringResource(R.string.charge_session_total_kwh_label, it) }
+                            ?: stringResource(R.string.charge_session_total_label),
+                    )
                 cost != null && kwh != null ->
                     TripStat(
                         formatMoney(cost, currencyCode),
@@ -162,13 +169,13 @@ private class PricedSession(
 }
 
 /** A number for an edit box: up to four decimals, no trailing zeros, "" for none. */
-private fun editText(value: Float?): String =
+internal fun editText(value: Float?): String =
     value
         ?.takeIf { it.isFinite() }
         ?.let { BigDecimal(it.toDouble()).setScale(EDIT_DECIMALS, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString() }
         .orEmpty()
 
-private fun parseEdit(text: String): Float? =
+internal fun parseEdit(text: String): Float? =
     text
         .trim()
         .replace(',', '.')

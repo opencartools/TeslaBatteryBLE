@@ -80,12 +80,12 @@ class MainActivity : ComponentActivity() {
                 val latestRoutes by controller.latestRoutes.collectAsState()
                 val trips by controller.trips.collectAsState()
                 val chargeSessions by controller.chargeSessions.collectAsState()
-                val chargePrices by controller.historyStore.chargePrices.collectAsState()
+                val chargePrices by controller.chargePriceEditor.chargePrices.collectAsState()
                 val chargePricing =
                     remember(chargePrices) {
                         ChargePricing(
                             chargePrices,
-                            controller.historyStore::setChargePrice,
+                            controller.chargePriceEditor::setChargePrice,
                         )
                     }
                 val historyLoaded by controller.historyLoaded.collectAsState()

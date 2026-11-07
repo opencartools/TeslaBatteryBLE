@@ -21,8 +21,10 @@ import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.Trip
 import com.dzid26.teslable.core.infotainment.InfotainmentPollPolicy
 import com.dzid26.teslable.core.infotainment.InfotainmentSessionGate
+import com.dzid26.teslable.history.ChargePriceEditor
 import com.dzid26.teslable.history.HistoryStore
 import com.dzid26.teslable.history.LogExportRunner
+import com.dzid26.teslable.history.chargePriceEditor
 import com.dzid26.teslable.protocol.AntiReplayWindow
 import com.dzid26.teslable.protocol.FaultRecovery
 import com.dzid26.teslable.protocol.PairingFlow
@@ -71,7 +73,7 @@ class TeslaBleController(
     private val keyStore = PairingKeyStore(appContext)
     private val vehicleStore = VehicleStore(appContext)
     private val vehicles = mutableMapOf<String, Vehicle>()
-    internal val historyStore: HistoryStore
+    private val historyStore: HistoryStore
     private val closureAlert = ClosureAlert(appContext, _state, ::log)
 
     /** Battery readings recorded from every charge response, oldest first. */
@@ -88,6 +90,9 @@ class TeslaBleController(
 
     /** False while the start is still publishing the logs; see [HistoryStore.loaded]. */
     val historyLoaded: StateFlow<Boolean> get() = historyStore.loaded
+
+    /** The stored charge prices and the owner's edits to them. */
+    val chargePriceEditor: ChargePriceEditor by lazy { historyStore.chargePriceEditor() }
 
     /** Every car's charge sessions as `derived.db` stores them, oldest first. */
     val chargeSessions: StateFlow<List<ChargeSession>> get() = historyStore.chargeSessions
