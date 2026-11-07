@@ -84,7 +84,9 @@ internal class ChargePriceStore(
         followed = sessions to defaults
     }
 
-    /** The price stored at [session]'s exact start, where each build writes it. */
+    /** The price stored at [session]'s exact start and end, where each build writes it. */
     private fun storedFor(session: ChargeSession): StoredChargePrice? =
-        published.value.firstOrNull { it.vehicleId == session.vehicleId && it.startMillis == session.startMillis }
+        published.value.firstOrNull {
+            it.vehicleId == session.vehicleId && it.startMillis == session.startMillis && it.endMillis == session.endMillis
+        }
 }

@@ -48,15 +48,20 @@ class SessionPriceTest {
     }
 
     @Test
-    fun `an automatic price stays frozen while its session keeps its shape, and is frozen again when it changes`() {
-        val kept = stored(0, 60, SessionPrice.PerKwh(0.5f), byOwner = false)
-        val moved = stored(599, 700, SessionPrice.PerKwh(0.5f), byOwner = false)
-        val sessions = listOf(session(0, 60), session(600, 700), session(900, 950))
-
+    fun `an automatic price stays frozen when its session moves, and is frozen again when sessions join`() {
+        val frozenAt = { start: Long, end: Long, price: Float ->
+            stored(start, end, SessionPrice.PerKwh(price), byOwner = false, currency = "PLN").copy(place = ChargePlace.HOME)
+        }
+        val kept = frozenAt(0, 60, 0.5f)
+        val moved = frozenAt(599, 700, 0.5f)
         assertEquals(
-            listOf(kept, stored(600, 700, SessionPrice.PerKwh(0.2f), byOwner = false, currency = "PLN").copy(place = ChargePlace.HOME)),
-            reconcile(sessions, listOf(kept, moved)),
+            listOf(kept, frozenAt(600, 700, 0.5f)),
+            reconcile(listOf(session(0, 60), session(600, 700), session(900, 950)), listOf(kept, moved)),
         )
+
+        // Joined: the price rule of the joined session's own time, not the longer part's frozen price.
+        val parts = listOf(frozenAt(0, 20, 0.5f), frozenAt(30, 120, 0.7f))
+        assertEquals(listOf(frozenAt(0, 120, 0.2f)), reconcile(listOf(session(0, 120), session(900, 950)), parts))
     }
 
     @Test
@@ -81,6 +86,16 @@ class SessionPriceTest {
         val joined = reconcile(listOf(session(0, 120), session(900, 950)), edits)
         assertEquals(listOf(stored(0, 120, SessionPrice.Total(6f)), edits[0]), joined)
         assertEquals(joined, reconcile(listOf(session(0, 120), session(900, 950)), joined))
+
+        // The left-over edit may share the joined session's start; it keeps its own end, so neither is lost.
+        val first = listOf(stored(0, 10, SessionPrice.PerKwh(0.5f)), stored(20, 100, SessionPrice.PerKwh(0.9f)))
+        val kept = reconcile(listOf(session(0, 100), session(200, 300)), first)
+        assertEquals(listOf(stored(0, 100, SessionPrice.PerKwh(0.9f)), first[0]), kept)
+        assertEquals(2, kept.map { Triple(it.vehicleId, it.startMillis, it.endMillis) }.toSet().size)
+        assertEquals(
+            SessionPrice.PerKwh(0.9f),
+            sessionPrices(listOf(session(0, 100), session(200, 300)), kept, emptyList()).first().price,
+        )
     }
 
     @Test

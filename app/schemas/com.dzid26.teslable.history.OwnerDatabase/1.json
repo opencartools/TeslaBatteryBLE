@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "f1bff76e1e3927f6d60df6007afd770a",
+    "identityHash": "9c5ecaba8f511a8198ae789dd5dd6fb6",
     "entities": [
       {
         "tableName": "charge_prices",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `startTime` INTEGER NOT NULL, `endTime` INTEGER NOT NULL, `kind` TEXT, `value` REAL, `currency` TEXT NOT NULL, `byOwner` INTEGER NOT NULL, `place` TEXT, PRIMARY KEY(`vehicleId`, `startTime`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `startTime` INTEGER NOT NULL, `endTime` INTEGER NOT NULL, `kind` TEXT, `value` REAL, `currency` TEXT NOT NULL, `byOwner` INTEGER NOT NULL, `place` TEXT, PRIMARY KEY(`vehicleId`, `startTime`, `endTime`))",
         "fields": [
           {
             "fieldPath": "vehicleId",
@@ -58,14 +58,15 @@
           "autoGenerate": false,
           "columnNames": [
             "vehicleId",
-            "startTime"
+            "startTime",
+            "endTime"
           ]
         }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f1bff76e1e3927f6d60df6007afd770a')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9c5ecaba8f511a8198ae789dd5dd6fb6')"
     ]
   }
 }

@@ -20,10 +20,11 @@ import com.dzid26.teslable.core.health.StoredChargePrice
  * One charge session's stored price ([StoredChargePrice]): [kind] is `PerKwh` or `Total`, [value] the price per kWh
  * or the total, both null for an empty price, in [currency] (an ISO 4217 code, resolved when stored). [byOwner] is
  * an edit; otherwise the automatic price frozen when the session was finished. [place] is where it charged
- * (`ChargePlace` or the owner's own name), null when not known. Keyed by car and the session's start
- * as last cut; readers match a row to a session by overlap.
+ * (`ChargePlace` or the owner's own name), null when not known. Keyed by car and the session's start and end
+ * as last cut; each build matches a row to its re-cut session by overlap
+ * and writes it at that session's start and end, where readers read it.
  */
-@Entity(tableName = "charge_prices", primaryKeys = ["vehicleId", "startTime"])
+@Entity(tableName = "charge_prices", primaryKeys = ["vehicleId", "startTime", "endTime"])
 internal data class ChargePriceRow(
     val vehicleId: String,
     val startTime: Long,
@@ -43,10 +44,11 @@ internal interface ChargePriceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun put(rows: List<ChargePriceRow>)
 
-    @Query("DELETE FROM charge_prices WHERE vehicleId = :vehicleId AND startTime = :startTime")
+    @Query("DELETE FROM charge_prices WHERE vehicleId = :vehicleId AND startTime = :startTime AND endTime = :endTime")
     fun delete(
         vehicleId: String,
         startTime: Long,
+        endTime: Long,
     )
 
     /** Takes out [removed] (by key) and writes [written], in one transaction. */
@@ -55,7 +57,7 @@ internal interface ChargePriceDao {
         removed: List<ChargePriceRow>,
         written: List<ChargePriceRow>,
     ) {
-        removed.forEach { delete(it.vehicleId, it.startTime) }
+        removed.forEach { delete(it.vehicleId, it.startTime, it.endTime) }
         put(written)
     }
 }

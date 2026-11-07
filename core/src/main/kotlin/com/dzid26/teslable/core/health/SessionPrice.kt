@@ -86,7 +86,7 @@ fun automaticPrice(
 
 /**
  * The price each of [sessions] (one car, oldest first) shows: its stored price, even an empty one, read by the exact
- * start each build writes it at (`reconcilePrices`), else (the newest session, until a build stores it) the
+ * start and end each build writes it at (`reconcilePrices`), else (the newest session, until a build stores it) the
  * automatic price in the settings currency. The one entry point the
  * screens read, so a charge shows the same price everywhere.
  */
@@ -95,10 +95,10 @@ fun sessionPrices(
     stored: List<StoredChargePrice>,
     homeChanges: List<PriceChange>,
 ): List<ChargeSessionPrice> {
-    val byStart = stored.associateBy { it.vehicleId to it.startMillis }
+    val byShape = stored.associateBy { Triple(it.vehicleId, it.startMillis, it.endMillis) }
     val home = pricesForSessions(homeChanges, sessions)
     return sessions.indices.map { i ->
-        byStart[sessions[i].vehicleId to sessions[i].startMillis]?.let {
+        byShape[Triple(sessions[i].vehicleId, sessions[i].startMillis, sessions[i].endMillis)]?.let {
             ChargeSessionPrice(
                 it.price,
                 it.currencyCode,

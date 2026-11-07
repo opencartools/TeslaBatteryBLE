@@ -3,11 +3,12 @@ package com.dzid26.teslable.core.health
 
 /**
  * The stored prices of one car after a build re-cut its [sessions] (oldest first, as cut), from what was [stored].
- * Every row comes out at its session's exact start and end, the key the screens read it by (`sessionPrices`):
+ * Every row comes out at its session's exact start and end, the key the screens read it by (`sessionPrices`); an
+ * owner's edit left over from a join keeps its own, which no session has:
  * - every session but the newest gets a stored price; the newest is priced live until the next charge starts, so a
  *   price set while parked still covers the charge just finished;
- * - an automatic price whose session kept its start and end stays as frozen; one whose session changed shape (moved,
- *   joined or split) is frozen again by the price rule, at the session's own time, since it holds no owner input;
+ * - an automatic price stays frozen when its session only moved; one whose session was joined with or split from
+ *   others is frozen again by the price rule, at the session's own time, since it holds no owner input;
  * - the owner's edit follows its session: when a re-cut joins sessions, their totals in one currency add up, else
  *   the longest overlap wins and the other edits stay stored, unmatched; when it splits one, a price per kWh goes to
  *   every part and a total is shared by energy;
@@ -23,21 +24,23 @@ fun reconcilePrices(
     val ownerParts = Array(sessions.size) { mutableListOf<Int>() }
     ownerTargets.forEachIndexed { row, targets -> targets.forEach { ownerParts[it] += row } }
     val used = BooleanArray(owner.size)
-    val sameShape = automatic.associateBy { it.startMillis to it.endMillis }
+    val automaticTargets = automatic.map { price -> targetsOf(sessions, price) }
+    val automaticParts = Array(sessions.size) { mutableListOf<Int>() }
+    automaticTargets.forEachIndexed { row, targets -> targets.forEach { automaticParts[it] += row } }
     val home = pricesForSessions(defaults.homeChanges, sessions)
     val priced =
         sessions.indices.mapNotNull { i ->
             val session = sessions[i]
             val parts = ownerParts[i].map { Part(it, owner[it], share(sessions, ownerTargets[it], i), overlap(session, owner[it])) }
+            // A session that only moved keeps its frozen price; one joined or split from others is frozen again.
+            val moved = automaticParts[i].singleOrNull()?.takeIf { automaticTargets[it].size == 1 }?.let { automatic[it] }
             when {
-                parts.isNotEmpty() -> joined(parts, used).copy(startMillis = session.startMillis, endMillis = session.endMillis)
-                else ->
-                    sameShape[session.startMillis to session.endMillis]
-                        ?: frozen(session, home[i], defaults).takeIf { i != sessions.lastIndex }
-            }
+                parts.isNotEmpty() -> joined(parts, used)
+                moved != null -> moved
+                else -> frozen(session, home[i], defaults).takeIf { i != sessions.lastIndex }
+            }?.copy(startMillis = session.startMillis, endMillis = session.endMillis)
         }
-    val pricedKeys = priced.map { it.startMillis }.toSet()
-    val keptAutomatic = automatic.filter { it.startMillis !in pricedKeys && targetsOf(sessions, it).isEmpty() }
+    val keptAutomatic = automatic.filterIndexed { row, _ -> automaticTargets[row].isEmpty() }
     return priced + owner.filterIndexed { row, _ -> !used[row] } + keptAutomatic
 }
 
