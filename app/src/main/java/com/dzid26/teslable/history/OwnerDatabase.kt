@@ -13,63 +13,73 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.sqlite.SQLiteDriver
-import com.dzid26.teslable.core.health.ChargePriceOverride
 import com.dzid26.teslable.core.health.SessionPrice
+import com.dzid26.teslable.core.health.StoredChargePrice
 
 /**
- * The price the owner set for one charge session ([ChargePriceOverride]): [kind] is `PerKwh` or `Total`, [value]
- * the price per kWh or the total, in [currency] (an ISO 4217 code, resolved when it was set). Keyed by car and the
- * session's start as last cut; readers match a row to a session by overlap.
+ * One charge session's stored price ([StoredChargePrice]): [kind] is `PerKwh` or `Total`, [value] the price per kWh
+ * or the total, both null for an empty price, in [currency] (an ISO 4217 code, resolved when stored). [byOwner] is
+ * an edit; otherwise the automatic price frozen when the session was finished. [place] is where it charged
+ * (`ChargePlace` or the owner's own name), null when not known. Keyed by car and the session's start and end
+ * as last cut; each build matches a row to its re-cut session by overlap
+ * and writes it at that session's start and end, where readers read it.
  */
-@Entity(tableName = "charge_price_overrides", primaryKeys = ["vehicleId", "startTime"])
-internal data class ChargePriceOverrideRow(
+@Entity(tableName = "charge_prices", primaryKeys = ["vehicleId", "startTime", "endTime"])
+internal data class ChargePriceRow(
     val vehicleId: String,
     val startTime: Long,
     val endTime: Long,
-    val kind: String,
-    val value: Float,
+    val kind: String?,
+    val value: Float?,
     val currency: String,
+    val byOwner: Boolean,
+    val place: String?,
 )
 
 @Dao
-internal interface ChargePriceOverrideDao {
-    @Query("SELECT * FROM charge_price_overrides ORDER BY vehicleId, startTime")
-    fun all(): List<ChargePriceOverrideRow>
+internal interface ChargePriceDao {
+    @Query("SELECT * FROM charge_prices ORDER BY vehicleId, startTime")
+    fun all(): List<ChargePriceRow>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun put(row: ChargePriceOverrideRow)
+    fun put(rows: List<ChargePriceRow>)
 
-    @Query("DELETE FROM charge_price_overrides WHERE vehicleId = :vehicleId AND startTime = :startTime")
+    @Query("DELETE FROM charge_prices WHERE vehicleId = :vehicleId AND startTime = :startTime AND endTime = :endTime")
     fun delete(
         vehicleId: String,
         startTime: Long,
+        endTime: Long,
     )
 
-    /** Moves each row to its session's new times: the old key out, the moved row in. */
+    /** Takes out [removed] (by key) and writes [written], in one transaction. */
     @Transaction
-    fun move(moves: List<Pair<ChargePriceOverrideRow, ChargePriceOverrideRow>>) {
-        moves.forEach { (old, moved) ->
-            delete(old.vehicleId, old.startTime)
-            put(moved)
-        }
+    fun replace(
+        removed: List<ChargePriceRow>,
+        written: List<ChargePriceRow>,
+    ) {
+        removed.forEach { delete(it.vehicleId, it.startTime, it.endTime) }
+        put(written)
     }
 }
 
-internal fun ChargePriceOverride.toRow(): ChargePriceOverrideRow =
+internal fun StoredChargePrice.toRow(): ChargePriceRow =
     when (val p = price) {
-        is SessionPrice.PerKwh -> ChargePriceOverrideRow(vehicleId, startMillis, endMillis, PER_KWH, p.pricePerKwh, currencyCode)
-        is SessionPrice.Total -> ChargePriceOverrideRow(vehicleId, startMillis, endMillis, TOTAL, p.amount, currencyCode)
+        is SessionPrice.PerKwh -> ChargePriceRow(vehicleId, startMillis, endMillis, PER_KWH, p.pricePerKwh, currencyCode, byOwner, place)
+        is SessionPrice.Total -> ChargePriceRow(vehicleId, startMillis, endMillis, TOTAL, p.amount, currencyCode, byOwner, place)
+        null -> ChargePriceRow(vehicleId, startMillis, endMillis, null, null, currencyCode, byOwner, place)
     }
 
-/** The override this row holds; null for a kind this version does not know. */
-internal fun ChargePriceOverrideRow.toOverride(): ChargePriceOverride? {
-    val price =
+/** The price this row holds; null for a kind this version does not know, which is then left as it is. */
+internal fun ChargePriceRow.toStored(): StoredChargePrice? {
+    val price: SessionPrice? =
         when (kind) {
-            PER_KWH -> SessionPrice.PerKwh(value)
-            TOTAL -> SessionPrice.Total(value)
-            else -> return null
+            null -> null
+            PER_KWH -> value?.let { SessionPrice.PerKwh(it) }
+            TOTAL -> value?.let { SessionPrice.Total(it) }
+            else -> null
         }
-    return ChargePriceOverride(vehicleId, startTime, endTime, price, currency)
+    val known = kind == null || price != null
+    return StoredChargePrice(vehicleId, startTime, endTime, price, currency, byOwner, place).takeIf { known }
 }
 
 private const val PER_KWH = "PerKwh"
@@ -81,9 +91,9 @@ private const val TOTAL = "Total"
  * backup. Its journal is not WAL, so the backed-up file always holds every committed row. Its exported schema is
  * binding from the first normal release: every later change ships a migration.
  */
-@Database(entities = [ChargePriceOverrideRow::class], version = 1, exportSchema = true)
+@Database(entities = [ChargePriceRow::class], version = 1, exportSchema = true)
 internal abstract class OwnerDatabase : RoomDatabase() {
-    abstract fun chargePrices(): ChargePriceOverrideDao
+    abstract fun chargePrices(): ChargePriceDao
 
     companion object {
         const val FILE_NAME = "owner.db"

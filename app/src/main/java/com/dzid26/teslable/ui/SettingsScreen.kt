@@ -49,6 +49,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.BuildConfig
 import com.dzid26.teslable.EnergyPriceStore
+import com.dzid26.teslable.FALLBACK_CODE
 import com.dzid26.teslable.R
 import com.dzid26.teslable.UnitPreference
 import com.dzid26.teslable.UnitStore
@@ -57,7 +58,9 @@ import com.dzid26.teslable.ble.DemoMode
 import com.dzid26.teslable.ble.PairingKeyStore
 import com.dzid26.teslable.ble.Vehicle
 import com.dzid26.teslable.core.units.EfficiencyUnit
+import com.dzid26.teslable.currencyOrNull
 import com.dzid26.teslable.history.LogExportStatus
+import com.dzid26.teslable.localeCurrencyOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

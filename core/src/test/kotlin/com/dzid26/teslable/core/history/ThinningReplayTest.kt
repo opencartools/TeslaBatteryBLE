@@ -3,7 +3,13 @@
 package com.dzid26.teslable.core.history
 
 import com.dzid26.teslable.core.health.ChargeSession
+import com.dzid26.teslable.core.health.PriceChange
+import com.dzid26.teslable.core.health.PriceDefaults
+import com.dzid26.teslable.core.health.SessionPrice
+import com.dzid26.teslable.core.health.StoredChargePrice
 import com.dzid26.teslable.core.health.chargeSessions
+import com.dzid26.teslable.core.health.pricesForSessions
+import com.dzid26.teslable.core.health.reconcilePrices
 import com.dzid26.teslable.protocol.ChargingStateKind
 import org.junit.Assume.assumeTrue
 import java.io.File
@@ -78,7 +84,10 @@ class ThinningReplayTest {
         val fullCharges = chargeSessions(battery)
         BUILD_INTERVALS.forEach { interval ->
             val store = ListStore(thinBattery, thinDrives)
+            // owner.db reconciles its stored prices after each build: they must end as if priced once, all at the end.
+            var prices = emptyList<StoredChargePrice>()
             store.buildEvery(interval) { built ->
+                prices = reconcilePrices(store.charges.toList(), prices, PRICES)
                 if (interval == BUILD_INTERVALS.last()) {
                     val joined =
                         withLiveTail(store.charges.toList()) { from ->
@@ -89,6 +98,14 @@ class ThinningReplayTest {
             }
             println("$id: built every ${interval / 60_000}min, at most ${store.mostRead} samples read by one build")
             assertEquals(thinCharges, store.charges, "charge sessions built every ${interval / 60_000}min")
+            val expected = pricesForSessions(PRICES.homeChanges, thinCharges).dropLast(1)
+            assertEquals(thinCharges.size - 1, prices.size, "every finished charge priced once, built every ${interval / 60_000}min")
+            assertEquals(
+                expected,
+                prices.map { (it.price as? SessionPrice.PerKwh)?.pricePerKwh },
+                "prices built every ${interval / 60_000}min",
+            )
+            assertEquals(thinCharges.dropLast(1).map { it.startMillis }, prices.map { it.startMillis }, "prices at their sessions")
             assertEquals(thinDriveSessions, store.storedDrives, "drive sessions built every ${interval / 60_000}min")
         }
         val used = drivePoints(battery, drives, scale).totalDrop { it.socPercent }
@@ -187,6 +204,13 @@ class ThinningReplayTest {
 
     private companion object {
         const val LOGS_ENV = "TESLABLE_REPLAY_LOGS"
+
+        /** Home price changes every five hours over seven prices, so they land between and during charges. */
+        val PRICES =
+            PriceDefaults(
+                (0 until 20_000).map { PriceChange(1_500_000_000_000L + it * 5 * 3_600_000L, 0.1f + (it % 7) * 0.05f) },
+                "PLN",
+            )
 
         /** The drive chart's ends of each trip may fall on other readings; within 1% of the percent used. */
         const val DRIVE_TOLERANCE = 0.01f
