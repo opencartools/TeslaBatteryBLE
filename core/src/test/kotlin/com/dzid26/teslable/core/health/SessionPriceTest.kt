@@ -12,63 +12,104 @@ class SessionPriceTest {
         start: Long,
         end: Long,
         kind: ChargerKind? = ChargerKind.AC,
-    ) = ChargeSession(start * MINUTE, end * MINUTE, 20f, 80f, 40f, 160f, vehicleId = "car", chargerKind = kind)
+        energy: Float = 40f,
+    ) = ChargeSession(start * MINUTE, end * MINUTE, 20f, 80f, energy, 160f, vehicleId = "car", chargerKind = kind)
 
-    private fun override(
+    private fun stored(
         start: Long,
         end: Long,
-        price: Float = 0.3f,
-    ) = ChargePriceOverride("car", start * MINUTE, end * MINUTE, SessionPrice.PerKwh(price), "EUR")
+        price: SessionPrice? = SessionPrice.PerKwh(0.3f),
+        byOwner: Boolean = true,
+        currency: String = "EUR",
+    ) = StoredChargePrice("car", start * MINUTE, end * MINUTE, price, currency, byOwner)
+
+    private val home = PriceDefaults(listOf(PriceChange(-10 * MINUTE, 0.2f)), "PLN")
+
+    private fun reconcile(
+        sessions: List<ChargeSession>,
+        rows: List<StoredChargePrice>,
+    ) = reconcilePrices(sessions, rows, home)
 
     @Test
-    fun `an override stays with its session when a re-cut moves it by a reading`() {
-        val sessions = listOf(session(0, 60), session(600, 700))
-        val overrides = listOf(override(1, 60, 0.3f), override(599, 700, 0.5f))
-
-        assertEquals(overrides, matchOverrides(sessions, overrides))
-        assertEquals(
-            listOf(overrides[0] to overrides[0].copy(startMillis = 0), overrides[1] to overrides[1].copy(startMillis = 600 * MINUTE)),
-            movedOverrides(sessions, overrides),
-        )
-    }
-
-    @Test
-    fun `an override far from every session matches none`() {
-        assertEquals(listOf(null), matchOverrides(listOf(session(0, 60)), listOf(override(200, 260))))
-    }
-
-    @Test
-    fun `when a re-cut joins two sessions the longer override wins and the other is left for the owner`() {
-        val joined = listOf(session(0, 300))
-        val overrides = listOf(override(0, 60, 0.3f), override(100, 300, 0.5f))
-
-        assertEquals(listOf(overrides[1]), matchOverrides(joined, overrides))
-    }
-
-    @Test
-    fun `the owner's price wins, else the home price for any charge but DC`() {
-        val owner = override(0, 60, 0.5f)
-        assertEquals(SessionPrice.PerKwh(0.5f), sessionPrice(session(0, 60), owner, homePricePerKwh = 0.2f))
-        assertEquals(SessionPrice.PerKwh(0.2f), sessionPrice(session(0, 60), null, homePricePerKwh = 0.2f))
-        assertEquals(SessionPrice.PerKwh(0.2f), sessionPrice(session(0, 60, kind = null), null, homePricePerKwh = 0.2f))
-        assertNull(sessionPrice(session(0, 60, kind = ChargerKind.DC), null, homePricePerKwh = 0.2f))
-        assertNull(sessionPrice(session(0, 60), null, homePricePerKwh = null))
-    }
-
-    @Test
-    fun `each session takes its own edit, else the home price in effect for it`() {
-        val sessions = listOf(session(0, 60), session(600, 700), session(1200, 1300, kind = ChargerKind.DC))
-        val homeChanges = listOf(PriceChange(-10 * MINUTE, 0.2f), PriceChange(650 * MINUTE, 0.4f))
+    fun `every finished session gets the home price of its time, frozen, and the newest stays live`() {
+        val defaults = PriceDefaults(listOf(PriceChange(-10 * MINUTE, 0.2f), PriceChange(650 * MINUTE, 0.4f)), "PLN")
+        val sessions = listOf(session(0, 60), session(600, 700), session(1200, 1300, kind = ChargerKind.DC), session(2000, 2100))
 
         assertEquals(
-            listOf(SessionPrice.PerKwh(0.2f), SessionPrice.Total(9f), null),
-            sessionPrices(
-                sessions,
-                listOf(ChargePriceOverride("car", 600 * MINUTE, 700 * MINUTE, SessionPrice.Total(9f), "EUR")),
-                homeChanges,
+            listOf(
+                stored(0, 60, SessionPrice.PerKwh(0.2f), byOwner = false, currency = "PLN").copy(place = ChargePlace.HOME),
+                // A price set after a charge started, while it was the newest, covers it.
+                stored(600, 700, SessionPrice.PerKwh(0.4f), byOwner = false, currency = "PLN").copy(place = ChargePlace.HOME),
+                // A fast charger is never at home: empty until the car's own cost is read.
+                stored(1200, 1300, null, byOwner = false, currency = "PLN"),
             ),
+            reconcilePrices(sessions, emptyList(), defaults),
         )
-        assertEquals(listOf(SessionPrice.PerKwh(0.2f), SessionPrice.PerKwh(0.4f), null), sessionPrices(sessions, emptyList(), homeChanges))
+    }
+
+    @Test
+    fun `a stored price stays frozen and follows its session when a re-cut moves it`() {
+        val rows = listOf(stored(1, 60, SessionPrice.PerKwh(0.5f), byOwner = false), stored(599, 700))
+
+        assertEquals(
+            listOf(stored(0, 60, SessionPrice.PerKwh(0.5f), byOwner = false), stored(600, 700)),
+            reconcile(listOf(session(0, 60), session(600, 700), session(900, 950)), rows),
+        )
+    }
+
+    @Test
+    fun `a join keeps the owner's edit over an automatic price and adds up totals`() {
+        val auto = stored(0, 60, SessionPrice.PerKwh(0.2f), byOwner = false)
+        val edit = stored(70, 120, SessionPrice.PerKwh(0.5f))
+        assertEquals(listOf(edit.copy(startMillis = 0)), reconcile(listOf(session(0, 120), session(900, 950)), listOf(auto, edit)))
+
+        val totals = listOf(stored(0, 60, SessionPrice.Total(8f)), stored(70, 120, SessionPrice.Total(4f)))
+        assertEquals(
+            listOf(stored(0, 120, SessionPrice.Total(12f))),
+            reconcile(listOf(session(0, 120), session(900, 950)), totals),
+        )
+    }
+
+    @Test
+    fun `a split copies a price per kWh to every part and shares a total by energy`() {
+        val parts = listOf(session(0, 60, energy = 30f), session(70, 120, energy = 10f), session(900, 950))
+
+        assertEquals(
+            listOf(stored(0, 60), stored(70, 120)),
+            reconcile(parts, listOf(stored(0, 120))),
+        )
+        assertEquals(
+            listOf(stored(0, 60, SessionPrice.Total(9f)), stored(70, 120, SessionPrice.Total(3f))),
+            reconcile(parts, listOf(stored(0, 120, SessionPrice.Total(12f)))),
+        )
+    }
+
+    @Test
+    fun `a stored price with no session is kept, and the slack never hands it to a neighbour`() {
+        val far = stored(200, 260)
+        assertEquals(listOf(far), reconcile(listOf(session(0, 60)), listOf(far)))
+
+        // Two charges three minutes apart each keep their own total.
+        val rows = listOf(stored(0, 60, SessionPrice.Total(5f)), stored(63, 200, SessionPrice.Total(7f)))
+        assertEquals(rows, reconcile(listOf(session(0, 60), session(63, 200), session(900, 950)), rows))
+        assertEquals(rows, matchStoredPrices(listOf(session(0, 60), session(63, 200)), rows))
+    }
+
+    @Test
+    fun `the screens show the stored price, even an empty one, else the live automatic price`() {
+        val sessions = listOf(session(0, 60), session(600, 700), session(1200, 1300))
+        val rows = listOf(stored(0, 60, SessionPrice.Total(9f)), stored(600, 700, null, byOwner = false, currency = "PLN"))
+
+        assertEquals(
+            listOf(
+                ChargeSessionPrice(SessionPrice.Total(9f), "EUR", byOwner = true, place = null),
+                ChargeSessionPrice(null, "PLN", byOwner = false, place = null),
+                ChargeSessionPrice(SessionPrice.PerKwh(0.2f), null, byOwner = false, place = ChargePlace.HOME),
+            ),
+            sessionPrices(sessions, rows, home.homeChanges),
+        )
+        assertNull(automaticPrice(session(0, 60, kind = ChargerKind.DC), 0.2f))
+        assertEquals(SessionPrice.PerKwh(0.2f), automaticPrice(session(0, 60, kind = null), 0.2f))
     }
 
     @Test
@@ -105,16 +146,6 @@ class SessionPriceTest {
         assertEquals(ChargerKind.AC, chargeSessions(listOf(charging(0, 230, 0f), charging(60, 231, 11f))).single().chargerKind)
         assertNull(chargeSessions(listOf(charging(0, 2, 0f), charging(60, 3, 7f))).single().chargerKind)
         assertNull(chargeSessions(listOf(charging(0, null, 0f), charging(60, null, 7f))).single().chargerKind)
-    }
-
-    @Test
-    fun `two charges minutes apart each keep their own override`() {
-        val sessions = listOf(session(0, 60), session(63, 200))
-        val overrides = listOf(override(0, 60, 0.3f), override(63, 200, 0.5f))
-
-        assertEquals(overrides, matchOverrides(sessions, overrides))
-        // The first session overlaps the second override too, through the slack; the better pair still wins.
-        assertEquals(listOf(null, overrides[1]), matchOverrides(sessions, listOf(overrides[1])))
     }
 
     private companion object {

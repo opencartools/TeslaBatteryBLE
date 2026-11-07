@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "da1491b633f82983e5614bc3ad0c36c5",
+    "identityHash": "f1bff76e1e3927f6d60df6007afd770a",
     "entities": [
       {
-        "tableName": "charge_price_overrides",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `startTime` INTEGER NOT NULL, `endTime` INTEGER NOT NULL, `kind` TEXT NOT NULL, `value` REAL NOT NULL, `currency` TEXT NOT NULL, PRIMARY KEY(`vehicleId`, `startTime`))",
+        "tableName": "charge_prices",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vehicleId` TEXT NOT NULL, `startTime` INTEGER NOT NULL, `endTime` INTEGER NOT NULL, `kind` TEXT, `value` REAL, `currency` TEXT NOT NULL, `byOwner` INTEGER NOT NULL, `place` TEXT, PRIMARY KEY(`vehicleId`, `startTime`))",
         "fields": [
           {
             "fieldPath": "vehicleId",
@@ -29,20 +29,29 @@
           {
             "fieldPath": "kind",
             "columnName": "kind",
-            "affinity": "TEXT",
-            "notNull": true
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "value",
             "columnName": "value",
-            "affinity": "REAL",
-            "notNull": true
+            "affinity": "REAL"
           },
           {
             "fieldPath": "currency",
             "columnName": "currency",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "byOwner",
+            "columnName": "byOwner",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "place",
+            "columnName": "place",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -56,7 +65,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'da1491b633f82983e5614bc3ad0c36c5')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f1bff76e1e3927f6d60df6007afd770a')"
     ]
   }
 }

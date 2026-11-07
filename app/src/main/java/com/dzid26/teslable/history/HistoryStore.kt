@@ -4,9 +4,11 @@ package com.dzid26.teslable.history
 
 import android.content.Context
 import com.dzid26.teslable.BuildConfig
-import com.dzid26.teslable.core.health.ChargePriceOverride
+import com.dzid26.teslable.EnergyPriceStore
 import com.dzid26.teslable.core.health.ChargeSession
+import com.dzid26.teslable.core.health.PriceDefaults
 import com.dzid26.teslable.core.health.SessionPrice
+import com.dzid26.teslable.core.health.StoredChargePrice
 import com.dzid26.teslable.core.history.ActivitySample
 import com.dzid26.teslable.core.history.ActivityThinner
 import com.dzid26.teslable.core.history.AppState
@@ -30,6 +32,7 @@ import com.dzid26.teslable.core.history.toBatterySample
 import com.dzid26.teslable.core.history.toDriveSample
 import com.dzid26.teslable.core.history.toRouteSample
 import com.dzid26.teslable.core.history.toStatusSample
+import com.dzid26.teslable.ui.resolvedCurrencyCode
 import com.tesla.generated.carserver.vehicle.ChargeState
 import com.tesla.generated.carserver.vehicle.ClimateState
 import com.tesla.generated.carserver.vehicle.ClosuresState
@@ -88,7 +91,7 @@ class HistoryStore internal constructor(
     private val recordStoreProvider: Lazy<RecordStore>,
     private val scope: CoroutineScope,
     private val derivedProvider: Lazy<DerivedDatabase?> = lazy { null },
-    private val ownerProvider: Lazy<OwnerDatabase?> = lazy { null },
+    private val ownerProvider: Lazy<OwnerPricing?> = lazy { null },
     private val log: (String) -> Unit = {},
 ) {
     constructor(context: Context) : this(
@@ -96,7 +99,11 @@ class HistoryStore internal constructor(
         lazy { RoomBackedRecordStore(HistoryDatabase.open(context), EventsDatabase.open(context), OriginId.load(context)) },
         CoroutineScope(SupervisorJob() + Dispatchers.IO),
         lazy { DerivedDatabase.open(context) },
-        lazy { OwnerDatabase.open(context) },
+        lazy {
+            OwnerPricing(OwnerDatabase.open(context)) {
+                EnergyPriceStore(context).let { PriceDefaults(it.priceChanges(), resolvedCurrencyCode(it.currencyCode())) }
+            }
+        },
         defaultLog(),
     )
 
@@ -114,14 +121,14 @@ class HistoryStore internal constructor(
     /** Builds `derived.db` from the raw records; null where there is none (the tests of the raw store). */
     private val derivedBuilder: DerivedBuilder? by lazy { derivedProvider.value?.let { DerivedBuilder(recordStore, it) } }
     private val sessionBuilder: SessionBuilder? by lazy { derivedProvider.value?.let { SessionBuilder(it) } }
-    private val _chargePriceOverrides = MutableStateFlow<List<ChargePriceOverride>>(emptyList())
+    private val _chargePrices = MutableStateFlow<List<StoredChargePrice>>(emptyList())
 
     /**
-     * The prices the owner set per charge session, from `owner.db`, by car and oldest first. Match them to sessions
-     * with `matchOverrides`; a session without one takes the automatic price (`sessionPrice`).
+     * Every finished charge session's stored price from `owner.db`, by car and oldest first: the automatic price frozen
+     * when it finished, or the owner's edit. The screens read them through `sessionPrices`.
      */
-    val chargePriceOverrides: StateFlow<List<ChargePriceOverride>> = _chargePriceOverrides.asStateFlow()
-    private val chargePrices: ChargePriceStore? by lazy { ownerProvider.value?.let { ChargePriceStore(it, _chargePriceOverrides) } }
+    val chargePrices: StateFlow<List<StoredChargePrice>> = _chargePrices.asStateFlow()
+    private val priceStore: ChargePriceStore? by lazy { ownerProvider.value?.let { ChargePriceStore(it.db, _chargePrices) } }
 
     /** One build at a time: the startup build and the periodic catch-ups never overlap. */
     private val buildMutex = Mutex()
@@ -228,23 +235,27 @@ class HistoryStore internal constructor(
                 // The sessions follow the samples; a failure there leaves the samples built and the marks in place.
                 runCatching { sessionBuilder?.build() }
                 loadSessions()
-                // A re-cut can move a session by a reading; the owner's price follows it.
-                runCatching { chargePrices?.follow(_chargeSessions.value) }.onFailure { log("charge prices: follow failed: $it") }
+                // Every finished session's price is stored, and follows its session when a re-cut moves it.
+                runCatching {
+                    ownerProvider.value?.let { owner -> priceStore?.follow(_chargeSessions.value, owner.defaults()) }
+                }.onFailure { log("charge prices: follow failed: $it") }
             }.isSuccess
         }
 
     /**
      * Sets the owner's [price] for [session] in `owner.db`, in [currencyCode]: an ISO 4217 code resolved now
-     * (`resolvedCurrencyCode`), never left to the locale, so a backup restored elsewhere keeps its meaning.
+     * (`resolvedCurrencyCode`), never left to the locale, so a backup restored elsewhere keeps its meaning. [place] is
+     * a `ChargePlace` or the owner's own name for it. A null price is an empty one the owner chose.
      */
     fun setChargePrice(
         session: ChargeSession,
-        price: SessionPrice,
+        price: SessionPrice?,
         currencyCode: String,
+        place: String?,
     ) {
         scope.launch {
             buildMutex.withLock {
-                runCatching { chargePrices?.set(session, price, currencyCode) }.onFailure { log("charge prices: set failed: $it") }
+                runCatching { priceStore?.set(session, price, currencyCode, place) }.onFailure { log("charge prices: set failed: $it") }
             }
         }
     }
@@ -252,7 +263,7 @@ class HistoryStore internal constructor(
     /** Takes [session] back to its automatic price. */
     fun clearChargePrice(session: ChargeSession) {
         scope.launch {
-            buildMutex.withLock { runCatching { chargePrices?.clear(session) }.onFailure { log("charge prices: clear failed: $it") } }
+            buildMutex.withLock { runCatching { priceStore?.clear(session) }.onFailure { log("charge prices: clear failed: $it") } }
         }
     }
 

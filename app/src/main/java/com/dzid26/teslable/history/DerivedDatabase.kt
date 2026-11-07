@@ -12,10 +12,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.room.migration.AutoMigrationSpec
-import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.SQLiteDriver
-import androidx.sqlite.execSQL
 
 /**
  * One kept [com.dzid26.teslable.core.history.BatterySample] of the long-term history (ADR-0014): the columns are the
@@ -175,13 +172,6 @@ internal interface DerivedReadDao {
     ): Long?
 }
 
-/** Marks every car with stored samples for a full session re-cut, from the start of its history. */
-internal class RecutAllSessions : AutoMigrationSpec {
-    override fun onPostMigrate(connection: SQLiteConnection) {
-        connection.execSQL("INSERT OR REPLACE INTO session_dirty (vehicleId, fromTime) SELECT DISTINCT vehicleId, 0 FROM battery_samples")
-    }
-}
-
 /**
  * `derived.db` (ADR-0014): the long-term history the charts and stats read, built from `history.db` by
  * [DerivedBuilder]. Everything here can be rebuilt from the raw records while they last, so the file is not
@@ -202,7 +192,7 @@ internal class RecutAllSessions : AutoMigrationSpec {
     // session and re-cuts every car's sessions so the stored ones get it.
     version = 3,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3, spec = RecutAllSessions::class)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
 )
 internal abstract class DerivedDatabase : RoomDatabase() {
     abstract fun derived(): DerivedDao
