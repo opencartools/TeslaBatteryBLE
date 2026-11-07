@@ -69,6 +69,6 @@ class TeslaCommandsDriveStateTest {
     fun `a refused request parses to null and leaves the reason readable`() {
         val refusal = Response(actionStatus = ActionStatus(result = OperationStatus_E.OPERATIONSTATUS_ERROR)).encode()
         assertNull(TeslaCommands.parseDriveState(refusal))
-        assertEquals("OPERATIONSTATUS_ERROR", TeslaCommands.parseActionStatus(refusal))
+        assertEquals(OperationStatus_E.OPERATIONSTATUS_ERROR, TeslaCommands.parseActionStatus(refusal))
     }
 }

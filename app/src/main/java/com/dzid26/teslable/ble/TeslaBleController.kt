@@ -1195,7 +1195,7 @@ class TeslaBleController(
                 override fun transmitSessionRequest(request: ByteArray): Boolean =
                     transmit(request, CommandRecords.sessionInfo(Command.Reason.SESSION_HANDSHAKE, request))
 
-                override fun publishSessions(domains: List<String>) {
+                override fun publishSessions(domains: Set<Domain>) {
                     updateConnection(address) { it.copy(sessions = domains) }
                 }
 
@@ -1310,7 +1310,7 @@ class TeslaBleController(
             updateConnection(address) {
                 it.copy(
                     phase = ConnectionPhase.IDLE,
-                    sessions = emptyList(),
+                    sessions = emptySet(),
                     disconnectedAtMillis = System.currentTimeMillis(),
                 )
             }
@@ -1326,7 +1326,7 @@ class TeslaBleController(
             updateConnection(address) {
                 it.copy(
                     keySlot = null,
-                    sessions = emptyList(),
+                    sessions = emptySet(),
                     pairing = PairingPhase.IDLE,
                     pairingKeyId = null,
                 )

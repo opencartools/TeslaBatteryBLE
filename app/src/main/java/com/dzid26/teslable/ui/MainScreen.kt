@@ -94,6 +94,7 @@ import com.dzid26.teslable.ble.stalenessTickDelayMs
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.history.HistorySamples
 import com.dzid26.teslable.protocol.asleep
+import com.tesla.generated.universalmessage.Domain
 import kotlinx.coroutines.delay
 
 /**
@@ -585,7 +586,7 @@ internal fun VehicleCard(
     val reading = batteryPercent(row.connection, row.lastKnown, nowMillis)
     val canWake =
         row.connection?.status?.asleep == true &&
-            row.connection?.sessions?.contains("DOMAIN_VEHICLE_SECURITY") == true
+            row.connection?.sessions?.contains(Domain.DOMAIN_VEHICLE_SECURITY) == true
     val vin = row.vehicle?.vin
     var menuOpen by remember { mutableStateOf(false) }
 

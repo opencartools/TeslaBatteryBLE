@@ -13,12 +13,12 @@ import org.junit.Test
 class ReadBlockedHintTest {
     private val awake = VehicleStatus(vehicleSleepStatus = VehicleSleepStatus_E.VEHICLE_SLEEP_STATUS_AWAKE)
     private val asleep = VehicleStatus(vehicleSleepStatus = VehicleSleepStatus_E.VEHICLE_SLEEP_STATUS_ASLEEP)
-    private val bothDomains = listOf(Domain.DOMAIN_INFOTAINMENT.name, Domain.DOMAIN_VEHICLE_SECURITY.name)
+    private val bothDomains = setOf(Domain.DOMAIN_INFOTAINMENT, Domain.DOMAIN_VEHICLE_SECURITY)
 
     private fun connection(
         phase: ConnectionPhase = ConnectionPhase.READY,
         status: VehicleStatus? = awake,
-        sessions: List<String> = bothDomains,
+        sessions: Set<Domain> = bothDomains,
     ) = TeslaConnection(address = "AA:BB", name = "car", phase = phase, status = status, sessions = sessions)
 
     @Test
@@ -47,7 +47,7 @@ class ReadBlockedHintTest {
     fun aMissingVinComesBeforeSleepAndTheSession() {
         assertEquals(
             ReadBlockedHint.NEEDS_VIN,
-            readBlockedHint(connection(status = asleep, sessions = emptyList()), hasSessionVin = false),
+            readBlockedHint(connection(status = asleep, sessions = emptySet()), hasSessionVin = false),
         )
     }
 
@@ -55,7 +55,7 @@ class ReadBlockedHintTest {
     fun withNoSessionTheToastSaysTheSessionIsComing() {
         assertEquals(
             ReadBlockedHint.NO_SESSION,
-            readBlockedHint(connection(sessions = listOf(Domain.DOMAIN_VEHICLE_SECURITY.name)), true),
+            readBlockedHint(connection(sessions = setOf(Domain.DOMAIN_VEHICLE_SECURITY)), true),
         )
     }
 

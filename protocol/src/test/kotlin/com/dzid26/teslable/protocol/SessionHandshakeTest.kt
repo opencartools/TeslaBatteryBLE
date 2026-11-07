@@ -58,7 +58,7 @@ class SessionHandshakeTest {
         assertTrue(handshake.onMessage(answer(host.requests.single(), vin)))
 
         assertTrue(handshake.has(Domain.DOMAIN_VEHICLE_SECURITY))
-        assertEquals(listOf(listOf("DOMAIN_VEHICLE_SECURITY")), host.published)
+        assertEquals(listOf(setOf(Domain.DOMAIN_VEHICLE_SECURITY)), host.published)
         assertEquals(listOf(Domain.DOMAIN_VEHICLE_SECURITY), host.established)
     }
 
@@ -175,7 +175,7 @@ class SessionHandshakeTest {
         handshake.clear()
 
         assertFalse(handshake.onMessage(answer(request, vin)))
-        assertEquals(emptyList(), handshake.established)
+        assertEquals(emptySet(), handshake.established)
     }
 
     @Test
@@ -268,7 +268,7 @@ class SessionHandshakeTest {
         var gaveUp = 0
         val logs = mutableListOf<String>()
         val requests = mutableListOf<ByteArray>()
-        val published = mutableListOf<List<String>>()
+        val published = mutableListOf<Set<Domain>>()
         val established = mutableListOf<Domain>()
 
         fun requestedDomains(): List<Domain> = requests.mapNotNull { it.domain() }
@@ -282,7 +282,7 @@ class SessionHandshakeTest {
             return true
         }
 
-        override fun publishSessions(domains: List<String>) {
+        override fun publishSessions(domains: Set<Domain>) {
             published += domains
         }
 

@@ -7,6 +7,7 @@ import com.tesla.generated.carserver.server.GetClimateState
 import com.tesla.generated.carserver.server.GetClosuresState
 import com.tesla.generated.carserver.server.GetDriveState
 import com.tesla.generated.carserver.server.GetVehicleData
+import com.tesla.generated.carserver.server.OperationStatus_E
 import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.carserver.server.VehicleAction
 import com.tesla.generated.carserver.vehicle.ChargeState
@@ -97,10 +98,9 @@ object TeslaCommands {
         return data.climate_state
     }
 
-    fun parseActionStatus(payload: ByteArray): String? =
+    fun parseActionStatus(payload: ByteArray): OperationStatus_E? =
         Response.ADAPTER
             .decode(payload)
             .actionStatus
             ?.result
-            ?.name
 }

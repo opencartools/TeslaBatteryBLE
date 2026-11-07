@@ -50,7 +50,7 @@ class MetadataTest {
     @Test
     fun `computes a stable hmac checksum for a fixed key`() {
         val metadata = Metadata.hmacSha256(ByteArray(16) { it.toByte() }).add(2, "testVIN".encodeToByteArray())
-        assertContentEquals(HMAC_CHECKSUM.hex(), metadata.checksum(byteArrayOf()))
+        assertContentEquals(HMAC_CHECKSUM.hexToByteArray(), metadata.checksum(byteArrayOf()))
     }
 
     @Test
@@ -108,8 +108,6 @@ class MetadataTest {
                 ),
             ).add(4, byteArrayOf(0x00, 0x00, 0x0e, 0x74))
             .add(5, byteArrayOf(0x00, 0x00, 0x05, 0x3a))
-
-    private fun String.hex(): ByteArray = chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
     private companion object {
         // Regression value from this implementation. The HMAC path is used by

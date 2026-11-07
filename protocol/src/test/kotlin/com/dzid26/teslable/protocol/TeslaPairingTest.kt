@@ -35,10 +35,10 @@ class TeslaPairingTest {
         // 00 1b, so BigInteger.toByteArray() returns 31 bytes that the encoding
         // must pad. Y starts b2, so it returns 33 bytes with a sign byte that
         // the encoding must drop.
-        val publicKey = TeslaCrypto.rawToPublicKey(SHORT_X_PUBLIC.hex())
+        val publicKey = TeslaCrypto.rawToPublicKey(SHORT_X_PUBLIC.hexToByteArray())
         val encoded = publicKey.encodeToByteArrayBlocking(EC.PublicKey.Format.RAW)
 
-        assertContentEquals(SHORT_X_PUBLIC.hex(), encoded)
+        assertContentEquals(SHORT_X_PUBLIC.hexToByteArray(), encoded)
     }
 
     @Test
@@ -96,8 +96,6 @@ class TeslaPairingTest {
         FromVCSECMessage(
             commandStatus = CommandStatus(operationStatus = status),
         ).encode()
-
-    private fun String.hex(): ByteArray = chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
     private companion object {
         const val SHORT_X_PUBLIC =
