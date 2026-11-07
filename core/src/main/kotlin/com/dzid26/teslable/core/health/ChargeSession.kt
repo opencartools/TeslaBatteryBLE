@@ -100,34 +100,6 @@ fun chargeSessions(
     }
 }
 
-private fun chargeRuns(samples: List<BatterySample>): List<List<BatterySample>> {
-    val runs = mutableListOf<MutableList<BatterySample>>()
-    var current: MutableList<BatterySample>? = null
-    var paused = false
-    for (sample in samples) {
-        when (sample.chargingState) {
-            ChargingStateKind.Charging, ChargingStateKind.Starting -> {
-                val pausedTooLong =
-                    paused && current != null && sample.timestampMillis - current.last().timestampMillis >= MAX_PAUSE_MILLIS
-                if (current == null || pausedTooLong) {
-                    current = mutableListOf()
-                    runs.add(current)
-                }
-                current.add(sample)
-                paused = false
-            }
-
-            ChargingStateKind.Stopped, ChargingStateKind.NoPower -> paused = true
-
-            else -> {
-                current = null
-                paused = false
-            }
-        }
-    }
-    return runs
-}
-
 /**
  * Stats of the last charge that has finished: [chargeStats] once the session is over, and while one is
  * still open (see [chargeSessionOpen]) the charge before it, so the figures stay put and are swapped
@@ -207,7 +179,7 @@ private const val MIN_AVERAGE_MILLIS = 5 * 60_000L
 private const val MILLIS_PER_HOUR = 3_600_000f
 
 /** A pause (Stopped or NoPower) shorter than this does not end a session. */
-private const val MAX_PAUSE_MILLIS = 10 * 60_000L
+internal const val MAX_PAUSE_MILLIS = 10 * 60_000L
 
 /** When each charge that had begun by [byMillis] began, oldest first: the time of its first charging sample. */
 fun chargeStartsBy(

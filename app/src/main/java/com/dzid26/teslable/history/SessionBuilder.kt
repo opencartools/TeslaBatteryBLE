@@ -7,6 +7,7 @@ import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.DriveSample
 import com.dzid26.teslable.core.history.DriveSession
 import com.dzid26.teslable.core.history.SessionStore
+import com.dzid26.teslable.core.history.StoredSpan
 import com.dzid26.teslable.core.history.recutSessions
 
 /**
@@ -37,9 +38,11 @@ internal class SessionBuilder(
     private inner class Stored(
         private val vehicleId: String,
     ) : SessionStore {
-        override fun newestChargeStartBefore(millis: Long) = sessions.newestChargeStartBefore(vehicleId, millis)
+        override fun newestChargeBefore(millis: Long) = sessions.newestChargeBefore(vehicleId, millis)?.toSpan()
 
-        override fun newestDriveStartBefore(millis: Long) = sessions.newestDriveStartBefore(vehicleId, millis)
+        override fun newestDriveBefore(millis: Long) = sessions.newestDriveBefore(vehicleId, millis)?.toSpan()
+
+        override fun chargeBreakBefore(millis: Long) = reads.chargeBreakBefore(vehicleId, millis)?.toSample()
 
         override fun driveReadingBefore(millis: Long) = reads.driveReadingBefore(vehicleId, millis)
 
@@ -64,3 +67,5 @@ internal class SessionBuilder(
         }
     }
 }
+
+private fun SessionSpanRow.toSpan() = StoredSpan(startTime, endTime)

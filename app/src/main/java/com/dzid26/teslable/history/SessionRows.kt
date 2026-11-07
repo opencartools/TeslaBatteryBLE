@@ -51,6 +51,12 @@ internal data class SessionDirtyRow(
     val fromTime: Long,
 )
 
+/** A stored session's start and end, from either session table. */
+internal data class SessionSpanRow(
+    val startTime: Long,
+    val endTime: Long,
+)
+
 /** The per-car marks the sample builder lowers and the session builder clears. */
 @Dao
 internal interface SessionDirtyDao {
@@ -74,18 +80,22 @@ internal interface SessionDirtyDao {
 /** What the session builder and the session readers use. */
 @Dao
 internal interface SessionDao {
-    /** The start of the car's newest charge session that starts before [time], where a re-cut begins. */
-    @Query("SELECT MAX(startTime) FROM charge_sessions WHERE vehicleId = :vehicleId AND startTime < :time")
-    fun newestChargeStartBefore(
+    /** The car's newest charge session that starts before [time], where a re-cut may begin. */
+    @Query(
+        "SELECT startTime, endTime FROM charge_sessions WHERE vehicleId = :vehicleId AND startTime < :time ORDER BY startTime DESC LIMIT 1",
+    )
+    fun newestChargeBefore(
         vehicleId: String,
         time: Long,
-    ): Long?
+    ): SessionSpanRow?
 
-    @Query("SELECT MAX(startTime) FROM drive_sessions WHERE vehicleId = :vehicleId AND startTime < :time")
-    fun newestDriveStartBefore(
+    @Query(
+        "SELECT startTime, endTime FROM drive_sessions WHERE vehicleId = :vehicleId AND startTime < :time ORDER BY startTime DESC LIMIT 1",
+    )
+    fun newestDriveBefore(
         vehicleId: String,
         time: Long,
-    ): Long?
+    ): SessionSpanRow?
 
     @Query("DELETE FROM charge_sessions WHERE vehicleId = :vehicleId AND startTime >= :from")
     fun deleteChargesFrom(

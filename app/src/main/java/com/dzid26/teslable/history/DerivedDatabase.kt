@@ -150,6 +150,19 @@ internal interface DerivedReadDao {
         from: Long,
     ): List<DriveSampleRow>
 
+    /**
+     * The car's newest kept battery sample before [time] that is neither charging nor starting to (the names of
+     * `ChargingStateKind.Charging` and `Starting`): what may have closed the charge session before it.
+     */
+    @Query(
+        "SELECT * FROM battery_samples WHERE vehicleId = :vehicleId AND time < :time AND " +
+            "(chargingState IS NULL OR chargingState NOT IN ('Charging', 'Starting')) ORDER BY time DESC LIMIT 1",
+    )
+    fun chargeBreakBefore(
+        vehicleId: String,
+        time: Long,
+    ): BatterySampleRow?
+
     /** The time of the car's newest kept drive sample with an odometer before [time]. */
     @Query("SELECT MAX(time) FROM drive_samples WHERE vehicleId = :vehicleId AND time < :time AND odometer IS NOT NULL")
     fun driveReadingBefore(

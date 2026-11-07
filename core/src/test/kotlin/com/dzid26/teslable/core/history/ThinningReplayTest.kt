@@ -4,6 +4,7 @@ package com.dzid26.teslable.core.history
 
 import com.dzid26.teslable.core.health.ChargeSession
 import com.dzid26.teslable.core.health.chargeSessions
+import com.dzid26.teslable.protocol.ChargingStateKind
 import org.junit.Assume.assumeTrue
 import java.io.File
 import kotlin.math.abs
@@ -86,6 +87,7 @@ class ThinningReplayTest {
                     assertEquals(fullCharges, joined, "charge sessions joined at $built")
                 }
             }
+            println("$id: built every ${interval / 60_000}min, at most ${store.mostRead} samples read by one build")
             assertEquals(thinCharges, store.charges, "charge sessions built every ${interval / 60_000}min")
             assertEquals(thinDriveSessions, store.storedDrives, "drive sessions built every ${interval / 60_000}min")
         }
@@ -130,9 +132,18 @@ class ThinningReplayTest {
             }
         }
 
-        override fun newestChargeStartBefore(millis: Long) = charges.lastOrNull { it.startMillis < millis }?.startMillis
+        override fun newestChargeBefore(millis: Long) =
+            charges.lastOrNull { it.startMillis < millis }?.let { StoredSpan(it.startMillis, it.endMillis) }
 
-        override fun newestDriveStartBefore(millis: Long) = storedDrives.lastOrNull { it.startMillis < millis }?.startMillis
+        override fun newestDriveBefore(millis: Long) =
+            storedDrives.lastOrNull { it.startMillis < millis }?.let { StoredSpan(it.startMillis, it.endMillis) }
+
+        override fun chargeBreakBefore(millis: Long): BatterySample? {
+            val kept = battery.subList(0, keptBattery)
+            return kept
+                .subList(0, kept.size - kept.fromTime(millis) { it.timestampMillis }.size)
+                .lastOrNull { it.chargingState != ChargingStateKind.Charging && it.chargingState != ChargingStateKind.Starting }
+        }
 
         override fun driveReadingBefore(millis: Long): Long? {
             val kept = drives.subList(0, keptDrives)
@@ -140,9 +151,18 @@ class ThinningReplayTest {
             return before.lastOrNull { it.odometerInHundredthsOfAMile != null }?.timestampMillis
         }
 
-        override fun batteryFrom(millis: Long) = battery.subList(0, keptBattery).fromTime(millis) { it.timestampMillis }
+        /** The most samples one build read, battery and drive together. */
+        var mostRead = 0
+        private var read = 0
 
-        override fun drivesFrom(millis: Long) = drives.subList(0, keptDrives).fromTime(millis) { it.timestampMillis }
+        override fun batteryFrom(millis: Long): List<BatterySample> {
+            val from = battery.subList(0, keptBattery).fromTime(millis) { it.timestampMillis }
+            read = from.size
+            return from
+        }
+
+        override fun drivesFrom(millis: Long) =
+            drives.subList(0, keptDrives).fromTime(millis) { it.timestampMillis }.also { mostRead = maxOf(mostRead, read + it.size) }
 
         override fun replaceCharges(
             millis: Long,
