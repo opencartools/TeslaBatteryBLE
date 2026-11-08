@@ -19,11 +19,11 @@ Light and dark themes, side by side.
 
 **Light**
 
-<p><img src="website/images/01-trip.png" alt="Trip card with the progress bar (light)" width="40%"><img src="website/images/02-drive.png" alt="Drive card with its chart (light)" width="40%"></p>
+<p><img src="website/images/01-trip.png" alt="Trip card with the progress bar (light)" width="40%"> <img src="website/images/02-drive.png" alt="Drive card with its chart (light)" width="40%"></p>
 
 **Dark**
 
-<p><img src="website/images/01-trip-dark.png" alt="Trip card with the progress bar (dark)" width="40%"><img src="website/images/02-drive-dark.png" alt="Drive card with its chart (dark)" width="40%"></p>
+<p><img src="website/images/01-trip-dark.png" alt="Trip card with the progress bar (dark)" width="40%"> <img src="website/images/02-drive-dark.png" alt="Drive card with its chart (dark)" width="40%"></p>
 
 ## Features
 
