@@ -108,7 +108,7 @@ class FakeCarProtocol(
     }
 
     fun chargeOnePercent() {
-        if (!asleep && charging && batteryLevel < CHARGE_LIMIT) batteryLevel++
+        if (!asleep && charging && batteryLevel < chargeLimit) batteryLevel++
     }
 
     fun handle(bytes: ByteArray): List<Response> {

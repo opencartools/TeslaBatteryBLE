@@ -167,7 +167,7 @@ internal object DemoScreenFixtures {
             connections = mapOf(DEMO_ADDRESS to connection(nowMillis, PairingPhase.OK, driving, atTheWheel)),
         )
 
-    /** The car on a DC fast charger: the charge controls stay away. */
+    /** The car on a DC fast charger: the charge card shows, with the current control disabled. */
     fun fastChargingState(nowMillis: Long) =
         carState(nowMillis).copy(
             connections = mapOf(DEMO_ADDRESS to connection(nowMillis, PairingPhase.OK, fastCharging)),
