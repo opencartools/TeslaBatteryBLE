@@ -6,6 +6,7 @@ import com.tesla.generated.carserver.server.Action
 import com.tesla.generated.carserver.server.ActionStatus
 import com.tesla.generated.carserver.server.OperationStatus_E
 import com.tesla.generated.carserver.server.Response
+import com.tesla.generated.carserver.server.ResultReason
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -193,6 +194,16 @@ class ActuationChannelTest {
         assertTrue(host.pendingStates.last().isEmpty())
     }
 
+    @Test
+    fun `already set is an acceptance`() {
+        sendLimit()
+
+        channel.onReply(ActuationKey.CHARGE_LIMIT, alreadySetStatus())
+
+        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, ActuationResult.ACCEPTED), host.feedback.single())
+        assertEquals(true, host.lastResumeAccepted)
+    }
+
     private fun sendLimit() {
         host.awake = true
         host.session = true
@@ -204,6 +215,16 @@ class ActuationChannelTest {
             actionStatus =
                 ActionStatus(
                     result = if (ok) OperationStatus_E.OPERATIONSTATUS_OK else OperationStatus_E.OPERATIONSTATUS_ERROR,
+                ),
+        ).encode()
+
+    /** The reply for setting a value the car already has. */
+    private fun alreadySetStatus(): ByteArray =
+        Response(
+            actionStatus =
+                ActionStatus(
+                    result = OperationStatus_E.OPERATIONSTATUS_ERROR,
+                    result_reason = ResultReason(plain_text = "already_set"),
                 ),
         ).encode()
 

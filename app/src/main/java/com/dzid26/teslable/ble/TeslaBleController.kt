@@ -1127,8 +1127,9 @@ class TeslaBleController(
             object : Runnable {
                 override fun run() {
                     if (phase != ConnectionPhase.READY) return
-                    transport?.readRssi()
-                    requestStatus()
+                    // The action and its reply come first: the periodic reads resume once it settles.
+                    if (!actuation.hasPending) transport?.readRssi()
+                    if (!actuation.isInFlight) requestStatus()
                     commands.logUnanswered()
                     // Once the VCSEC session exists the lookup is no longer waiting on anything; until then it stays
                     // behind the session request (a handshake that gives up releases it).
@@ -1143,7 +1144,8 @@ class TeslaBleController(
             object : Runnable {
                 override fun run() {
                     if (!uiVisible || phase != ConnectionPhase.READY) return
-                    transport?.readRssi()
+                    // A GATT read in flight delays the action's write; the signal meter can wait for it.
+                    if (!actuation.hasPending) transport?.readRssi()
                     handler.postDelayed(this, RSSI_POLL_MS)
                 }
             }

@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ble
 
-import com.dzid26.teslable.protocol.TeslaCommands
 import com.tesla.generated.carserver.server.OperationStatus_E
+import com.tesla.generated.carserver.server.Response
+
+/** The car's reason for an idempotent set it already had: the value needs no change, so it is not a refusal. */
+private const val ALREADY_SET = "already_set"
 
 /**
  * One control the app can actuate. The channel keeps at most one request in flight and one queued
@@ -94,6 +97,9 @@ internal class ActuationChannel(
     /** True while a value is queued or a request is out. */
     val hasPending: Boolean get() = inFlight != null || pending.isNotEmpty()
 
+    /** True while the request is out and the car's reply is due; the link keeps itself free for it. */
+    val isInFlight: Boolean get() = inFlight != null
+
     /** Queues one action, replacing the value already waiting for the same control. */
     fun submit(
         key: ActuationKey,
@@ -135,12 +141,16 @@ internal class ActuationChannel(
         fault: Boolean = false,
     ): Boolean {
         if (inFlight != key) return false
+        val answered = plaintext?.let { runCatching { Response.ADAPTER.decode(it).actionStatus }.getOrNull() }
+        // The car reports a value that is already at the target as an ActionStatus error with this reason.
+        val accepted =
+            answered?.result == OperationStatus_E.OPERATIONSTATUS_OK ||
+                answered?.result_reason?.plain_text == ALREADY_SET
         val result =
             when {
                 fault -> ActuationResult.REFUSED
                 plaintext == null -> ActuationResult.NO_ANSWER
-                runCatching { TeslaCommands.parseActionStatus(plaintext) }.getOrNull() ==
-                    OperationStatus_E.OPERATIONSTATUS_OK -> ActuationResult.ACCEPTED
+                accepted -> ActuationResult.ACCEPTED
                 else -> ActuationResult.REFUSED
             }
         inFlight = null

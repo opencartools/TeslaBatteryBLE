@@ -261,8 +261,19 @@ internal fun CarScreen(
     LaunchedEffect(feedback) {
         val quiet = feedback?.takeIf { !it.key.reportsInSnackbar } ?: return@LaunchedEffect
         // A lost answer is not a refusal: the value or the next read decides, so leave the line alone.
-        if (quiet.result != ActuationResult.NO_ANSWER) quietFailure = quiet.key
+        // A success clears a line left by the previous tap; only a refusal or a failure paints one.
+        when (quiet.result) {
+            ActuationResult.REFUSED, ActuationResult.FAILED -> quietFailure = quiet.key
+            ActuationResult.ACCEPTED -> quietFailure = null
+            ActuationResult.NO_ANSWER -> Unit
+        }
         onActionFeedbackShown()
+    }
+    // A refusal stays while the owner reads it, then goes; a stale line must never outlive its action.
+    LaunchedEffect(quietFailure) {
+        if (quietFailure == null) return@LaunchedEffect
+        delay(QUIET_FAILURE_MS)
+        quietFailure = null
     }
     Scaffold(
         modifier = Modifier.countingTouches(),
@@ -409,6 +420,13 @@ internal fun CarScreen(
                             showsChargeControls(charge)
                     LaunchedEffect(showChargeControls) {
                         if (!showChargeControls) quietFailure = null
+                    }
+                    // The car reported a value for the control the line was about: it has been settled.
+                    LaunchedEffect(charge?.charge_limit_soc) {
+                        if (quietFailure == ActuationKey.CHARGE_LIMIT) quietFailure = null
+                    }
+                    LaunchedEffect(charge?.charge_current_request) {
+                        if (quietFailure == ActuationKey.CHARGING_AMPS) quietFailure = null
                     }
                     if (connection != null && charge != null && showChargeControls) {
                         ChargeControlsCard(
@@ -1152,6 +1170,9 @@ private fun HistoryRange.label(): String =
 private const val FULL_LEVEL = 100
 
 private const val REFRESH_FEEDBACK_MS = 2500L
+
+/** How long a refusal stays on the card before it clears; long enough to read, short enough not to stick. */
+private const val QUIET_FAILURE_MS = 6000L
 
 private val EDIT_ICON_LIFT = (-10).dp
 private val EDIT_ICON = 18.dp
