@@ -17,7 +17,10 @@ What the app does today, in detail. The short version is in the [README](../READ
 - **Charge session cost** — set your home charging price per kWh in Settings (a new price applies from the start of the latest charge, so changing it mid-charge prices that whole charge) and the car view shows the energy added and what the session cost while it charges, then on the Last charge line once it ends; the currency is picked from a dropdown of common ones and defaults to your phone's
 - **Battery drain stats** — a card of its own. It says what the car is doing now and since when (charging, driving, parked, or powered down: parked an hour or more, nobody in it, Sentry and climate off), then, over the whole log, the longest parked (odometer unchanged, not charging, gaps between readings included), power down (parked, nobody in the car, Sentry and climate off) and deep sleep (asleep without a break in the phone's view) stretches, each with when it ended, when it started on tap and the battery drain, and the lowest drain between two readings at least six hours apart. A rate measured over less than a day carries a star. A deep sleep with no battery read near its ends shows a ceiling. Stretches that start while the usable level lags the level (cold battery) are left out. The parked-drain projection follows the power-down rate
 - **Metric or imperial** — pick System default, Metric or Imperial in Settings; range and the health card show km or mi, and the rated constant reads as Wh/km, kWh/100km or km/kWh (display only, the car reports miles)
-- **On-demand wake** — the car is only woken when you ask, never in the background
+- **On-demand wake** — the car is only woken when you ask, never in the background.
+  A lost wake frame is sent again on the same session until the car's own status says
+  it is awake (up to 30 s), and the pill turns Awake from that status reply without
+  waiting for the charge read
 - **Lets the car sleep** — while it is charging, driving, in Sentry mode or running the climate (the car stays
   awake and draws power anyway), readings refresh every 10s. Otherwise the app keeps
   reading every 10s for a short while after something happens (the car wakes, locks or unlocks, a door or the
