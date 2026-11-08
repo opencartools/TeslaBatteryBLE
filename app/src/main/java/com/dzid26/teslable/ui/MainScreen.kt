@@ -121,10 +121,10 @@ fun MainScreen(
     onRequestVin: (String) -> Unit,
     onDismissVin: () -> Unit,
     onOpenSettings: () -> Unit,
-    onSetChargeLimit: (Int) -> Unit,
-    onSetChargingAmps: (Int) -> Unit,
-    onStartCharging: () -> Unit,
-    onStopCharging: () -> Unit,
+    onSetChargeLimit: (String, Int) -> Unit,
+    onSetChargingAmps: (String, Int) -> Unit,
+    onStartCharging: (String) -> Unit,
+    onStopCharging: (String) -> Unit,
     onActionFeedbackShown: () -> Unit,
 ) {
     var viewingBleName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -187,10 +187,10 @@ fun MainScreen(
             onAddVin = { onRequestVin(bleName) },
             onOpenSettings = onOpenSettings,
             onToggleTracking = onToggleTracking,
-            onSetChargeLimit = onSetChargeLimit,
-            onSetChargingAmps = onSetChargingAmps,
-            onStartCharging = onStartCharging,
-            onStopCharging = onStopCharging,
+            onSetChargeLimit = { percent -> onSetChargeLimit(bleName, percent) },
+            onSetChargingAmps = { amps -> onSetChargingAmps(bleName, amps) },
+            onStartCharging = { onStartCharging(bleName) },
+            onStopCharging = { onStopCharging(bleName) },
             onActionFeedbackShown = onActionFeedbackShown,
         )
     } else {

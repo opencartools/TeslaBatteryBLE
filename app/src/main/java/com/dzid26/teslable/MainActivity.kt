@@ -202,10 +202,10 @@ class MainActivity : ComponentActivity() {
                                         onRequestVin = controller::requestVin,
                                         onDismissVin = controller::dismissVinRequest,
                                         onOpenSettings = { screen = AppScreen.SETTINGS },
-                                        onSetChargeLimit = { percent -> controller.setChargeLimit(percent) },
-                                        onSetChargingAmps = { amps -> controller.setChargingAmps(amps) },
-                                        onStartCharging = { controller.startCharging() },
-                                        onStopCharging = { controller.stopCharging() },
+                                        onSetChargeLimit = { name, percent -> controller.setChargeLimit(percent, name) },
+                                        onSetChargingAmps = { name, amps -> controller.setChargingAmps(amps, name) },
+                                        onStartCharging = { name -> controller.startCharging(name) },
+                                        onStopCharging = { name -> controller.stopCharging(name) },
                                         onActionFeedbackShown = controller::consumeActionFeedback,
                                     )
                                 }

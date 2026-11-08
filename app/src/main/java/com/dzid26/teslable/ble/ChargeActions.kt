@@ -45,7 +45,7 @@ internal class ChargeActions(
         val link = name?.let(actuator)
         if (link == null) {
             log("No connected car for ${key.name.lowercase()}")
-            publish(ActuationFeedback(key, ActuationResult.FAILED))
+            publish(ActuationFeedback(key, ActuationResult.FAILED, bleName = name))
         } else {
             link.actuate(key, payload)
         }

@@ -59,6 +59,32 @@ class ActuationChannelTest {
     }
 
     @Test
+    fun `an action waits for a read that already asked for the session`() {
+        host.awake = true
+        host.readWaiting = true
+
+        channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
+
+        assertEquals(0, host.sessionStarts)
+        assertEquals(setOf(ActuationKey.CHARGE_LIMIT), host.pendingStates.last())
+
+        host.session = true
+        channel.onSessionEstablished()
+
+        assertEquals(listOf(ActuationKey.CHARGE_LIMIT), host.sent.map { it.first })
+    }
+
+    @Test
+    fun `a session that cannot start fails the action`() {
+        host.awake = true
+        host.startSessionResult = false
+
+        channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
+
+        assertEquals(ActuationResult.FAILED, host.feedback.single().result)
+    }
+
+    @Test
     fun `a newer value replaces the one still queued`() {
         channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
         channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(85))
@@ -104,6 +130,15 @@ class ActuationChannelTest {
 
         assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, ActuationResult.NO_ANSWER), host.feedback.single())
         assertEquals(false, host.lastResumeAccepted)
+    }
+
+    @Test
+    fun `a signed rejection is a refusal`() {
+        sendLimit()
+
+        channel.onReply(ActuationKey.CHARGE_LIMIT, plaintext = null, fault = true)
+
+        assertEquals(ActuationFeedback(ActuationKey.CHARGE_LIMIT, ActuationResult.REFUSED), host.feedback.single())
     }
 
     @Test

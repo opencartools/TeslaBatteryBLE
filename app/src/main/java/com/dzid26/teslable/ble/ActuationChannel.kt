@@ -27,10 +27,11 @@ enum class ActuationResult {
     FAILED,
 }
 
-/** The channel's terminal result for one [key]. */
+/** The channel's terminal result for one [key], tagged with the car it belongs to. */
 data class ActuationFeedback(
     val key: ActuationKey,
     val result: ActuationResult,
+    val bleName: String? = null,
 )
 
 /** What the channel needs from the vehicle link; the link owns the transport and the sessions. */
@@ -127,14 +128,16 @@ internal class ActuationChannel(
     /** The in-flight read is over: an action that waited behind it may go out now. */
     fun onReadFinished() = sendNext()
 
-    /** The car answered [key]; null means the answer could not be used. A value that arrived meanwhile follows. */
+    /** The car answered [key]; null means the answer could not be used, and [fault] marks a signed rejection. */
     fun onReply(
         key: ActuationKey,
         plaintext: ByteArray?,
+        fault: Boolean = false,
     ): Boolean {
         if (inFlight != key) return false
         val result =
             when {
+                fault -> ActuationResult.REFUSED
                 plaintext == null -> ActuationResult.NO_ANSWER
                 runCatching { TeslaCommands.parseActionStatus(plaintext) }.getOrNull() ==
                     OperationStatus_E.OPERATIONSTATUS_OK -> ActuationResult.ACCEPTED

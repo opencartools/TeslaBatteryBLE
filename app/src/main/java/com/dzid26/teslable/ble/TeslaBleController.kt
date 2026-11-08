@@ -1016,7 +1016,7 @@ class TeslaBleController(
 
                     override fun readWaiting() = infotainmentGate.readWaiting
 
-                    override fun readActive(): Boolean = readInFlight.active
+                    override fun readActive(): Boolean = readInFlight.active && !readInFlight.waitingForSession
 
                     override fun startSession() = this@VehicleLink.startSession()
 
@@ -1042,7 +1042,9 @@ class TeslaBleController(
                         feedback: ActuationFeedback?,
                     ) {
                         updateConnection(address) { it.copy(actuating = pending) }
-                        if (feedback != null) _state.update { it.copy(actionFeedback = feedback) }
+                        if (feedback != null) {
+                            _state.update { it.copy(actionFeedback = feedback.copy(bleName = bleName)) }
+                        }
                     }
 
                     override fun resumeRead(accepted: Boolean) {
@@ -1351,8 +1353,8 @@ class TeslaBleController(
             pendingCommands.clear()
             pairing.onLinkClosed()
             infotainmentGate.onLinkDropped()
-            readInFlight.onLinkDropped()
             actuation.onStopped()
+            readInFlight.onLinkDropped()
             wakeRetry.cancel()
             updateConnection(address) {
                 it.copy(
@@ -1367,6 +1369,7 @@ class TeslaBleController(
         fun clearCachedPairing() {
             handshake.clear()
             pendingCommands.clear()
+            actuation.onStopped()
             readInFlight.onLinkDropped()
             pairing.onCacheCleared()
             wakeRetry.cancel()
@@ -1500,10 +1503,10 @@ class TeslaBleController(
             handler.removeCallbacks(wakeRefresh)
             // A long-sleeping car rotates its session; a command encrypted with
             // the old one is dropped without a reply, so handshake again first.
-            if (handshake.has(Domain.DOMAIN_VEHICLE_SECURITY)) {
-                handshake.drop(Domain.DOMAIN_VEHICLE_SECURITY)
-                handshake.publish()
-            }
+            // A long-sleeping car rotates its sessions; both domains must handshake again.
+            handshake.drop(Domain.DOMAIN_VEHICLE_SECURITY)
+            handshake.drop(Domain.DOMAIN_INFOTAINMENT)
+            handshake.publish()
             log("${name()}: waking with a fresh session")
             if (!startSession()) abandonWake("no session to start")
         }
@@ -1560,8 +1563,9 @@ class TeslaBleController(
          * button ([Command.Reason.USER_REFRESH]) is sent at once and counted by the policy.
          */
         fun requestChargeState(reason: Command.Reason = CommandRecords.reasonOf(infotainmentPolicy.lastReadReason)) {
-            // The action the owner just gave waits for the current read; do not start another ahead of it.
-            if (actuation.hasPending && !readInFlight.active) return
+            // The action the owner just gave waits for the current read; do not start another poll ahead of
+            // it. A read the owner asked for (pull or foreground) still runs, and the action follows it.
+            if (reason != Command.Reason.USER_REFRESH && actuation.hasPending && !readInFlight.active) return
             if (reason == Command.Reason.USER_REFRESH) infotainmentPolicy.onUserRequest(System.currentTimeMillis())
             val now = System.currentTimeMillis()
             when (infotainmentGate.onReadDue(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT))) {
@@ -1740,7 +1744,7 @@ class TeslaBleController(
             if (pending.kind.isRead) readInFlight.onReply()
             if (!encrypted) {
                 log("${name()}: ${pending.kind.name.lowercase()} rejected (${fault?.signed_message_fault?.name})")
-                pending.actuation?.let { key -> actuation.onReply(key, null) }
+                pending.actuation?.let { key -> actuation.onReply(key, null, fault = true) }
                 // Retrying on the old session fails forever. The car usually attaches fresh session
                 // info to such a rejection; when it verifies, the session resyncs in place, and
                 // only otherwise does a new handshake recover.
@@ -1909,6 +1913,11 @@ class TeslaBleController(
                 // A read can be attempted when a session exists or can be started on demand.
                 val canRead = handshake.has(Domain.DOMAIN_INFOTAINMENT) || vin().length == Vehicle.VIN_LENGTH
                 if (status.asleep) {
+                    if (previous?.asleep == false) {
+                        // The car rotates its sessions when it sleeps; force a fresh one on the next wake.
+                        handshake.drop(Domain.DOMAIN_INFOTAINMENT)
+                        handshake.publish()
+                    }
                     infotainmentGate.onAsleep()
                     handshake.dropPendingInfotainment()
                     actuation.onInterrupted()
@@ -1937,8 +1946,8 @@ class TeslaBleController(
                         handler.removeCallbacks(poll)
                         handler.removeCallbacks(rssiPoll)
                         infotainmentGate.onLinkDropped()
-                        readInFlight.onLinkDropped()
                         actuation.onStopped()
+                        readInFlight.onLinkDropped()
                         pendingCommands.clear()
                         handshake.clearPending()
                         val hadData =

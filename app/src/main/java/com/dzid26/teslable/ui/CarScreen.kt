@@ -247,9 +247,11 @@ internal fun CarScreen(
             refreshing = false
         }
     }
-    val snackbarHostState = remember { SnackbarHostState() }
-    var quietFailure by remember { mutableStateOf<ActuationKey?>(null) }
-    val feedback = state.actionFeedback
+    val carName = vehicle?.bleName
+    val snackbarHostState = remember(carName) { SnackbarHostState() }
+    var quietFailure by remember(carName) { mutableStateOf<ActuationKey?>(null) }
+    // Feedback belongs to the car that produced it; a background car must not paint this screen.
+    val feedback = state.actionFeedback?.takeIf { it.bleName != null && it.bleName == carName }
     val snackbarText = feedback?.takeIf { it.key.reportsInSnackbar }?.let { stringResource(it.message()) }
     LaunchedEffect(feedback) {
         if (feedback == null || !feedback.key.reportsInSnackbar) return@LaunchedEffect
