@@ -18,20 +18,20 @@ class ChargeControlsSnapshots {
     @Test
     fun chargeControlsCard() =
         paparazzi.snapCard("charge-controls-card") {
-            ChargeControlsCard(charge = charge(charging), actuating = emptySet(), failure = null, actions = actions)
+            ChargeControlsCard(model = model(charge(charging)), actuating = emptySet(), failure = null, actions = actions)
         }
 
     @Test
     fun chargeControlsCardUnplugged() =
         paparazzi.snapCard("charge-controls-card_unplugged") {
-            ChargeControlsCard(charge = charge(unplugged), actuating = emptySet(), failure = null, actions = actions)
+            ChargeControlsCard(model = model(charge(unplugged)), actuating = emptySet(), failure = null, actions = actions)
         }
 
     @Test
     fun chargeControlsCardFailure() =
         paparazzi.snapCard("charge-controls-card_refused") {
             ChargeControlsCard(
-                charge = charge(unplugged),
+                model = model(charge(unplugged)),
                 actuating = emptySet(),
                 failure = ActuationKey.CHARGE_LIMIT,
                 actions = actions,
@@ -42,7 +42,7 @@ class ChargeControlsSnapshots {
     fun chargeControlsCardPending() =
         paparazzi.snapCard("charge-controls-card_pending") {
             ChargeControlsCard(
-                charge = charge(charging),
+                model = model(charge(charging)),
                 actuating = setOf(ActuationKey.CHARGE_LIMIT, ActuationKey.CHARGE_STOP),
                 failure = null,
                 actions = actions,
@@ -53,7 +53,7 @@ class ChargeControlsSnapshots {
     fun chargeControlsCardStarting() =
         paparazzi.snapCard("charge-controls-card_starting") {
             ChargeControlsCard(
-                charge = charge(stopped),
+                model = model(charge(stopped)),
                 actuating = setOf(ActuationKey.CHARGE_START),
                 failure = null,
                 actions = actions,
@@ -64,7 +64,7 @@ class ChargeControlsSnapshots {
     fun chargeControlsCardAtLimit() =
         paparazzi.snapCard("charge-controls-card_at-limit") {
             ChargeControlsCard(
-                charge = charge(charging, limit = 100),
+                model = model(charge(charging, limit = 100)),
                 actuating = setOf(ActuationKey.CHARGING_AMPS),
                 failure = null,
                 actions = actions,
@@ -75,7 +75,7 @@ class ChargeControlsSnapshots {
     fun chargeControlsCardFastCharging() =
         paparazzi.snapCard("charge-controls-card_fast-charging") {
             ChargeControlsCard(
-                charge = charge(charging, fast = true),
+                model = model(charge(charging, fast = true)),
                 actuating = emptySet(),
                 failure = null,
                 actions = actions,
@@ -90,7 +90,7 @@ class ChargeControlsSnapshots {
         )
         paparazzi.snapshot("charge-controls-card_large-font") {
             CardFrame(darkTheme = false) {
-                ChargeControlsCard(charge = charge(charging), actuating = emptySet(), failure = null, actions = actions)
+                ChargeControlsCard(model = model(charge(charging)), actuating = emptySet(), failure = null, actions = actions)
             }
         }
     }
@@ -168,6 +168,8 @@ class ChargeControlsSnapshots {
         usable_battery_level = 78,
         battery_range = 234f,
     )
+
+    private fun model(charge: ChargeState): ChargeControlsModel = checkNotNull(chargeControlsModel(charge, actions))
 
     private companion object {
         const val NOW = 1_760_000_000_000L

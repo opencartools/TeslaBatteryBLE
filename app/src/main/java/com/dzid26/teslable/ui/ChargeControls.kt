@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ui
 
+import androidx.annotation.StringRes
+import com.dzid26.teslable.R
+import com.dzid26.teslable.ble.ActuationKey
 import com.dzid26.teslable.protocol.ChargingStateKind
 import com.dzid26.teslable.protocol.chargingStateKind
 import com.tesla.generated.carserver.vehicle.ChargeState
@@ -61,13 +64,78 @@ internal fun nextChargingAmps(
 ): Int = (current + delta).coerceIn(minOf(MIN_CHARGING_AMPS, max), max)
 
 /**
- * Whether the charge controls have anything to show: nothing until the car has reported a limit, a
- * current or a charging state. A DC fast charger still shows the card, with the current control
- * disabled; an unplugged car still shows them, so the limit can be set before a cable is attached.
+ * One stepper's content and actions, independent of how the row is laid out. The row supplies the
+ * optimistic value and the layout; the model says what the control is, how it steps and who sends it.
  */
-internal fun showsChargeControls(charge: ChargeState?): Boolean =
-    charge != null &&
-        (charge.charge_limit_soc != null || (charge.charge_current_request ?: 0) > 0 || chargeButton(charge) != ChargeButton.NONE)
+internal data class ChargeStepperModel(
+    val key: ActuationKey,
+    @StringRes val label: Int,
+    @StringRes val valueFormat: Int,
+    val current: Int,
+    val range: IntRange,
+    val enabled: Boolean,
+    @StringRes val decreaseLabel: Int,
+    @StringRes val increaseLabel: Int,
+    /** (value, +1/-1) to the next value on the control's own grid. */
+    val step: (Int, Int) -> Int,
+    val set: (Int) -> Unit,
+)
+
+/** Everything the charge card shows for one car state, or null when the car has not reported enough. */
+internal data class ChargeControlsModel(
+    val limit: ChargeStepperModel?,
+    val amps: ChargeStepperModel?,
+    val button: ChargeButton,
+)
+
+/**
+ * Derives the card's content from the car's last charge state. A DC fast charger keeps both rows but
+ * disables the current one; an unplugged car still offers the limit so it can be set before plugging in.
+ */
+internal fun chargeControlsModel(
+    charge: ChargeState?,
+    actions: ChargeControlActions,
+): ChargeControlsModel? {
+    if (charge == null) return null
+    val button = chargeButton(charge)
+    val limit =
+        charge.charge_limit_soc?.let { current ->
+            val range = chargeLimitRange(charge)
+            ChargeStepperModel(
+                key = ActuationKey.CHARGE_LIMIT,
+                label = R.string.charge_controls_limit,
+                valueFormat = R.string.charge_controls_percent,
+                current = current,
+                range = range,
+                enabled = true,
+                decreaseLabel = R.string.charge_controls_limit_decrease,
+                increaseLabel = R.string.charge_controls_limit_increase,
+                step = { value, delta -> nextChargeLimit(value, delta, range) },
+                set = actions.setLimit,
+            )
+        }
+    val amps =
+        charge.charge_current_request?.takeIf { it > 0 }?.let { current ->
+            val max = maxOf(current, charge.charge_current_request_max ?: current)
+            ChargeStepperModel(
+                key = ActuationKey.CHARGING_AMPS,
+                label = R.string.charge_controls_current,
+                valueFormat = R.string.charge_controls_amps,
+                current = current,
+                range = minOf(MIN_CHARGING_AMPS, max)..max,
+                enabled = charge.fast_charger_present != true,
+                decreaseLabel = R.string.charge_controls_current_decrease,
+                increaseLabel = R.string.charge_controls_current_increase,
+                step = { value, delta -> nextChargingAmps(value, delta, max) },
+                set = actions.setAmps,
+            )
+        }
+    return if (limit == null && amps == null && button == ChargeButton.NONE) {
+        null
+    } else {
+        ChargeControlsModel(limit, amps, button)
+    }
+}
 
 /** The card's callbacks, grouped so the composable stays within the parameter limit. */
 internal data class ChargeControlActions(

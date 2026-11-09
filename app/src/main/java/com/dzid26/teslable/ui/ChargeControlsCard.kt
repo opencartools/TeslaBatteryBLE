@@ -31,23 +31,17 @@ import com.dzid26.teslable.R
 import com.dzid26.teslable.ble.ActuationFeedback
 import com.dzid26.teslable.ble.ActuationKey
 import com.dzid26.teslable.ble.ActuationResult
-import com.tesla.generated.carserver.vehicle.ChargeState
 import kotlinx.coroutines.delay
 
 /** The charge limit, the charging current and start/stop, initialized from the car's own values. */
 @Composable
 internal fun ChargeControlsCard(
-    charge: ChargeState,
+    model: ChargeControlsModel,
     actuating: Set<ActuationKey>,
     failure: ActuationKey?,
     actions: ChargeControlActions,
     modifier: Modifier = Modifier,
 ) {
-    val limit = charge.charge_limit_soc
-    val amps = charge.charge_current_request?.takeIf { it > 0 }
-    val button = chargeButton(charge)
-    if (limit == null && amps == null && button == ChargeButton.NONE) return
-
     Card(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -67,99 +61,81 @@ internal fun ChargeControlsCard(
                     BusySpinner(size = 16.dp)
                 }
             }
-            ChargeLimitRow(charge, failure, actions)
-            ChargeCurrentRow(charge, failure, actions)
-            ChargeButtonRow(button, actuating, actions)
+            model.limit?.let { ChargeStepperRow(it, failure, actions) }
+            model.amps?.let { ChargeStepperRow(it, failure, actions) }
+            ChargeButtonRow(model.button, actuating, actions)
             ChargeFailureLine(failure)
         }
     }
 }
 
-/** The limit stepper; its value is the car's until the owner changes it, then the value being sent. */
+/** One stepper; its value is the car's until the owner changes it, then the value being sent. */
 @Composable
-private fun ChargeLimitRow(
-    charge: ChargeState,
+private fun ChargeStepperRow(
+    model: ChargeStepperModel,
     failure: ActuationKey?,
     actions: ChargeControlActions,
 ) {
-    val current = charge.charge_limit_soc ?: return
-    var draft by remember(charge.charge_limit_soc) { mutableStateOf<Int?>(null) }
+    var draft by remember(model.current) { mutableStateOf<Int?>(null) }
     LaunchedEffect(failure) {
-        if (failure == ActuationKey.CHARGE_LIMIT) draft = null
+        if (failure == model.key) draft = null
     }
     LaunchedEffect(draft) {
         val target = draft ?: return@LaunchedEffect
         delay(APPLY_TIMEOUT_MS)
         if (draft == target) draft = null
     }
-    val range = chargeLimitRange(charge)
-    val shown = draft ?: current
-    StepperRow(
-        Stepper(
-            label = stringResource(R.string.charge_controls_limit),
-            value = stringResource(R.string.charge_controls_percent, shown),
-            canDecrease = shown > range.first,
-            canIncrease = shown < range.last,
-            decreaseLabel = stringResource(R.string.charge_controls_limit_decrease),
-            increaseLabel = stringResource(R.string.charge_controls_limit_increase),
-            onDecrease = {
-                actions.clearFailure()
-                val next = nextChargeLimit(shown, -1, range)
-                draft = next
-                actions.setLimit(next)
-            },
-            onIncrease = {
-                actions.clearFailure()
-                val next = nextChargeLimit(shown, 1, range)
-                draft = next
-                actions.setLimit(next)
-            },
-        ),
-    )
-}
+    val shown = draft ?: model.current
+    val decreaseLabel = stringResource(model.decreaseLabel)
+    val increaseLabel = stringResource(model.increaseLabel)
 
-/** The charging-current stepper, shown while the car reports a current. */
-@Composable
-private fun ChargeCurrentRow(
-    charge: ChargeState,
-    failure: ActuationKey?,
-    actions: ChargeControlActions,
-) {
-    val current = charge.charge_current_request?.takeIf { it > 0 } ?: return
-    var draft by remember(charge.charge_current_request) { mutableStateOf<Int?>(null) }
-    LaunchedEffect(failure) {
-        if (failure == ActuationKey.CHARGING_AMPS) draft = null
+    fun apply(next: Int) {
+        actions.clearFailure()
+        draft = next
+        model.set(next)
     }
-    LaunchedEffect(draft) {
-        val target = draft ?: return@LaunchedEffect
-        delay(APPLY_TIMEOUT_MS)
-        if (draft == target) draft = null
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(model.label),
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        IconButton(
+            onClick = { apply(model.step(shown, -1)) },
+            enabled = model.enabled && shown > model.range.first,
+        ) {
+            Text(
+                text = "\u2212",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.clearAndSetSemantics { contentDescription = decreaseLabel },
+            )
+        }
+        Box(
+            modifier = Modifier.widthIn(min = 64.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(model.valueFormat, shown),
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
+        }
+        IconButton(
+            onClick = { apply(model.step(shown, 1)) },
+            enabled = model.enabled && shown < model.range.last,
+        ) {
+            Text(
+                text = "+",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.clearAndSetSemantics { contentDescription = increaseLabel },
+            )
+        }
     }
-    val max = maxOf(current, charge.charge_current_request_max ?: current)
-    val shown = draft ?: current
-    val enabled = charge.fast_charger_present != true
-    StepperRow(
-        Stepper(
-            label = stringResource(R.string.charge_controls_current),
-            value = stringResource(R.string.charge_controls_amps, shown),
-            canDecrease = enabled && shown > minOf(MIN_CHARGING_AMPS, max),
-            canIncrease = enabled && shown < max,
-            decreaseLabel = stringResource(R.string.charge_controls_current_decrease),
-            increaseLabel = stringResource(R.string.charge_controls_current_increase),
-            onDecrease = {
-                actions.clearFailure()
-                val next = nextChargingAmps(shown, -1, max)
-                draft = next
-                actions.setAmps(next)
-            },
-            onIncrease = {
-                actions.clearFailure()
-                val next = nextChargingAmps(shown, 1, max)
-                draft = next
-                actions.setAmps(next)
-            },
-        ),
-    )
 }
 
 @Composable
@@ -202,62 +178,6 @@ private fun ChargeFailureLine(failure: ActuationKey?) {
         color = MaterialTheme.colorScheme.error,
         style = MaterialTheme.typography.bodySmall,
     )
-}
-
-/** One stepper's labels, bounds and callbacks. */
-private data class Stepper(
-    val label: String,
-    val value: String,
-    val canDecrease: Boolean,
-    val canIncrease: Boolean,
-    val decreaseLabel: String,
-    val increaseLabel: String,
-    val onDecrease: () -> Unit,
-    val onIncrease: () -> Unit,
-)
-
-@Composable
-private fun StepperRow(step: Stepper) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = step.label,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        IconButton(onClick = step.onDecrease, enabled = step.canDecrease) {
-            Text(
-                text = "\u2212",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.clearAndSetSemantics { contentDescription = step.decreaseLabel },
-            )
-        }
-        Box(
-            modifier = Modifier.widthIn(min = 64.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = step.value,
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                )
-            }
-        }
-        IconButton(onClick = step.onIncrease, enabled = step.canIncrease) {
-            Text(
-                text = "+",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.clearAndSetSemantics { contentDescription = step.increaseLabel },
-            )
-        }
-    }
 }
 
 @Composable

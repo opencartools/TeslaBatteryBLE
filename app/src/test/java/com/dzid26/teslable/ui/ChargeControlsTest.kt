@@ -4,8 +4,8 @@ package com.dzid26.teslable.ui
 import com.tesla.generated.carserver.common.Void
 import com.tesla.generated.carserver.vehicle.ChargeState
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /** The charge card's steps, button and visibility, without a composition. */
@@ -48,9 +48,15 @@ class ChargeControlsTest {
 
     @Test
     fun `the controls show unplugged and on a fast charger`() {
-        assertTrue(showsChargeControls(charge(state = ChargeState.ChargingState(Disconnected = Void()))))
-        assertTrue(showsChargeControls(charge(state = ChargeState.ChargingState(Charging = Void()), fast = true)))
-        assertFalse(showsChargeControls(null))
+        val actions = ChargeControlActions(setLimit = {}, setAmps = {}, start = {}, stop = {}, clearFailure = {})
+        val unplugged = chargeControlsModel(charge(state = ChargeState.ChargingState(Disconnected = Void())), actions)
+        assertNotNull(unplugged)
+        assertEquals(true, unplugged?.limit?.enabled)
+        val fast = chargeControlsModel(charge(state = ChargeState.ChargingState(Charging = Void()), fast = true), actions)
+        assertNotNull(fast)
+        assertEquals(true, fast?.limit?.enabled)
+        assertEquals(false, fast?.amps?.enabled)
+        assertNull(chargeControlsModel(null, actions))
     }
 
     private fun charge(

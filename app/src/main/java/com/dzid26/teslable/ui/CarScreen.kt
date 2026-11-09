@@ -413,13 +413,25 @@ internal fun CarScreen(
                         KeyCard(connection, vehicle, onPair)
                     }
                     val charge = connection?.charge
-                    val showChargeControls =
-                        paired &&
+                    val chargeActions =
+                        ChargeControlActions(
+                            setLimit = onSetChargeLimit,
+                            setAmps = onSetChargingAmps,
+                            start = onStartCharging,
+                            stop = onStopCharging,
+                            clearFailure = { quietFailure = null },
+                        )
+                    val chargeModel =
+                        if (paired &&
                             vehicle?.hasSessionVin == true &&
-                            connection?.phase == ConnectionPhase.READY &&
-                            showsChargeControls(charge)
-                    LaunchedEffect(showChargeControls) {
-                        if (!showChargeControls) quietFailure = null
+                            connection?.phase == ConnectionPhase.READY
+                        ) {
+                            chargeControlsModel(charge, chargeActions)
+                        } else {
+                            null
+                        }
+                    LaunchedEffect(chargeModel == null) {
+                        if (chargeModel == null) quietFailure = null
                     }
                     // The car reported a value for the control the line was about: it has been settled.
                     LaunchedEffect(charge?.charge_limit_soc) {
@@ -428,19 +440,12 @@ internal fun CarScreen(
                     LaunchedEffect(charge?.charge_current_request) {
                         if (quietFailure == ActuationKey.CHARGING_AMPS) quietFailure = null
                     }
-                    if (connection != null && charge != null && showChargeControls) {
+                    if (chargeModel != null) {
                         ChargeControlsCard(
-                            charge = charge,
-                            actuating = connection.actuating,
+                            model = chargeModel,
+                            actuating = connection?.actuating.orEmpty(),
                             failure = quietFailure,
-                            actions =
-                                ChargeControlActions(
-                                    setLimit = onSetChargeLimit,
-                                    setAmps = onSetChargingAmps,
-                                    start = onStartCharging,
-                                    stop = onStopCharging,
-                                    clearFailure = { quietFailure = null },
-                                ),
+                            actions = chargeActions,
                         )
                     }
                     val liveRoute = activeRoute(vehicle?.let { routes[it.bleName] }, nowMillis ?: rememberNowMillis())
