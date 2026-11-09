@@ -143,5 +143,4 @@ internal data class ChargeControlActions(
     val setAmps: (Int) -> Unit,
     val start: () -> Unit,
     val stop: () -> Unit,
-    val clearFailure: () -> Unit,
 )

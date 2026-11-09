@@ -206,7 +206,7 @@ class MainActivity : ComponentActivity() {
                                         onSetChargingAmps = { name, amps -> controller.setChargingAmps(amps, name) },
                                         onStartCharging = { name -> controller.startCharging(name) },
                                         onStopCharging = { name -> controller.stopCharging(name) },
-                                        onActionFeedbackShown = controller::consumeActionFeedback,
+                                        onActionFeedbackShown = { name -> controller.consumeActionFeedback(name) },
                                     )
                                 }
                             }

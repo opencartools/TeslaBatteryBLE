@@ -109,19 +109,8 @@ class TeslaBleController(
     private val carActions = CarActions()
     internal val chargeActions =
         ChargeActions(
-            selected = { selectedBleName },
-            actuator = { name ->
-                links[name]?.takeIf { it.phase == ConnectionPhase.READY }?.let { link ->
-                    object : ChargeActuator {
-                        override fun actuate(
-                            key: ActuationKey,
-                            payload: ByteArray,
-                        ) = link.actuation.submit(key, payload)
-                    }
-                }
-            },
+            actuator = { name -> links[name]?.takeIf { it.phase == ConnectionPhase.READY }?.actuation },
             log = ::log,
-            publish = { feedback -> _state.update { it.copy(actionFeedback = feedback) } },
         )
     private val appStateRecorder by lazy { AppStateRecorder(historyStore) }
 
@@ -451,14 +440,25 @@ class TeslaBleController(
 
     fun requestChargeState(bleName: String? = null) = carActions.read(bleName)
 
-    /** The car screen showed the last charge control's result. */
-    fun consumeActionFeedback() = _state.update { if (it.actionFeedback == null) it else it.copy(actionFeedback = null) }
+    /** The car screen showed the last charge control's result for [bleName]. */
+    fun consumeActionFeedback(bleName: String) = carActions.consumeActionFeedback(bleName)
 
     /**
      * The car screen's user actions behind the VIN gate, and the prompt that asks for it. Nested so the
      * controller's own body stays within the class-size limit; every public entry point delegates here.
      */
     private inner class CarActions {
+        /** Clears the one-shot result once the car screen has taken it. */
+        fun consumeActionFeedback(bleName: String) {
+            val address =
+                links[bleName]
+                    ?.address
+                    ?: _state.value.connections.values
+                        .firstOrNull { it.name == bleName }
+                        ?.address
+            if (address != null) updateConnection(address) { if (it.lastAction == null) it else it.copy(lastAction = null) }
+        }
+
         /** Saves what the owner entered for a car, then replays the action its VIN prompt blocked, once. */
         fun save(
             bleName: String,
@@ -1041,9 +1041,8 @@ class TeslaBleController(
                         pending: Set<ActuationKey>,
                         feedback: ActuationFeedback?,
                     ) {
-                        updateConnection(address) { it.copy(actuating = pending) }
-                        if (feedback != null) {
-                            _state.update { it.copy(actionFeedback = feedback.copy(bleName = bleName)) }
+                        updateConnection(address) {
+                            it.copy(actuating = pending, lastAction = feedback ?: it.lastAction)
                         }
                     }
 

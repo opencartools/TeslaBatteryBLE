@@ -16,10 +16,6 @@ enum class ActuationKey {
     CHARGING_AMPS,
     CHARGE_START,
     CHARGE_STOP,
-    ;
-
-    /** Start and stop report through the car screen's snackbar; the two values report in place. */
-    val reportsInSnackbar: Boolean get() = this == CHARGE_START || this == CHARGE_STOP
 }
 
 /** How a control ended: the car accepted it, refused it, never answered, or it could not be sent. */
@@ -30,11 +26,10 @@ enum class ActuationResult {
     FAILED,
 }
 
-/** The channel's terminal result for one [key], tagged with the car it belongs to. */
+/** The channel's terminal result for one [key]. */
 data class ActuationFeedback(
     val key: ActuationKey,
     val result: ActuationResult,
-    val bleName: String? = null,
 )
 
 /** What the channel needs from the vehicle link; the link owns the transport and the sessions. */

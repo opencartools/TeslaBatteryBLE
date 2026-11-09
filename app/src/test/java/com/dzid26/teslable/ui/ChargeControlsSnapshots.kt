@@ -177,6 +177,6 @@ class ChargeControlsSnapshots {
         val charging = ChargeState.ChargingState(Charging = Void())
         val unplugged = ChargeState.ChargingState(Disconnected = Void())
         val stopped = ChargeState.ChargingState(Stopped = Void())
-        val actions = ChargeControlActions(setLimit = {}, setAmps = {}, start = {}, stop = {}, clearFailure = {})
+        val actions = ChargeControlActions(setLimit = {}, setAmps = {}, start = {}, stop = {})
     }
 }

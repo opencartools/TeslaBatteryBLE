@@ -48,7 +48,7 @@ class ChargeControlsTest {
 
     @Test
     fun `the controls show unplugged and on a fast charger`() {
-        val actions = ChargeControlActions(setLimit = {}, setAmps = {}, start = {}, stop = {}, clearFailure = {})
+        val actions = ChargeControlActions(setLimit = {}, setAmps = {}, start = {}, stop = {})
         val unplugged = chargeControlsModel(charge(state = ChargeState.ChargingState(Disconnected = Void())), actions)
         assertNotNull(unplugged)
         assertEquals(true, unplugged?.limit?.enabled)

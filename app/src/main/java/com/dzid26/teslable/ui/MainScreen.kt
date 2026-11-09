@@ -125,7 +125,7 @@ fun MainScreen(
     onSetChargingAmps: (String, Int) -> Unit,
     onStartCharging: (String) -> Unit,
     onStopCharging: (String) -> Unit,
-    onActionFeedbackShown: () -> Unit,
+    onActionFeedbackShown: (String) -> Unit,
 ) {
     var viewingBleName by rememberSaveable { mutableStateOf<String?>(null) }
     var vinTarget by rememberSaveable { mutableStateOf<String?>(null) }
@@ -191,7 +191,7 @@ fun MainScreen(
             onSetChargingAmps = { amps -> onSetChargingAmps(bleName, amps) },
             onStartCharging = { onStartCharging(bleName) },
             onStopCharging = { onStopCharging(bleName) },
-            onActionFeedbackShown = onActionFeedbackShown,
+            onActionFeedbackShown = { onActionFeedbackShown(bleName) },
         )
     } else {
         ConnectionsScreen(

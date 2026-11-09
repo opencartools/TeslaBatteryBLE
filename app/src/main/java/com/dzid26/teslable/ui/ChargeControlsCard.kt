@@ -61,8 +61,8 @@ internal fun ChargeControlsCard(
                     BusySpinner(size = 16.dp)
                 }
             }
-            model.limit?.let { ChargeStepperRow(it, failure, actions) }
-            model.amps?.let { ChargeStepperRow(it, failure, actions) }
+            model.limit?.let { ChargeStepperRow(it, failure) }
+            model.amps?.let { ChargeStepperRow(it, failure) }
             ChargeButtonRow(model.button, actuating, actions)
             ChargeFailureLine(failure)
         }
@@ -74,7 +74,6 @@ internal fun ChargeControlsCard(
 private fun ChargeStepperRow(
     model: ChargeStepperModel,
     failure: ActuationKey?,
-    actions: ChargeControlActions,
 ) {
     var draft by remember(model.current) { mutableStateOf<Int?>(null) }
     LaunchedEffect(failure) {
@@ -90,7 +89,6 @@ private fun ChargeStepperRow(
     val increaseLabel = stringResource(model.increaseLabel)
 
     fun apply(next: Int) {
-        actions.clearFailure()
         draft = next
         model.set(next)
     }
@@ -149,20 +147,14 @@ private fun ChargeButtonRow(
             ControlButton(
                 start = true,
                 pending = ActuationKey.CHARGE_START in actuating,
-                onClick = {
-                    actions.clearFailure()
-                    actions.start()
-                },
+                onClick = actions.start,
             )
 
         ChargeButton.STOP ->
             ControlButton(
                 start = false,
                 pending = ActuationKey.CHARGE_STOP in actuating,
-                onClick = {
-                    actions.clearFailure()
-                    actions.stop()
-                },
+                onClick = actions.stop,
             )
 
         ChargeButton.NONE -> Unit
