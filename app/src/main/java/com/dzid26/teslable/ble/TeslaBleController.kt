@@ -977,9 +977,8 @@ class TeslaBleController(
 
         private var transport: TeslaTransport? = null
         private val pendingCommands = mutableMapOf<String, PendingCommand>()
-        private var wakeAfterSession = false
+        private val wakeRetry = WakeRetry()
         var reconnectAttempts = 0
-        private var wakeRefreshAttempts = 0
         private var decryptFailures = 0
 
         /** Resyncs since the car last accepted one of our commands; a streak ends in a new handshake. */
@@ -1094,23 +1093,7 @@ class TeslaBleController(
                 }
             }
 
-        val wakeRefresh =
-            object : Runnable {
-                override fun run() {
-                    if (_state.value.connections[address]
-                            ?.status
-                            ?.asleep == false
-                    ) {
-                        return
-                    }
-                    if (wakeRefreshAttempts++ >= WAKE_REFRESH_MAX_ATTEMPTS) {
-                        log("${name()}: wake not confirmed; the car may be out of range")
-                        return
-                    }
-                    requestStatus()
-                    handler.postDelayed(this, WAKE_REFRESH_MS)
-                }
-            }
+        val wakeRefresh = Runnable { wakeStep() }
 
         private val sessionRetry = Runnable { handshake.onRetryTimer() }
 
@@ -1214,15 +1197,16 @@ class TeslaBleController(
                     if (domain == Domain.DOMAIN_INFOTAINMENT && infotainmentGate.onSessionEstablished()) {
                         requestChargeState(waitingReadReason)
                     }
-                    if (domain == Domain.DOMAIN_VEHICLE_SECURITY && wakeAfterSession) {
-                        wakeAfterSession = false
-                        sendWake()
-                    }
+                    if (domain == Domain.DOMAIN_VEHICLE_SECURITY && wakeRetry.isPending) startWake()
                 }
 
                 override fun onGaveUp() {
                     infotainmentGate.onGaveUp()
                     runStartupSlotLookup()
+                    // A wake waits on the VCSEC session; with the handshake abandoned it can never send.
+                    if (wakeRetry.isPending && !handshake.has(Domain.DOMAIN_VEHICLE_SECURITY)) {
+                        abandonWake("no VCSEC session")
+                    }
                 }
 
                 override fun onKeyUnusable() {
@@ -1280,6 +1264,9 @@ class TeslaBleController(
                 log("${name()}: Bluetooth permissions are missing; grant them to connect")
                 return
             }
+            // A new link starts with a clean wake: the timer goes with the old link, so a wake
+            // that never confirmed must not fire later on a reconnect nobody is waiting for.
+            if (wakeRetry.isPending) abandonWake("reconnect before the wake was confirmed")
             cancelCallbacks()
             transport?.close()
             transport = null
@@ -1311,7 +1298,7 @@ class TeslaBleController(
             pairing.onLinkClosed()
             infotainmentGate.onLinkDropped()
             readInFlight.onLinkDropped()
-            wakeAfterSession = false
+            wakeRetry.cancel()
             updateConnection(address) {
                 it.copy(
                     phase = ConnectionPhase.IDLE,
@@ -1327,7 +1314,7 @@ class TeslaBleController(
             pendingCommands.clear()
             readInFlight.onLinkDropped()
             pairing.onCacheCleared()
-            wakeAfterSession = false
+            wakeRetry.cancel()
             updateConnection(address) {
                 it.copy(
                     keySlot = null,
@@ -1450,25 +1437,57 @@ class TeslaBleController(
         fun startSession(): Boolean = handshake.start()
 
         fun wake() {
-            if (_state.value.connections[address]
-                    ?.status
-                    ?.asleep == false
-            ) {
+            if (isAwake()) {
                 log("${name()}: car is already awake")
                 return
             }
-            wakeRefreshAttempts = 0
+            wakeRetry.start()
             handler.removeCallbacks(wakeRefresh)
-            handler.postDelayed(wakeRefresh, WAKE_REFRESH_MS)
             // A long-sleeping car rotates its session; a command encrypted with
             // the old one is dropped without a reply, so handshake again first.
             if (handshake.has(Domain.DOMAIN_VEHICLE_SECURITY)) {
                 handshake.drop(Domain.DOMAIN_VEHICLE_SECURITY)
                 handshake.publish()
             }
-            wakeAfterSession = true
             log("${name()}: waking with a fresh session")
-            startSession()
+            if (!startSession()) abandonWake("no session to start")
+        }
+
+        /**
+         * One step of the wake: send on the established VCSEC session (the first time and every
+         * retry), or stop when a status says awake or the [WakeRetry] bound is spent. The status
+         * poll goes with each send so a reply can confirm the wake even when the wake's own ack is
+         * lost.
+         */
+        private fun wakeStep() {
+            when (wakeRetry.onTick(isAwake(), handshake.has(Domain.DOMAIN_VEHICLE_SECURITY))) {
+                WakeRetry.Action.CONFIRMED, WakeRetry.Action.CANCELLED -> Unit
+
+                WakeRetry.Action.WAIT -> handler.postDelayed(wakeRefresh, WAKE_RETRY_MS)
+
+                WakeRetry.Action.SEND -> {
+                    sendWake()
+                    requestStatus()
+                    handler.postDelayed(wakeRefresh, WAKE_RETRY_MS)
+                }
+
+                WakeRetry.Action.GIVE_UP ->
+                    abandonWake("wake not confirmed after ${wakeRetry.sent} tries; the car may be out of range")
+            }
+        }
+
+        /** The first wake goes out on the fresh VCSEC session; [wakeRefresh] retries it until confirmed. */
+        private fun startWake() {
+            wakeRetry.start()
+            handler.removeCallbacks(wakeRefresh)
+            wakeStep()
+        }
+
+        /** Ends a wake that cannot finish, keeping the retry timer from staying alive for the link. */
+        private fun abandonWake(why: String) {
+            wakeRetry.cancel()
+            handler.removeCallbacks(wakeRefresh)
+            log("${name()}: $why")
         }
 
         private fun sendWake() {
@@ -1693,6 +1712,9 @@ class TeslaBleController(
                 CommandKind.WAKE -> {
                     val status = runCatching { TeslaVcsec.parseCommandStatus(plaintext) }.getOrNull()
                     log("${name()}: wake ${status?.name ?: "response received"}")
+                    // The pill reads the car's sleep state from a VCSEC status, so ask for one now
+                    // instead of waiting for the routine 10 s poll (or a charge read) to show Awake.
+                    requestStatus()
                 }
 
                 CommandKind.CHARGE -> handleChargeResponse(plaintext, deviceTimestamp)
@@ -1799,6 +1821,9 @@ class TeslaBleController(
                 historyStore.recordStatus(bleName, status, deviceTimestamp, rssi, firstAfterConnect = firstStatusAfterConnect)
                 firstStatusAfterConnect = false
                 if (!status.asleep) {
+                    // The status is the wake's confirmation: stop retrying, and the pill shows Awake
+                    // from this reply without waiting for the charge read.
+                    wakeRetry.cancel()
                     handler.removeCallbacks(wakeRefresh)
                 }
                 val previous = _state.value.connections[address]?.status
@@ -1945,8 +1970,9 @@ class TeslaBleController(
 
         /** A scan stops once no new car has appeared for this long. */
         const val SCAN_QUIET_MS = 30_000L
-        const val WAKE_REFRESH_MS = 5000L
-        const val WAKE_REFRESH_MAX_ATTEMPTS = 6
+
+        /** How often an unconfirmed wake is sent again; see [WakeRetry.MAX_ATTEMPTS] for the bound. */
+        const val WAKE_RETRY_MS = 5000L
         const val MAX_ACTIVE_LINKS = 3
 
         /** Weaker adverts (dBm) are too far for a connection to finish; a tap still reads the name. */
