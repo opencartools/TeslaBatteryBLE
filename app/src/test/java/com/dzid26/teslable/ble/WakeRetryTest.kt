@@ -38,7 +38,7 @@ class WakeRetryTest {
 
         assertEquals(WakeRetry.Action.CONFIRMED, retry.onTick(awake = true, hasVcsecSession = true))
         assertEquals(sentBefore, retry.sent)
-        assertFalse(retry.isActive)
+        assertFalse(retry.isPending)
     }
 
     @Test
@@ -56,7 +56,7 @@ class WakeRetryTest {
 
         assertEquals(WakeRetry.Action.GIVE_UP, retry.onTick(awake = false, hasVcsecSession = true))
         assertEquals(WakeRetry.MAX_ATTEMPTS, retry.sent)
-        assertFalse(retry.isActive)
+        assertFalse(retry.isPending)
     }
 
     @Test
@@ -86,7 +86,7 @@ class WakeRetryTest {
 
         retry.cancel()
 
-        assertFalse(retry.isActive)
+        assertFalse(retry.isPending)
         assertEquals(WakeRetry.Action.CANCELLED, retry.onTick(awake = false, hasVcsecSession = true))
         assertEquals(1, retry.sent)
     }
@@ -99,7 +99,7 @@ class WakeRetryTest {
 
         retry.start()
 
-        assertTrue(retry.isActive)
+        assertTrue(retry.isPending)
         assertEquals(0, retry.sent)
         assertEquals(WakeRetry.Action.SEND, retry.onTick(awake = false, hasVcsecSession = true))
     }

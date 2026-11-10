@@ -1197,14 +1197,14 @@ class TeslaBleController(
                     if (domain == Domain.DOMAIN_INFOTAINMENT && infotainmentGate.onSessionEstablished()) {
                         requestChargeState(waitingReadReason)
                     }
-                    if (domain == Domain.DOMAIN_VEHICLE_SECURITY && wakeRetry.isActive) startWake()
+                    if (domain == Domain.DOMAIN_VEHICLE_SECURITY && wakeRetry.isPending) startWake()
                 }
 
                 override fun onGaveUp() {
                     infotainmentGate.onGaveUp()
                     runStartupSlotLookup()
                     // A wake waits on the VCSEC session; with the handshake abandoned it can never send.
-                    if (wakeRetry.isActive && !handshake.has(Domain.DOMAIN_VEHICLE_SECURITY)) {
+                    if (wakeRetry.isPending && !handshake.has(Domain.DOMAIN_VEHICLE_SECURITY)) {
                         abandonWake("no VCSEC session")
                     }
                 }
@@ -1266,7 +1266,7 @@ class TeslaBleController(
             }
             // A new link starts with a clean wake: the timer goes with the old link, so a wake
             // that never confirmed must not fire later on a reconnect nobody is waiting for.
-            if (wakeRetry.isActive) abandonWake("reconnect before the wake was confirmed")
+            if (wakeRetry.isPending) abandonWake("reconnect before the wake was confirmed")
             cancelCallbacks()
             transport?.close()
             transport = null

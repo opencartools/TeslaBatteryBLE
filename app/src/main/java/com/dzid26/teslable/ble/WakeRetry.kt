@@ -41,7 +41,7 @@ internal class WakeRetry(
     private var attempts = 0
 
     /** True between [start] and a confirmation, a cancellation, or the bound. */
-    var isActive = false
+    var isPending = false
         private set
 
     /** The number of wake frames sent since the last [start]. */
@@ -49,13 +49,13 @@ internal class WakeRetry(
 
     /** Starts a new pull-to-wake. */
     fun start() {
-        isActive = true
+        isPending = true
         attempts = 0
     }
 
     /** Ends the wake without a confirmation; a later reconnect must not resume it. */
     fun cancel() {
-        isActive = false
+        isPending = false
     }
 
     /**
@@ -68,13 +68,13 @@ internal class WakeRetry(
         hasVcsecSession: Boolean,
     ): Action =
         when {
-            !isActive -> Action.CANCELLED
+            !isPending -> Action.CANCELLED
             awake -> {
-                isActive = false
+                isPending = false
                 Action.CONFIRMED
             }
             attempts >= maxAttempts -> {
-                isActive = false
+                isPending = false
                 Action.GIVE_UP
             }
             !hasVcsecSession -> Action.WAIT
