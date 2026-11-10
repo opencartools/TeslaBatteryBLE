@@ -12,6 +12,9 @@ package com.dzid26.teslable.ble
  * established, and give up once the bound is spent so a car out of range does not keep the
  * retry alive for the life of the link.
  *
+ * The retry also owns whether a wake is in flight. A link reset cancels the timer, so the flag
+ * must not survive it: a wake nobody is waiting for must not fire on a reconnect hours later.
+ *
  * Pure and clock-free; one instance per vehicle link, not thread-safe.
  */
 internal class WakeRetry(
@@ -21,6 +24,9 @@ internal class WakeRetry(
     enum class Action {
         /** The car confirmed it is awake: stop. */
         CONFIRMED,
+
+        /** The wake was cancelled; a later reconnect must not resume it. */
+        CANCELLED,
 
         /** Nothing to send yet: the VCSEC handshake has not produced a session. */
         WAIT,
@@ -34,12 +40,22 @@ internal class WakeRetry(
 
     private var attempts = 0
 
-    /** The number of wake frames sent since the last [reset]. */
+    /** True between [start] and a confirmation, a cancellation, or the bound. */
+    var isActive = false
+        private set
+
+    /** The number of wake frames sent since the last [start]. */
     val sent: Int get() = attempts
 
     /** Starts a new pull-to-wake. */
-    fun reset() {
+    fun start() {
+        isActive = true
         attempts = 0
+    }
+
+    /** Ends the wake without a confirmation; a later reconnect must not resume it. */
+    fun cancel() {
+        isActive = false
     }
 
     /**
@@ -52,8 +68,15 @@ internal class WakeRetry(
         hasVcsecSession: Boolean,
     ): Action =
         when {
-            awake -> Action.CONFIRMED
-            attempts >= maxAttempts -> Action.GIVE_UP
+            !isActive -> Action.CANCELLED
+            awake -> {
+                isActive = false
+                Action.CONFIRMED
+            }
+            attempts >= maxAttempts -> {
+                isActive = false
+                Action.GIVE_UP
+            }
             !hasVcsecSession -> Action.WAIT
             else -> {
                 attempts++

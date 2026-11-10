@@ -977,7 +977,6 @@ class TeslaBleController(
 
         private var transport: TeslaTransport? = null
         private val pendingCommands = mutableMapOf<String, PendingCommand>()
-        private var wakeAfterSession = false
         private val wakeRetry = WakeRetry()
         var reconnectAttempts = 0
         private var decryptFailures = 0
@@ -1198,14 +1197,14 @@ class TeslaBleController(
                     if (domain == Domain.DOMAIN_INFOTAINMENT && infotainmentGate.onSessionEstablished()) {
                         requestChargeState(waitingReadReason)
                     }
-                    if (domain == Domain.DOMAIN_VEHICLE_SECURITY && wakeAfterSession) startWake()
+                    if (domain == Domain.DOMAIN_VEHICLE_SECURITY && wakeRetry.isActive) startWake()
                 }
 
                 override fun onGaveUp() {
                     infotainmentGate.onGaveUp()
                     runStartupSlotLookup()
                     // A wake waits on the VCSEC session; with the handshake abandoned it can never send.
-                    if (wakeAfterSession && !handshake.has(Domain.DOMAIN_VEHICLE_SECURITY)) {
+                    if (wakeRetry.isActive && !handshake.has(Domain.DOMAIN_VEHICLE_SECURITY)) {
                         abandonWake("no VCSEC session")
                     }
                 }
@@ -1265,6 +1264,9 @@ class TeslaBleController(
                 log("${name()}: Bluetooth permissions are missing; grant them to connect")
                 return
             }
+            // A new link starts with a clean wake: the timer goes with the old link, so a wake
+            // that never confirmed must not fire later on a reconnect nobody is waiting for.
+            if (wakeRetry.isActive) abandonWake("reconnect before the wake was confirmed")
             cancelCallbacks()
             transport?.close()
             transport = null
@@ -1296,7 +1298,7 @@ class TeslaBleController(
             pairing.onLinkClosed()
             infotainmentGate.onLinkDropped()
             readInFlight.onLinkDropped()
-            wakeAfterSession = false
+            wakeRetry.cancel()
             updateConnection(address) {
                 it.copy(
                     phase = ConnectionPhase.IDLE,
@@ -1312,7 +1314,7 @@ class TeslaBleController(
             pendingCommands.clear()
             readInFlight.onLinkDropped()
             pairing.onCacheCleared()
-            wakeAfterSession = false
+            wakeRetry.cancel()
             updateConnection(address) {
                 it.copy(
                     keySlot = null,
@@ -1439,8 +1441,7 @@ class TeslaBleController(
                 log("${name()}: car is already awake")
                 return
             }
-            wakeAfterSession = true
-            wakeRetry.reset()
+            wakeRetry.start()
             handler.removeCallbacks(wakeRefresh)
             // A long-sleeping car rotates its session; a command encrypted with
             // the old one is dropped without a reply, so handshake again first.
@@ -1460,7 +1461,7 @@ class TeslaBleController(
          */
         private fun wakeStep() {
             when (wakeRetry.onTick(isAwake(), handshake.has(Domain.DOMAIN_VEHICLE_SECURITY))) {
-                WakeRetry.Action.CONFIRMED -> wakeAfterSession = false
+                WakeRetry.Action.CONFIRMED, WakeRetry.Action.CANCELLED -> Unit
 
                 WakeRetry.Action.WAIT -> handler.postDelayed(wakeRefresh, WAKE_RETRY_MS)
 
@@ -1477,14 +1478,14 @@ class TeslaBleController(
 
         /** The first wake goes out on the fresh VCSEC session; [wakeRefresh] retries it until confirmed. */
         private fun startWake() {
-            wakeRetry.reset()
+            wakeRetry.start()
             handler.removeCallbacks(wakeRefresh)
             wakeStep()
         }
 
         /** Ends a wake that cannot finish, keeping the retry timer from staying alive for the link. */
         private fun abandonWake(why: String) {
-            wakeAfterSession = false
+            wakeRetry.cancel()
             handler.removeCallbacks(wakeRefresh)
             log("${name()}: $why")
         }
@@ -1822,7 +1823,7 @@ class TeslaBleController(
                 if (!status.asleep) {
                     // The status is the wake's confirmation: stop retrying, and the pill shows Awake
                     // from this reply without waiting for the charge read.
-                    wakeAfterSession = false
+                    wakeRetry.cancel()
                     handler.removeCallbacks(wakeRefresh)
                 }
                 val previous = _state.value.connections[address]?.status
