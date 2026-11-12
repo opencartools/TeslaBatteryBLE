@@ -1168,7 +1168,7 @@ class TeslaBleController(
                 }
             }
 
-        /** One charge-only read five seconds after a start/stop; other reads wait for it. */
+        /** One charge-only read two seconds after a start/stop; other reads wait for it. */
         private val settleRead =
             Runnable {
                 requestChargeState(Command.Reason.USER_ACTION, chargeOnly = true)
@@ -2098,7 +2098,7 @@ class TeslaBleController(
         const val POLL_MS = 10_000L
 
         /** After a start/stop, the one charge-only confirmation read waits this long. */
-        const val START_STOP_SETTLE_MS = 5_000L
+        const val START_STOP_SETTLE_MS = 2_000L
 
         /** Automatic reads stay paused until this deadline, or until the confirmation response lands. */
         const val START_STOP_SETTLE_HOLD_MS = 15_000L
