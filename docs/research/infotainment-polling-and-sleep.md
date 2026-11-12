@@ -123,9 +123,11 @@ Follow-up tests with a stable link, which settle the caveat in "Sleep" above.
 - **Reads keep the car awake.** An old build reading every ~5 s held it awake
   for 22 minutes (13:50 to 14:12 UTC). The car slept 2.5 minutes after the
   reads stopped, in line with ADR-0009 (reads only on activity or in a hold).
-  The status log for that window, read later, shows `presence=NOT_PRESENT`
-  throughout and the car asleep before the run, so nothing physical preceded
-  that tail; see the 2026-11-12 entry for how far it can be trusted.
+  That figure comes from logcat on the day and is not reproducible: the status
+  log for that window, read later, shows `presence=NOT_PRESENT` throughout, the
+  car asleep before the run, and no status record at all between 14:05:35 and
+  14:27:41 UTC, so it only brackets the sleep to those 22 minutes. See the
+  2026-11-12 entry for the tails that can be replayed.
 - **A second test:** the car slept 30 s after the last read, and 7.5 minutes
   after a wake.
 - **Two apps on one phone:** with a second app running, the newer app's reads
