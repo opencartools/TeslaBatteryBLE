@@ -202,14 +202,14 @@ internal fun ActuationFeedback.message(): Int =
     when (key) {
         ActuationKey.CHARGE_START ->
             when (result) {
-                ActuationResult.ACCEPTED -> R.string.charge_controls_started
+                ActuationResult.ACCEPTED -> R.string.charge_controls_start_sent
                 ActuationResult.NO_ANSWER -> R.string.charge_controls_no_answer
                 ActuationResult.REFUSED, ActuationResult.FAILED -> R.string.charge_controls_start_failed
             }
 
         ActuationKey.CHARGE_STOP ->
             when (result) {
-                ActuationResult.ACCEPTED -> R.string.charge_controls_stopped
+                ActuationResult.ACCEPTED -> R.string.charge_controls_stop_sent
                 ActuationResult.NO_ANSWER -> R.string.charge_controls_no_answer
                 ActuationResult.REFUSED, ActuationResult.FAILED -> R.string.charge_controls_stop_failed
             }
