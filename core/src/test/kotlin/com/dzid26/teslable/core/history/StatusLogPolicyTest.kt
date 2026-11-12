@@ -45,7 +45,7 @@ class StatusLogPolicyTest {
     @Test
     fun `the first reading after a reconnect is logged even when nothing changed`() {
         assertTrue(shouldLogStatus(logged(0), asleep, deviceTimestamp = at(MINUTE), firstAfterConnect = true))
-        assertFalse(shouldLogStatus(logged(0), asleep, deviceTimestamp = at(MINUTE), firstAfterConnect = false))
+        assertFalse(shouldLogStatus(logged(0), asleep, deviceTimestamp = at(MINUTE / 2), firstAfterConnect = false))
     }
 
     @Test
@@ -61,10 +61,10 @@ class StatusLogPolicyTest {
     }
 
     @Test
-    fun `an unchanged status waits for the quarter-hour heartbeat`() {
+    fun `an unchanged status waits for the one minute heartbeat`() {
         val last = logged(0)
-        assertFalse(shouldLogStatus(last, asleep, deviceTimestamp = at(15 * MINUTE - 1), firstAfterConnect = false))
-        assertTrue(shouldLogStatus(last, asleep, deviceTimestamp = at(15 * MINUTE), firstAfterConnect = false))
+        assertFalse(shouldLogStatus(last, asleep, deviceTimestamp = at(MINUTE - 1), firstAfterConnect = false))
+        assertTrue(shouldLogStatus(last, asleep, deviceTimestamp = at(MINUTE), firstAfterConnect = false))
     }
 
     @Test

@@ -130,11 +130,12 @@ identity), `docs/requirements/multi-phone.md`
   - it is the first reading for the vehicle;
   - it is the first reading after a (re)connect;
   - the raw `VehicleStatus` differs from the last logged one;
-  - otherwise, 15 minutes have passed since the last logged one.
+  - otherwise, a minute has passed since the last logged one.
 
   The heartbeat tells a sleeping car with a phone connected apart from a phone
-  out of range: while a phone is connected the log gains a record at least
-  every quarter hour, so a longer gap means no phone was connected. A reading
+  out of range: while a phone is connected and the car answers, the log gains a
+  record at least every minute, so a longer gap means no phone was connected or
+  the car stopped answering. A reading
   acquired before the last logged one (the phone's clock moved back) is
   logged too.
 
@@ -147,7 +148,7 @@ identity), `docs/requirements/multi-phone.md`
   time; DISCONNECTED says when the connection ended itself, and the store
   needs no gate class, only the last logged record per vehicle, still seeded
   from the file on load. If the app is killed instead, there is no
-  DISCONNECTED, and the heartbeat still bounds the end to 15 minutes.
+  DISCONNECTED, and the heartbeat still bounds the end to a minute.
 - **DriveState is logged whole, on every reply.** After each successful
   charge reply the controller sends one `GetDriveState`, only while the car
   is awake and an Infotainment session exists; it never starts a session or
@@ -289,9 +290,9 @@ identity), `docs/requirements/multi-phone.md`
   gap between a DISCONNECTED and the next CONNECTED is unlogged time, not
   sleep, and the connection file now says where each gap starts and ends.
   After a kill there is no DISCONNECTED, so the gap appears to start at the
-  last status record, up to 15 minutes before the real end. At four
-  heartbeats an hour plus one record per change, the 20k cap holds months of
-  status per car.
+  last status record, up to a minute before the real end. At sixty
+  heartbeats an hour plus one record per change, a month of status is about
+  45 000 records per car.
 - **No reset for the command and app-state kinds.** Older records and older
   app versions skip them as unknown fields; `.command.pblog` and `app.pblog`
   are new files.

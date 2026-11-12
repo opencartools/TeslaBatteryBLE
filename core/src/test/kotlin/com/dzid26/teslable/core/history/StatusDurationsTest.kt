@@ -87,8 +87,8 @@ class StatusDurationsTest {
     }
 
     @Test
-    fun `a change over heartbeat plus a minute after the previous record has no duration`() {
-        val samples = listOf(sample(0, asleep = false), sample(STATUS_HEARTBEAT_MILLIS + minute + 1, asleep = true))
+    fun `a change over the gap limit after the previous record has no duration`() {
+        val samples = listOf(sample(0, asleep = false), sample(STATUS_CHANGE_MAX_GAP_MILLIS + 1, asleep = true))
         assertNull(assertNotNull(statusDurations(samples, "car", 2 * hour)).asleepForMillis)
     }
 
@@ -100,8 +100,8 @@ class StatusDurationsTest {
     }
 
     @Test
-    fun `the gap limit is one status heartbeat plus a minute`() {
-        assertEquals(STATUS_HEARTBEAT_MILLIS + minute, STATUS_CHANGE_MAX_GAP_MILLIS)
+    fun `the gap limit stays sixteen minutes whatever the heartbeat is`() {
+        assertEquals(16 * minute, STATUS_CHANGE_MAX_GAP_MILLIS)
     }
 
     @Test

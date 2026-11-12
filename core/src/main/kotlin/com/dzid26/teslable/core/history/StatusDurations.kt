@@ -78,11 +78,12 @@ fun compactDuration(millis: Long): String? {
 
 /**
  * A flag change is trusted only when the two readings around it are no further
- * apart than this: one status heartbeat ([STATUS_HEARTBEAT_MILLIS]) plus a
- * minute of slack. The log writes an unchanged status once per heartbeat, so
- * with a continuous link consecutive records are never more than one heartbeat
- * apart, and a change seen live always falls inside the gap.
+ * apart than this: sixteen minutes, a quarter hour of slack over the one minute
+ * heartbeat. The log writes an unchanged status once a minute, so with a
+ * continuous link consecutive records are seconds apart; the limit stays wide so
+ * a change seen after the phone was away for a while is still timed by the first
+ * reading that saw it.
  */
-const val STATUS_CHANGE_MAX_GAP_MILLIS = STATUS_HEARTBEAT_MILLIS + 60_000L
+const val STATUS_CHANGE_MAX_GAP_MILLIS = 16 * 60_000L
 
 private const val MINUTE_MILLIS = 60_000L
