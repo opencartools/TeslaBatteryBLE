@@ -48,7 +48,8 @@ Sources were read on 2026-10-08; quotes are short extracts.
   car reports someone present) after each status change, then nothing.
 - Driving counts as active because the phone rides along; the ESP32 bridge
   stays home and never sees a drive.
-- This app never wakes the car, so a wake-up blip only starts the short hold.
+- The app's own reads never wake the car: a wake is only ever the user's pull,
+  so an unprompted wake-up blip only starts the short hold.
 
 ## Presence
 
@@ -122,6 +123,11 @@ Follow-up tests with a stable link, which settle the caveat in "Sleep" above.
 - **Reads keep the car awake.** An old build reading every ~5 s held it awake
   for 22 minutes (13:50 to 14:12 UTC). The car slept 2.5 minutes after the
   reads stopped, in line with ADR-0009 (reads only on activity or in a hold).
+  That figure comes from logcat on the day and is not reproducible: the status
+  log for that window, read later, shows `presence=NOT_PRESENT` throughout, the
+  car asleep before the run, and no status record at all between 14:05:35 and
+  14:27:41 UTC, so it only brackets the sleep to those 22 minutes. See the
+  2026-11-12 entry for the tails that can be replayed.
 - **A second test:** the car slept 30 s after the last read, and 7.5 minutes
   after a wake.
 - **Two apps on one phone:** with a second app running, the newer app's reads
@@ -138,6 +144,39 @@ Follow-up tests with a stable link, which settle the caveat in "Sleep" above.
   only while reads continue or someone physically uses the car, so the car's
   own countdown after a BLE wake is far shorter than the ~10 minutes ADR-0009
   assumed for a read.
+
+### 2026-11-10 and 2026-11-12: how long a gap lets it sleep
+
+Two runs on the same car at home, same spot, phone indoors at -101 to -106 dBm,
+with nobody near the car: VCSEC reported "User away" and no door, lock or
+presence change happened during either run, so the sleep these runs measure is
+the one that follows a BLE request, not a physical interaction.
+
+- **Continuous reads hold it.** One `USER_WAKE`, VCSEC `AWAKE` 0.4 s later, then
+  131 charge reads over 22 min 30 s, about one every 9 s (the 10 s read interval
+  around a pull every ~13 s). 24 of the 131 requests timed out (18%) and the
+  reads still landed. The car stayed awake for the whole 20 minutes of pulling;
+  the pill showed `Paused` 43 s after the last read and `Asleep` at 92 s.
+- **One read a minute holds it.** A debug build with the hold set to zero, so
+  each pull is exactly one read: ten pulls 60 s apart (gaps 58.8-61.3 s) kept
+  the car awake for all 9 minutes. The command log holds one `USER_WAKE` in the
+  whole window, and a sleeping car needs a wake before it answers, so no gap let
+  it sleep. One of about 30 follow-ups timed out and the sequence was unbroken.
+- **A 90 s gap ends it.** A successful read at 13:36:28.5 was followed by VCSEC
+  `ASLEEP` at 13:37:58.2, 89.7 s later. A later wake, whose charge read never
+  landed, slept again about 80 s after the last exchange, before the next pull.
+
+So the car sleeps about 1.5 minutes after the last BLE request, and stays awake
+while requests keep coming at least once a minute: a minute or less between
+reads keeps a parked car awake indefinitely, and a 90 s gap lets it sleep. That
+narrows both the
+"0.5-2.5 minutes past the last read" reading in ADR-0009 and the "about
+2 minutes" one above. The 2.5 minute tail itself does not reproduce and cannot
+be classified: that build logged no commands and kept no charge samples until
+2026-10-10 03:42 UTC, so its reads survive only as the note above, while its
+status log shows nobody in the car. Whether the tail was detection lag or
+another client on the link (the official app is a phone key on the same
+connection) cannot be told.
 
 ## Related
 

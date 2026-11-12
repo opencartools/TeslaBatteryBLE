@@ -46,12 +46,12 @@ due. One instance per vehicle link.
     every status, so when the person leaves, the remaining hold drops to the
     short one.
 - Idle safety read: while VCSEC says awake and the car is neither active nor
-  in a hold, one read once 20 minutes (`IDLE_SAFETY_INTERVAL_MS`) have passed
+  in a hold, one read once 2 minutes (`IDLE_SAFETY_INTERVAL_MS`) have passed
   since the last read. It catches an event the status does not show (remote
-  climate, Sentry, a remote wake) when the car stays awake anyway. 20 minutes is
-  deliberately longer than the car's own sleep countdown (about 10-15 minutes):
-  a car that would sleep is already asleep when the read comes due, so the read
-  is skipped and its sleep is never extended. It does not start a hold. The
+  climate, Sentry, a remote wake) when the car stays awake anyway. 2 minutes sits
+  just above the 1.5 minutes the car takes to sleep after the last read
+  (2026-11-12): a car that would sleep is asleep when the read comes due, so the
+  read is skipped and its sleep is never extended. It does not start a hold. The
   value is tuned from the real-car check.
 - The screen shows the idle wait (owner, 2026-11-01). `pausedUntilMillis` answers
   when the next idle read is due, the moment `onStatus` next answers true, and the
@@ -111,29 +111,34 @@ ticks does not turn a 10 s cadence into 20 s.
 - Readings (SOC, charging, gear) refresh every 10 s while the car is active or
   recently changed, and go stale once the hold ends and while it sleeps (the
   status log still shows the sleep).
-- With nobody present, the car's own countdown runs undisturbed from 1 minute
-  after the last change, so it should sleep roughly 11-12 minutes after it.
-  When the car reports presence (someone in the car), the hold is 10 minutes,
-  so expect sleep roughly 20-25 minutes after the last change. That is
-  the price of catching someone getting in and driving off. A real-car check is
-  part of the change.
+- With nobody present, the reads stop a minute after the last change and the car
+  sleeps about 1.5 minutes after the last read, so a couple of minutes after the
+  change (measured 2026-11-12). When the car reports presence
+  (someone in the car), the hold is 10 minutes, so expect sleep roughly 11-12
+  minutes after the last change. That is the price of catching someone getting
+  in and driving off. A real-car check is part of the change.
 - A car in Sentry or with the climate on is read every 10 s while it stays
   that way, and the car sleeps on its own once both are off: the first reading
   that shows both off ends the active reads, and the idle rules take over (the
   1 or 10 minute hold is not restarted, because reads are not status changes).
   A car that stays awake for another reason the status does not show gets one
-  reading every 20 minutes; one that would have slept is never touched by it.
+  reading every 2 minutes; one that would have slept is never touched by it.
 - Measured on 2026-10-09 (`docs/research/infotainment-polling-and-sleep.md` (Real-car findings)): a read
   keeps the car awake only about 0.5-2.5 minutes past it, not the ~10 minutes
   assumed above, and a BLE wake with one read sleeps after about 2 minutes. The
   design holds, and the cost of the hold is smaller than estimated: the car
   sleeps a couple of minutes after the hold ends, not 10 or more.
+- Narrowed on 2026-11-12: on a quiet car with the user away, it fell asleep about
+  1.5 minutes after the last request. Reads a minute apart held it awake for ten
+  minutes; a 90 s gap let it sleep (89.7 s after the last read). The
+  2.5 minute tail above was not reproduced and cannot be classified: that build
+  logged no commands, and its status log shows nobody in the car.
 - Each read is four requests now (charge, drive, closures, climate) instead of
   two (ADR-0008), on the same cadence.
 - Sentry and climate are only seen on a read, so one that starts between reads
   shows after the next one: within 10 s during a hold or other activity, up to
-  20 minutes otherwise (the safety read).
-- A car parked awake with someone inside is read once every 20 minutes, and the
+  2 minutes otherwise (the safety read).
+- A car parked awake with someone inside is read once every 2 minutes, and the
   screen now says so: the pill reads Paused with the time of the next read
   instead of looking live while the numbers age. Opening the app reads once, so
   the first screen after a long pause is fresh within a second. What the policy

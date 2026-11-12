@@ -26,8 +26,9 @@ What the app does today, in detail. The short version is in the [README](../READ
   reading every 10s for a short while after something happens (the car wakes, locks or unlocks, a door or the
   charge port opens or closes, you tap refresh): one minute, or ten while someone is in or near the car. Then it
   stops asking, so the car can fall asleep and the reading simply gets older. A car that stays awake for a reason
-  the app cannot see is read once every twenty minutes, which is longer than the car's own sleep timer, so
-  the app never keeps it awake. While it waits, the pill reads Paused instead of Awake, and a tap on it says why
+  the app cannot see is read once every two minutes, which is longer than the car's own sleep timer (about a
+  minute and a half), so the app never keeps it awake. While it waits, the pill reads Paused instead of Awake,
+  and a tap on it says why
   and when the next read is due; opening the app reads once (at most once a minute), so the screen is fresh even
   after a long pause.
 - **Background tracking** via a foreground service: SOC timeline and connection state while parked or charging.
