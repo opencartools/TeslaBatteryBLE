@@ -640,6 +640,8 @@ class InfotainmentPollPolicyTest {
 
         policy.onStartStopAcknowledged(now)
         policy.onChargeReading(ChargingStateKind.Charging)
+        assertTrue(policy.isStartStopHeld(now), "a normal reading does not end the hold")
+        policy.releaseStartStopHold()
         assertFalse(policy.isStartStopHeld(now), "the confirmation reading ends the hold")
 
         policy.onStartStopAcknowledged(now)

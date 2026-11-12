@@ -1143,7 +1143,9 @@ class TeslaBleController(
                 override fun run() {
                     if (phase != ConnectionPhase.READY) return
                     // The action and its reply come first: the periodic reads resume once it settles.
-                    if (!actuation.hasPending) transport?.readRssi()
+                    if (!actuation.hasPending && !infotainmentPolicy.isStartStopHeld(System.currentTimeMillis())) {
+                        transport?.readRssi()
+                    }
                     if (!actuation.isInFlight) requestStatus()
                     commands.logUnanswered()
                     // Once the VCSEC session exists the lookup is no longer waiting on anything; until then it stays
@@ -1160,7 +1162,9 @@ class TeslaBleController(
                 override fun run() {
                     if (!uiVisible || phase != ConnectionPhase.READY) return
                     // A GATT read in flight delays the action's write; the signal meter can wait for it.
-                    if (!actuation.hasPending) transport?.readRssi()
+                    if (!actuation.hasPending && !infotainmentPolicy.isStartStopHeld(System.currentTimeMillis())) {
+                        transport?.readRssi()
+                    }
                     handler.postDelayed(this, RSSI_POLL_MS)
                 }
             }
@@ -1705,6 +1709,7 @@ class TeslaBleController(
             payload: ByteArray,
             kind: CommandKind,
         ) {
+            if (infotainmentPolicy.isStartStopHeld(System.currentTimeMillis())) return
             if (!isAwake() || !handshake.has(Domain.DOMAIN_INFOTAINMENT)) return
             sendAuthenticated(domain = Domain.DOMAIN_INFOTAINMENT, payload = payload, kind = kind)
         }
@@ -1916,15 +1921,18 @@ class TeslaBleController(
                 it.copy(charge = charge, chargeAtMillis = deviceTimestamp.toEpochMilli())
             }
             historyStore.record(bleName, charge, deviceTimestamp, latestRssi(address))
+            val confirming = chargeOnlyRead
+            if (confirming) {
+                chargeOnlyRead = false
+                infotainmentPolicy.releaseStartStopHold()
+            }
             infotainmentPolicy.onChargeReading(charge.chargingStateKind)
             if (previous?.battery_level != charge.battery_level ||
                 previous?.chargingStateKind != charge.chargingStateKind
             ) {
                 log("${name()}: SOC ${charge.battery_level}% (${charge.chargingStateKind?.let(::chargingStateText) ?: "unknown"})")
             }
-            if (chargeOnlyRead) {
-                chargeOnlyRead = false
-            } else {
+            if (!confirming && !infotainmentPolicy.isStartStopHeld(System.currentTimeMillis())) {
                 requestFollowUp(TeslaCommands.buildDriveStateRequest(), CommandKind.DRIVE)
             }
         }

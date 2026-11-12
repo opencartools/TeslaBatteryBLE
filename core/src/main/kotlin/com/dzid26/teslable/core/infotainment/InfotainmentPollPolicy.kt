@@ -142,10 +142,9 @@ class InfotainmentPollPolicy {
         releaseStartStopHold()
     }
 
-    /** The latest charge reading. Charging or Starting is activity, and it confirms any start/stop. */
+    /** The latest charge reading. Charging or Starting is activity. */
     fun onChargeReading(chargingState: ChargingStateKind?) {
         charging = chargingState == ChargingStateKind.Charging || chargingState == ChargingStateKind.Starting
-        releaseStartStopHold()
     }
 
     /**
@@ -159,7 +158,7 @@ class InfotainmentPollPolicy {
     /** True while automatic reads wait for a start/stop confirmation. */
     fun isStartStopHeld(nowMillis: Long): Boolean = nowMillis < startStopHoldUntilMs
 
-    /** Ends a start/stop hold: a charge reading, a user request, or a dropped link. */
+    /** Ends a start/stop hold: the confirmation reading, a user request, or a dropped link. */
     fun releaseStartStopHold() {
         startStopHoldUntilMs = 0L
     }
