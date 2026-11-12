@@ -306,7 +306,10 @@ class ActuationChannelTest {
             feedback?.let { this.feedback += it }
         }
 
-        override fun resumeRead(accepted: Boolean) {
+        override fun resumeRead(
+            key: ActuationKey,
+            accepted: Boolean,
+        ) {
             resumedReads++
             lastResumeAccepted = accepted
         }

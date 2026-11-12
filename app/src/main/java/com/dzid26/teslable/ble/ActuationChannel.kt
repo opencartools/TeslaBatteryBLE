@@ -71,7 +71,10 @@ internal interface ActuationHost {
     )
 
     /** Resumes a read that waited behind the action, or reads the charge state back after it. */
-    fun resumeRead(accepted: Boolean): Unit
+    fun resumeRead(
+        key: ActuationKey,
+        accepted: Boolean,
+    ): Unit
 }
 
 /**
@@ -159,7 +162,7 @@ internal class ActuationChannel(
             }
         inFlight = null
         host.publish(pending.keys.toSet(), ActuationFeedback(key, result))
-        host.resumeRead(result == ActuationResult.ACCEPTED)
+        host.resumeRead(key, result == ActuationResult.ACCEPTED)
         sendNext()
     }
 
