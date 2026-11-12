@@ -140,8 +140,8 @@ internal class ActuationChannel(
         key: ActuationKey,
         plaintext: ByteArray?,
         fault: Boolean = false,
-    ): Boolean {
-        if (inFlight != key) return false
+    ) {
+        if (inFlight != key) return
         val answered = plaintext?.let { runCatching { Response.ADAPTER.decode(it).actionStatus }.getOrNull() }
         val reason = answered?.result_reason?.plain_text
         // The car reports a value or a state that is already at the target as an ActionStatus error.
@@ -161,7 +161,6 @@ internal class ActuationChannel(
         host.publish(pending.keys.toSet(), ActuationFeedback(key, result))
         host.resumeRead(result == ActuationResult.ACCEPTED)
         sendNext()
-        return result == ActuationResult.ACCEPTED
     }
 
     /** The car never answered [key]: the queued values are dropped with it. */

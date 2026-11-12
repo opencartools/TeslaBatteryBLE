@@ -540,36 +540,6 @@ class TeslaBleController(
             vehicle: Vehicle?,
             intent: VinIntent,
         ): Boolean = vehicle != null && vinPrompts.request(vehicle, intent)
-
-        /**
-         * The charge-control channel for [link]. Wiring it here keeps [VehicleLink] inside the class
-         * limit; the link still owns the sessions, the transport and the read gate.
-         */
-        fun actuationChannel(link: VehicleLink): ActuationChannel =
-            ActuationChannel(
-                LinkActuationHost(
-                    LinkActuationOps(
-                        isAwake = link::isAwake,
-                        hasSession = { link.handshake.has(Domain.DOMAIN_INFOTAINMENT) },
-                        readWaiting = { link.infotainmentGate.readWaiting },
-                        readActive = { link.readInFlight.active && !link.readInFlight.waitingForSession },
-                        startSession = link::startSession,
-                        send = { payload, key ->
-                            link.sendActuation(payload, key)
-                        },
-                        wake = link::wake,
-                        forgetWake = { link.wakeRetry.cancel() },
-                        publish = link::publishActuation,
-                        resumeRead = { accepted ->
-                            if (link.infotainmentGate.onSessionEstablished()) {
-                                link.requestChargeState(link.waitingReadReason)
-                            } else if (accepted) {
-                                link.requestChargeState(Command.Reason.USER_ACTION)
-                            }
-                        },
-                    ),
-                ),
-            )
     }
 
     /**
@@ -1020,7 +990,7 @@ class TeslaBleController(
 
         private var transport: TeslaTransport? = null
         private val pendingCommands = mutableMapOf<String, PendingCommand>()
-        internal val wakeRetry = WakeRetry()
+        private val wakeRetry = WakeRetry()
         var reconnectAttempts = 0
         private var decryptFailures = 0
 
@@ -1035,16 +1005,63 @@ class TeslaBleController(
         private val infotainmentPolicy = InfotainmentPollPolicy()
 
         /** Whether a due read is waiting for the Infotainment handshake; never left set once it is over. */
-        internal val infotainmentGate = InfotainmentSessionGate()
+        private val infotainmentGate = InfotainmentSessionGate()
 
         /** Keeps the command log: every request goes out through [transmit], which logs it with its reason (ADR-0008). */
         val commands = CommandRecorder(bleName, historyStore, rssi = { latestRssi(address) })
 
         /** The charge controls' queue, the request in flight, and the feedback they produce. */
-        internal val actuation: ActuationChannel = carActions.actuationChannel(this)
+        internal val actuation: ActuationChannel =
+            ActuationChannel(
+                object : ActuationHost {
+                    override fun isAwake() = this@VehicleLink.isAwake()
+
+                    override fun hasSession() = handshake.has(Domain.DOMAIN_INFOTAINMENT)
+
+                    override fun readWaiting() = infotainmentGate.readWaiting
+
+                    override fun readActive(): Boolean = readInFlight.active && !readInFlight.waitingForSession
+
+                    override fun startSession() = this@VehicleLink.startSession()
+
+                    override fun send(
+                        payload: ByteArray,
+                        key: ActuationKey,
+                    ) = sendAuthenticated(
+                        Domain.DOMAIN_INFOTAINMENT,
+                        payload,
+                        CommandKind.ACTUATION,
+                        Command.Reason.USER_ACTION,
+                        key,
+                    )
+
+                    override fun wake() = this@VehicleLink.wake()
+
+                    override fun forgetWake() {
+                        wakeRetry.cancel()
+                    }
+
+                    override fun publish(
+                        pending: Set<ActuationKey>,
+                        feedback: ActuationFeedback?,
+                    ) {
+                        updateConnection(address) {
+                            it.copy(actuating = pending, lastAction = feedback ?: it.lastAction)
+                        }
+                    }
+
+                    override fun resumeRead(accepted: Boolean) {
+                        if (infotainmentGate.onSessionEstablished()) {
+                            requestChargeState(waitingReadReason)
+                        } else if (accepted) {
+                            requestChargeState(Command.Reason.USER_ACTION)
+                        }
+                    }
+                },
+            )
 
         /** Whether an Infotainment read is in flight, for the spinner; every exit clears it. */
-        internal val readInFlight: ReadInFlight =
+        private val readInFlight: ReadInFlight =
             ReadInFlight { progress ->
                 updateConnection(address) { it.copy(readProgress = progress) }
                 // The action waits for the read sequence; this is the one point every read exit reaches.
@@ -1052,7 +1069,7 @@ class TeslaBleController(
             }
 
         /** The reason of the read that is waiting for the Infotainment handshake. */
-        internal var waitingReadReason = Command.Reason.REASON_UNSPECIFIED
+        private var waitingReadReason = Command.Reason.REASON_UNSPECIFIED
 
         /**
          * When the app last read on coming to the foreground; reopening the screen sooner than
@@ -1274,7 +1291,7 @@ class TeslaBleController(
             }
 
         /** Asks the car for sessions and keeps them; the handshake lives in core. */
-        internal val handshake: SessionHandshake =
+        private val handshake: SessionHandshake =
             SessionHandshake(
                 keys = StoredSessionKeys(keyStore, bleName),
                 host = sessionHost,
@@ -1474,33 +1491,10 @@ class TeslaBleController(
             reason: Command.Reason,
         ) = transmit(bytes, CommandRecords.vcsecRoutable(reason, bytes))
 
-        internal fun isAwake(): Boolean =
+        private fun isAwake(): Boolean =
             _state.value.connections[address]
                 ?.status
                 ?.asleep == false
-
-        /** Sends one charge control on the Infotainment session, for the channel's host. */
-        internal fun sendActuation(
-            payload: ByteArray,
-            key: ActuationKey,
-        ): Boolean =
-            sendAuthenticated(
-                Domain.DOMAIN_INFOTAINMENT,
-                payload,
-                CommandKind.ACTUATION,
-                Command.Reason.USER_ACTION,
-                key,
-            )
-
-        /** Writes the pending set and the last result together, on this link's own connection. */
-        internal fun publishActuation(
-            pending: Set<ActuationKey>,
-            feedback: ActuationFeedback?,
-        ) {
-            updateConnection(address) {
-                it.copy(actuating = pending, lastAction = feedback ?: it.lastAction)
-            }
-        }
 
         /** True when session requests went out. */
         fun startSession(): Boolean = handshake.start()
