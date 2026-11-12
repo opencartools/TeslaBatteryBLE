@@ -15,8 +15,9 @@ import com.tesla.generated.vcsec.VehicleStatus
  * while driving and tire pressure every [TIRE_PRESSURE_INTERVAL_MS], see [wantsLocation] and
  * [wantsTirePressure]).
  *
- * Any Infotainment request restarts the car's own sleep countdown (about 10 minutes), so polling it
- * while the car is merely awake keeps it awake (ADR-0009, issue #112). VCSEC status does not, and
+ * Any Infotainment request restarts the car's own sleep countdown (measured at about 1.5 minutes,
+ * 2026-11-12), so polling it while the car is merely awake keeps it awake (ADR-0009, issue #112).
+ * VCSEC status does not, and
  * keeps the BLE link alive, so it stays on its own 10 s cadence outside this class. The rules:
  *
  * 1. Never while asleep (asleep also drops the hold), and never to wake the car: reads only when
@@ -29,10 +30,10 @@ import com.tesla.generated.vcsec.VehicleStatus
  * 3. Idle safety read: awake, not active and not holding, one read once [IDLE_SAFETY_INTERVAL_MS] has
  *    passed since the last read. It catches an event the status misses (remote climate, Sentry, a
  *    remote wake) when the car stays awake anyway. The interval is deliberately longer than the car's
- *    own sleep countdown (about 10 to 15 minutes): a car that would sleep is already asleep when the
- *    read comes due, so it is skipped and its sleep is never extended. The value is tuned from the
- *    real-car check. The safety read does not start a hold. [pausedUntilMillis] says when the next
- *    one is due, so the screen can show Paused while the poll waits.
+ *    own sleep countdown (measured at about 1.5 minutes, 2026-11-12): a car that would sleep is
+ *    already asleep when the read comes due, so it is skipped and its sleep is never extended. The
+ *    safety read does not start a hold. [pausedUntilMillis] says when the next one is due, so the
+ *    screen can show Paused while the poll waits.
  * 4. Status changes start or restart the hold: asleep to awake, any lock-state change (locking too,
  *    which catches drive-away locking), any closure changing between open and not open (a closure
  *    that is neither CLOSED nor UNKNOWN counts as open, so ajar is open), a fresh start (see
@@ -297,10 +298,11 @@ class InfotainmentPollPolicy {
         const val HOLD_ABSENT_MS = 60_000L
 
         /**
-         * The idle safety read: longer than the car's own sleep countdown (about 10 to 15 minutes), so a
-         * car that would sleep is asleep by then and is never kept awake by it. Tuned from the real-car check.
+         * The idle safety read: longer than the car's own sleep countdown (measured at about 1.5
+         * minutes, 2026-11-12), so a car that would sleep is asleep by then and is never kept awake
+         * by it.
          */
-        const val IDLE_SAFETY_INTERVAL_MS = 1_200_000L
+        const val IDLE_SAFETY_INTERVAL_MS = 120_000L
 
         /** A location read is at most this far apart while driving, even when the odometer stands still. */
         const val LOCATION_MAX_INTERVAL_MS = 300_000L
