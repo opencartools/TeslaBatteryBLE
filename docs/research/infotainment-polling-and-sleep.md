@@ -169,9 +169,11 @@ minutes of quiet: a cadence of a minute or less keeps a parked car awake
 indefinitely, and one of 90 s lets it sleep. That narrows both the
 "0.5-2.5 minutes past the last read" reading in ADR-0009 and the "about
 2 minutes" one above. The 2.5 minute tail itself does not reproduce and cannot
-be classified: that build logged no commands, and its status log shows nobody in
-the car, so whether it was detection lag or another client on the link (the
-official app is a phone key on the same connection) cannot be told.
+be classified: that build logged no commands and kept no charge samples until
+2026-10-10 03:42 UTC, so its reads survive only as the note above, while its
+status log shows nobody in the car. Whether the tail was detection lag or
+another client on the link (the official app is a phone key on the same
+connection) cannot be told.
 
 ## Related
 
