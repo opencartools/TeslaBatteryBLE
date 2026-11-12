@@ -39,6 +39,8 @@ import com.tesla.generated.vcsec.VehicleStatus
  *    that is neither CLOSED nor UNKNOWN counts as open, so ajar is open), a fresh start (see
  *    [onFreshStart]) and a user request. A change in user presence alone is not a change: it flips
  *    with phone-key range and would keep resetting the car's sleep countdown.
+ * 5. A start or stop holds automatic reads until its confirmation charge reading or
+ *    [START_STOP_HOLD_MS], so the card does not show the state from before the change.
  *
  * Reconnects: the transition memory (previous asleep, locked and closure state) survives a dropped
  * link, so a wake, lock change or door change that happened while the link was down still starts the
@@ -85,6 +87,7 @@ class InfotainmentPollPolicy {
     private var previousAsleep: Boolean? = null
     private var previousLocked: Boolean? = null
     private var previousOpenClosures: Int? = null
+    private var startStopHoldUntilMs = 0L
 
     /**
      * Whether the car is doing something that warrants a read every [READ_INTERVAL_MS] on its own:
@@ -116,6 +119,7 @@ class InfotainmentPollPolicy {
         previousAsleep = null
         previousLocked = null
         previousOpenClosures = null
+        startStopHoldUntilMs = 0L
         lastChangeAtMs = nowMillis
     }
 
@@ -135,11 +139,29 @@ class InfotainmentPollPolicy {
     fun onUserRequest(nowMillis: Long) {
         lastReadAtMs = nowMillis
         lastChangeAtMs = nowMillis
+        releaseStartStopHold()
     }
 
-    /** The latest charge reading. Charging or Starting is activity. */
+    /** The latest charge reading. Charging or Starting is activity, and it confirms any start/stop. */
     fun onChargeReading(chargingState: ChargingStateKind?) {
         charging = chargingState == ChargingStateKind.Charging || chargingState == ChargingStateKind.Starting
+        releaseStartStopHold()
+    }
+
+    /**
+     * A start/stop was acknowledged: keep automatic reads quiet until its confirmation reading, or
+     * [START_STOP_HOLD_MS] when that never arrives, so the card does not show the old state.
+     */
+    fun onStartStopAcknowledged(nowMillis: Long) {
+        startStopHoldUntilMs = nowMillis + START_STOP_HOLD_MS
+    }
+
+    /** True while automatic reads wait for a start/stop confirmation. */
+    fun isStartStopHeld(nowMillis: Long): Boolean = nowMillis < startStopHoldUntilMs
+
+    /** Ends a start/stop hold: a charge reading, a user request, or a dropped link. */
+    fun releaseStartStopHold() {
+        startStopHoldUntilMs = 0L
     }
 
     /** The latest drive reading. Shift state D, R or N is activity. */
@@ -305,6 +327,9 @@ class InfotainmentPollPolicy {
 
         /** How long after a status change reads continue when nobody is present. */
         const val HOLD_ABSENT_MS = 60_000L
+
+        /** A start/stop confirmation holds automatic reads at most this long. */
+        const val START_STOP_HOLD_MS = 15_000L
 
         /**
          * The idle safety read: a little longer than the 1.5 minutes the car takes to sleep after the

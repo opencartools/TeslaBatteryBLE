@@ -1080,9 +1080,6 @@ class TeslaBleController(
         /** True when the read waiting for its handshake is the charge-only start/stop confirmation. */
         private var waitingReadChargeOnly = false
 
-        /** Automatic reads wait until this time: a start/stop confirmation read is on its way. */
-        private var readHoldUntilMs = 0L
-
         /** True while the read in flight is the charge-only start/stop confirmation. */
         private var chargeOnlyRead = false
 
@@ -1175,13 +1172,13 @@ class TeslaBleController(
             }
 
         private fun scheduleStartStopSettle() {
-            readHoldUntilMs = System.currentTimeMillis() + START_STOP_SETTLE_HOLD_MS
+            infotainmentPolicy.onStartStopAcknowledged(System.currentTimeMillis())
             handler.removeCallbacks(settleRead)
             handler.postDelayed(settleRead, START_STOP_SETTLE_MS)
         }
 
         private fun cancelStartStopSettle() {
-            readHoldUntilMs = 0L
+            infotainmentPolicy.releaseStartStopHold()
             handler.removeCallbacks(settleRead)
         }
 
@@ -1442,7 +1439,7 @@ class TeslaBleController(
             handler.removeCallbacks(wakeRefresh)
             handler.removeCallbacks(startupFollowUps)
             handler.removeCallbacks(settleRead)
-            readHoldUntilMs = 0L
+            infotainmentPolicy.releaseStartStopHold()
             chargeOnlyRead = false
             startupPending = false
             startupSlotLookupPending = false
@@ -1664,7 +1661,7 @@ class TeslaBleController(
             now: Long,
         ): Boolean =
             (chargeOnly && readInFlight.active) ||
-                (reason != Command.Reason.USER_REFRESH && !chargeOnly && now < readHoldUntilMs) ||
+                (reason != Command.Reason.USER_REFRESH && !chargeOnly && infotainmentPolicy.isStartStopHeld(now)) ||
                 (reason != Command.Reason.USER_REFRESH && !chargeOnly && actuation.hasPending && !readInFlight.active)
 
         private fun expectedReplies(
@@ -1927,7 +1924,6 @@ class TeslaBleController(
             }
             if (chargeOnlyRead) {
                 chargeOnlyRead = false
-                readHoldUntilMs = 0L
             } else {
                 requestFollowUp(TeslaCommands.buildDriveStateRequest(), CommandKind.DRIVE)
             }
@@ -2099,9 +2095,6 @@ class TeslaBleController(
 
         /** After a start/stop, the one charge-only confirmation read waits this long. */
         const val START_STOP_SETTLE_MS = 2_000L
-
-        /** Automatic reads stay paused until this deadline, or until the confirmation response lands. */
-        const val START_STOP_SETTLE_HOLD_MS = 15_000L
 
         /** Resyncs in a row, with no accepted reply between them, before a full handshake replaces them. */
         const val MAX_RESYNCS_WITHOUT_REPLY = 2
