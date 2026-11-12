@@ -149,8 +149,8 @@ Follow-up tests with a stable link, which settle the caveat in "Sleep" above.
 
 Two runs on the same car at home, same spot, phone indoors at -101 to -106 dBm,
 with nobody near the car: VCSEC reported "User away" and no door, lock or
-presence change happened during either run, so the countdown these runs measure
-is the one that starts at a BLE request, not at a physical interaction.
+presence change happened during either run, so the sleep these runs measure is
+the one that follows a BLE request, not a physical interaction.
 
 - **Continuous reads hold it.** One `USER_WAKE`, VCSEC `AWAKE` 0.4 s later, then
   131 charge reads over 22 min 30 s, about one every 9 s (the 10 s read interval
@@ -166,9 +166,10 @@ is the one that starts at a BLE request, not at a physical interaction.
   `ASLEEP` at 13:37:58.2, 89.7 s later. A later wake, whose charge read never
   landed, slept again about 80 s after the last exchange, before the next pull.
 
-So the countdown starts at the last BLE request and expires after about 1.5
-minutes of quiet: a cadence of a minute or less keeps a parked car awake
-indefinitely, and one of 90 s lets it sleep. That narrows both the
+So the car sleeps about 1.5 minutes after the last BLE request, and stays awake
+while requests keep coming at least once a minute: a minute or less between
+reads keeps a parked car awake indefinitely, and a 90 s gap lets it sleep. That
+narrows both the
 "0.5-2.5 minutes past the last read" reading in ADR-0009 and the "about
 2 minutes" one above. The 2.5 minute tail itself does not reproduce and cannot
 be classified: that build logged no commands and kept no charge samples until

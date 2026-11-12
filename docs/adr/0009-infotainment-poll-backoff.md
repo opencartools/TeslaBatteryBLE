@@ -49,8 +49,8 @@ due. One instance per vehicle link.
   in a hold, one read once 2 minutes (`IDLE_SAFETY_INTERVAL_MS`) have passed
   since the last read. It catches an event the status does not show (remote
   climate, Sentry, a remote wake) when the car stays awake anyway. 2 minutes sits
-  just above the car's own sleep countdown (measured at about 1.5 minutes,
-  2026-11-12): a car that would sleep is asleep when the read comes due, so the
+  just above the 1.5 minutes the car takes to sleep after the last read
+  (2026-11-12): a car that would sleep is asleep when the read comes due, so the
   read is skipped and its sleep is never extended. It does not start a hold. The
   value is tuned from the real-car check.
 - The screen shows the idle wait (owner, 2026-11-01). `pausedUntilMillis` answers
@@ -111,9 +111,9 @@ ticks does not turn a 10 s cadence into 20 s.
 - Readings (SOC, charging, gear) refresh every 10 s while the car is active or
   recently changed, and go stale once the hold ends and while it sleeps (the
   status log still shows the sleep).
-- With nobody present, the reads stop a minute after the last change and the
-  car's countdown then runs undisturbed, so it sleeps a couple of minutes after
-  the change (1.5 minutes measured, 2026-11-12). When the car reports presence
+- With nobody present, the reads stop a minute after the last change and the car
+  sleeps about 1.5 minutes after the last read, so a couple of minutes after the
+  change (measured 2026-11-12). When the car reports presence
   (someone in the car), the hold is 10 minutes, so expect sleep roughly 11-12
   minutes after the last change. That is the price of catching someone getting
   in and driving off. A real-car check is part of the change.
@@ -128,9 +128,9 @@ ticks does not turn a 10 s cadence into 20 s.
   assumed above, and a BLE wake with one read sleeps after about 2 minutes. The
   design holds, and the cost of the hold is smaller than estimated: the car
   sleeps a couple of minutes after the hold ends, not 10 or more.
-- Narrowed on 2026-11-12: on a quiet car with the user away, the countdown after
-  the last request is about 1.5 minutes. A read a minute apart held the car awake
-  for ten minutes; a 90 s gap let it sleep (89.7 s after the last read). The
+- Narrowed on 2026-11-12: on a quiet car with the user away, it fell asleep about
+  1.5 minutes after the last request. Reads a minute apart held it awake for ten
+  minutes; a 90 s gap let it sleep (89.7 s after the last read). The
   2.5 minute tail above was not reproduced and cannot be classified: that build
   logged no commands, and its status log shows nobody in the car.
 - Each read is four requests now (charge, drive, closures, climate) instead of

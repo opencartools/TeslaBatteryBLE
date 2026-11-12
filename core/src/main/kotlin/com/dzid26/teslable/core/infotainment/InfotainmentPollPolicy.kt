@@ -15,9 +15,9 @@ import com.tesla.generated.vcsec.VehicleStatus
  * while driving and tire pressure every [TIRE_PRESSURE_INTERVAL_MS], see [wantsLocation] and
  * [wantsTirePressure]).
  *
- * Any Infotainment request restarts the car's own sleep countdown (measured at about 1.5 minutes,
- * 2026-11-12), so polling it while the car is merely awake keeps it awake (ADR-0009, issue #112).
- * VCSEC status does not, and
+ * The car falls asleep about 1.5 minutes after the last Infotainment request and stays awake while
+ * requests keep coming at least once a minute (measured 2026-11-12), so polling a merely awake car
+ * holds it awake (ADR-0009, issue #112). VCSEC status does not, and
  * keeps the BLE link alive, so it stays on its own 10 s cadence outside this class. The rules:
  *
  * 1. Never while asleep (asleep also drops the hold), and never to wake the car: reads only when
@@ -29,8 +29,8 @@ import com.tesla.generated.vcsec.VehicleStatus
  *      person leaving cuts the remaining hold to the short one.
  * 3. Idle safety read: awake, not active and not holding, one read once [IDLE_SAFETY_INTERVAL_MS] has
  *    passed since the last read. It catches an event the status misses (remote climate, Sentry, a
- *    remote wake) when the car stays awake anyway. The interval is deliberately longer than the car's
- *    own sleep countdown (measured at about 1.5 minutes, 2026-11-12): a car that would sleep is
+ *    remote wake) when the car stays awake anyway. The interval is a little longer than the 1.5
+ *    minutes the car takes to sleep after the last read (2026-11-12): a car that would sleep is
  *    already asleep when the read comes due, so it is skipped and its sleep is never extended. The
  *    safety read does not start a hold. [pausedUntilMillis] says when the next one is due, so the
  *    screen can show Paused while the poll waits.
@@ -298,8 +298,8 @@ class InfotainmentPollPolicy {
         const val HOLD_ABSENT_MS = 60_000L
 
         /**
-         * The idle safety read: longer than the car's own sleep countdown (measured at about 1.5
-         * minutes, 2026-11-12), so a car that would sleep is asleep by then and is never kept awake
+         * The idle safety read: a little longer than the 1.5 minutes the car takes to sleep after the
+         * last read (2026-11-12), so a car that would sleep is asleep by then and is never kept awake
          * by it.
          */
         const val IDLE_SAFETY_INTERVAL_MS = 120_000L
