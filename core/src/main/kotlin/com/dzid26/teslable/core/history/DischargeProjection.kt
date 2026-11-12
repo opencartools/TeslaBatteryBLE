@@ -60,8 +60,8 @@ data class DischargeProjection(
  * range through the fitted [scale] when it is pinned, so a pair of readings
  * is a fraction of a percent, not a whole level; without it the integer
  * levels stand in. The beam is two standard errors of that rate: the spread
- * of the pairs around it, never less than the readings' own resolution,
- * joined with the scale's own slope error.
+ * of the pairs around it and the rounding of every pair's readings, in
+ * quadrature, joined with the scale's own slope error.
  *
  * The line follows the deep-sleep rate once the car has slept enough to tell: the
  * rate of the pairs it slept through (a VCSEC status inside the gap says asleep
@@ -157,7 +157,7 @@ private class ParkedDrain(
     val pairs: Int,
     /** Sum of each pair's squared residual from the mean rate. */
     val squaredResiduals: Double,
-    /** The rounding variance of the summed drop: first minus last reading, so two readings' worth however many pairs. */
+    /** The rounding variance of the summed drop: two readings for every pair. */
     val roundingVariance: Double = 0.0,
     /** The drop and duration of the pairs the car slept through. */
     val sleep: SleepSpan = SleepSpan(0.0, 0L, 0),
@@ -174,7 +174,8 @@ private class ParkedDrain(
 
     /**
      * One standard error of the rate, percent per millisecond: the pairs' scatter
-     * (sample variance, over n - 1) and the rounding of the two end readings, in quadrature.
+     * (sample variance, over n - 1) and the rounding of every pair's two readings,
+     * in quadrature.
      */
     val errorPerMilli: Double
         get() = sqrt(squaredResiduals * pairs / maxOf(pairs - 1, 1) + roundingVariance) / millis
@@ -211,11 +212,12 @@ private fun parkedDrain(
         val residual = drops[index] - rate * spans[index]
         squared += residual * residual
     }
-    // The pairs telescope: their drops sum to first minus last, so rounding
-    // enters as two readings however many pairs there are. The residuals above
-    // already carry some rounding noise, so adding it here counts it twice in part;
-    // erring wide is the intended side.
-    val rounding = TWO_READINGS_VARIANCE * readingResolution(scale) * readingResolution(scale)
+    // Every pair's two rounded readings count, not only the two ends: within a run
+    // the pairs telescope, but the band should reflect how many readings went into
+    // the rate. The residuals above already carry some of that rounding, so counting
+    // it again errs wide, which is the intended side.
+    val resolution = readingResolution(scale)
+    val rounding = TWO_READINGS_VARIANCE * drops.size * resolution * resolution
     return ParkedDrain(
         drop,
         millis,
