@@ -204,10 +204,33 @@ class ActuationChannelTest {
         assertEquals(true, host.lastResumeAccepted)
     }
 
-    private fun sendLimit() {
+    @Test
+    fun `a start the car is already doing is an acceptance`() {
+        send(ActuationKey.CHARGE_START, TeslaChargeCommands.buildChargeStartRequest())
+
+        channel.onReply(ActuationKey.CHARGE_START, statusWithReason("is_charging"))
+
+        assertEquals(ActuationFeedback(ActuationKey.CHARGE_START, ActuationResult.ACCEPTED), host.feedback.single())
+    }
+
+    @Test
+    fun `a stop the car already did is an acceptance`() {
+        send(ActuationKey.CHARGE_STOP, TeslaChargeCommands.buildChargeStopRequest())
+
+        channel.onReply(ActuationKey.CHARGE_STOP, statusWithReason("not_charging"))
+
+        assertEquals(ActuationFeedback(ActuationKey.CHARGE_STOP, ActuationResult.ACCEPTED), host.feedback.single())
+    }
+
+    private fun sendLimit() = send(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
+
+    private fun send(
+        key: ActuationKey,
+        payload: ByteArray,
+    ) {
         host.awake = true
         host.session = true
-        channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
+        channel.submit(key, payload)
     }
 
     private fun actionStatus(ok: Boolean): ByteArray =
@@ -219,12 +242,14 @@ class ActuationChannelTest {
         ).encode()
 
     /** The reply for setting a value the car already has. */
-    private fun alreadySetStatus(): ByteArray =
+    private fun alreadySetStatus(): ByteArray = statusWithReason("already_set")
+
+    private fun statusWithReason(reason: String): ByteArray =
         Response(
             actionStatus =
                 ActionStatus(
                     result = OperationStatus_E.OPERATIONSTATUS_ERROR,
-                    result_reason = ResultReason(plain_text = "already_set"),
+                    result_reason = ResultReason(plain_text = reason),
                 ),
         ).encode()
 

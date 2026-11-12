@@ -7,6 +7,12 @@ import com.tesla.generated.carserver.server.Response
 /** The car's reason for an idempotent set it already had: the value needs no change, so it is not a refusal. */
 private const val ALREADY_SET = "already_set"
 
+/** The car's reason for a start it is already doing. */
+private const val ALREADY_CHARGING = "is_charging"
+
+/** The car's reason for a stop it already did. */
+private const val NOT_CHARGING = "not_charging"
+
 /**
  * One control the app can actuate. The channel keeps at most one request in flight and one queued
  * value per key, so repeated taps on a stepper send only the value the owner settled on.
@@ -137,10 +143,13 @@ internal class ActuationChannel(
     ): Boolean {
         if (inFlight != key) return false
         val answered = plaintext?.let { runCatching { Response.ADAPTER.decode(it).actionStatus }.getOrNull() }
-        // The car reports a value that is already at the target as an ActionStatus error with this reason.
+        val reason = answered?.result_reason?.plain_text
+        // The car reports a value or a state that is already at the target as an ActionStatus error.
         val accepted =
             answered?.result == OperationStatus_E.OPERATIONSTATUS_OK ||
-                answered?.result_reason?.plain_text == ALREADY_SET
+                reason == ALREADY_SET ||
+                (key == ActuationKey.CHARGE_START && reason == ALREADY_CHARGING) ||
+                (key == ActuationKey.CHARGE_STOP && reason == NOT_CHARGING)
         val result =
             when {
                 fault -> ActuationResult.REFUSED
