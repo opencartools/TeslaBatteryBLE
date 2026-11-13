@@ -476,18 +476,14 @@ class HistoryStore internal constructor(
     }
 
     /**
-     * Logs a change in the phone's connection to [vehicleId] (ADR-0008):
-     * [state] is `CONNECTED` when the connection became ready and
-     * `DISCONNECTED` when an established one ended, so a DISCONNECTED marks
-     * when watching ended. [address] is the car's BLE address at that moment,
-     * [deviceTimestamp] is when it happened, and [rssi] the phone's last RSSI
-     * for the car before that, or null when it has none.
-     * Nothing reads these records back yet.
+     * Logs one connection change to [vehicleId] (ADR-0008): [event] carries the state, the car's
+     * BLE address, and on a DISCONNECTED the end cause and GATT status. [deviceTimestamp] is when
+     * it happened, and [rssi] the phone's last RSSI for the car before that, or null when it has
+     * none. Nothing reads these records back yet.
      */
     fun recordConnection(
         vehicleId: String,
-        state: ConnectionEvent.State,
-        address: String,
+        event: ConnectionEvent,
         deviceTimestamp: Instant,
         rssi: Int?,
     ) {
@@ -495,7 +491,7 @@ class HistoryStore internal constructor(
             BleRecord(
                 device_timestamp = deviceTimestamp,
                 rssi = rssi,
-                connection_event = ConnectionEvent(state = state, address = address),
+                connection_event = event,
             )
         scope.launch {
             mutex.withLock {

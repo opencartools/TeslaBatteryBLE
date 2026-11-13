@@ -14,7 +14,16 @@ interface TeslaTransport {
      * transport from a callback, e.g. [TeslaTransport.close] from [onPhase].
      */
     interface Listener {
-        fun onPhase(phase: ConnectionPhase)
+        /**
+         * The link's phase changed. [gattStatus] is Android's GATT status when a
+         * GATT callback ended the connection (DISCONNECTED), a failed service
+         * discovery included: 0 when the remote end closed it cleanly, a nonzero
+         * error code otherwise; null when no code exists.
+         */
+        fun onPhase(
+            phase: ConnectionPhase,
+            gattStatus: Int? = null,
+        )
 
         fun onServices(services: List<GattServiceInfo>)
 
