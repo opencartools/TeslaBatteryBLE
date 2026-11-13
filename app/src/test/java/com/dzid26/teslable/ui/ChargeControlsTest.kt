@@ -26,9 +26,11 @@ class ChargeControlsTest {
     fun `the current steps by one amp and clamps to the car's maximum`() {
         assertEquals(17, nextChargingAmps(16, 1, 32))
         assertEquals(15, nextChargingAmps(16, -1, 32))
-        assertEquals(5, nextChargingAmps(5, -1, 32))
+        assertEquals(4, nextChargingAmps(5, -1, 32))
+        assertEquals(1, nextChargingAmps(1, -1, 32))
         assertEquals(32, nextChargingAmps(32, 1, 32))
-        // A car that only offers less than the usual minimum can still go up to its own maximum.
+        // A car that reports a current below the usual five still steps from where it is.
+        assertEquals(4, nextChargingAmps(3, 1, 32))
         assertEquals(3, nextChargingAmps(3, 1, 3))
     }
 

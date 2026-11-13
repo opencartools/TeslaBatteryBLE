@@ -8,15 +8,22 @@ import com.dzid26.teslable.protocol.ChargingStateKind
 import com.dzid26.teslable.protocol.chargingStateKind
 import com.tesla.generated.carserver.vehicle.ChargeState
 
-/** The charge limit moves in 5% steps, as the car's own app does. */
+/** The step Tesla's app uses. The car accepts any percent target. */
 internal const val CHARGE_LIMIT_STEP = 5
 
-/** The lowest current a car accepts; a packed car can still report and use less. */
-internal const val MIN_CHARGING_AMPS = 5
+/**
+ * The smallest current this stepper offers. Tesla's app stops at 5 A; the car decides whether
+ * it accepts a lower request, so this build lets the owner try.
+ */
+internal const val MIN_CHARGING_AMPS = 1
 
 /** How long an optimistic value stays up before the car's own value takes it back. */
 internal const val APPLY_TIMEOUT_MS = 15_000L
 
+/**
+ * Tesla's charge-limit range. The car narrows it with `charge_limit_soc_min` and
+ * `charge_limit_soc_max`; these values are the API's bounds.
+ */
 private const val CHARGE_LIMIT_MIN = 50
 private const val CHARGE_LIMIT_MAX = 100
 
@@ -30,7 +37,7 @@ internal fun chargeButton(charge: ChargeState): ChargeButton =
         else -> ChargeButton.NONE
     }
 
-/** The car's settable limit, clamped to what the car and the app agree on. */
+/** The car's settable limit. Its reported min and max are the source; the API bounds only clamp them. */
 internal fun chargeLimitRange(charge: ChargeState): IntRange {
     val min =
         charge.charge_limit_soc_min
@@ -57,6 +64,7 @@ internal fun nextChargeLimit(
     return next.coerceIn(range.first, range.last)
 }
 
+/** One amp steps, never below the smallest request the API accepts. */
 internal fun nextChargingAmps(
     current: Int,
     delta: Int,
