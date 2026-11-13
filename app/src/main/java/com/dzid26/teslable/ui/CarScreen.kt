@@ -431,10 +431,9 @@ internal fun CarScreen(
                             start = onStartCharging,
                             stop = onStopCharging,
                         )
-                    val portState = connection?.status?.closureStatuses?.chargePort
+                    // The port door is the only pre-read signal; only a fully open door counts.
                     val portOpen =
-                        portState == ClosureState_E.CLOSURESTATE_OPEN ||
-                            portState == ClosureState_E.CLOSURESTATE_AJAR ||
+                        connection?.status?.closureStatuses?.chargePort == ClosureState_E.CLOSURESTATE_OPEN ||
                             charge?.charge_port_door_open == true
                     val chargeModel =
                         if (paired &&
