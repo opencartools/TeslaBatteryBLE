@@ -58,6 +58,8 @@ It is not a gear: of the `1` statuses with a drive reply nearby, 161 were in P b
 
 **Climate and Sentry in VCSEC:** neither is identified. With field 8 awake, climate-on is 1 in 1,076 replies and 0 in 489, so field 8 does not tell climate running. Sentry was Off in all 14,879 closures replies, so there was no armed state to correlate with.
 
+**VCSEC carries no charging state.** `VehicleStatus` has no charging field in either schema; the closest is the charge port's open/closed state inside `closureStatuses`, which says nothing about whether the car is charging. Neither unknown can stand in for one from these logs: field 7 is absent whenever nobody is present, and charging normally happens with nobody in the car, while field 8 is the awake/low-power level that every kind of activity shares. The charging state comes from the Infotainment `ChargeState.charging_state` (Starting, Charging, Complete, Stopped, …). Consequence for the poll policy (ADR-0009): a VCSEC-only poll cannot tell charging from parked, so telling a charge from a park keeps needing the Infotainment read the app already makes.
+
 ## Range fields (known, but they matter here)
 
 `ideal_battery_range` (113) equals `battery_range` (111) in 18,647 of 18,647 replies that carry range (the other 66 carry neither), and `charge_miles_added_ideal` equals `charge_miles_added_rated` in the same replies. `est_battery_range` (112) is never sent. `battery_range` fits linearly in `usable_battery_level` (slope 2.678 mi per %, offset 0.00 mi, residual SD 0.81 mi). The usable level equals `battery_level` in 15,059 replies and is exactly 1 lower in 3,588. No unknown field carries a range. 
@@ -65,6 +67,9 @@ It is not a gear: of the `1` statuses with a drive reply nearby, 161 were in P b
 ## Ideas to settle the open ones
 
 - Run Sentry and climate for a few hours, then pull logs: shows whether VCSEC 7 or 8 move with either.
+- Charge the car with someone sitting in it (or open the app while it charges) and pull logs: shows
+  whether VCSEC 7 or 8 ever move with charging. Without a charge that pairs with field 7 present, the
+  schema is the only reason to say VCSEC cannot tell charging from parked.
 - Pull a debug build's log through a pairing, a wake and a lock/unlock, then line VehicleStatus 7 up with
   the app's own link and session events: tells whether it follows the phone key or the car. Debug builds
   print it as `VCSEC unknown fields 7=2, 8.1=2` (from `UnknownFields.kt` in `protocol`), so the run needs
