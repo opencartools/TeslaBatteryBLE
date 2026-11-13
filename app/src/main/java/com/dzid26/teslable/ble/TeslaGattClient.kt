@@ -154,7 +154,7 @@ class TeslaGattClient(
                     status != BluetoothGatt.GATT_SUCCESS -> {
                         // A weak or interrupted link, not a fault: the backoff retries, so it reads as disconnected.
                         listener.onLog("GATT error status $status")
-                        listener.onPhase(ConnectionPhase.DISCONNECTED)
+                        listener.onPhase(ConnectionPhase.DISCONNECTED, status)
                     }
 
                     newState == BluetoothProfile.STATE_CONNECTED -> {
@@ -167,8 +167,9 @@ class TeslaGattClient(
                     }
 
                     newState == BluetoothProfile.STATE_DISCONNECTED -> {
+                        // status is GATT_SUCCESS here: the remote end closed the link cleanly.
                         listener.onLog("Disconnected")
-                        listener.onPhase(ConnectionPhase.DISCONNECTED)
+                        listener.onPhase(ConnectionPhase.DISCONNECTED, status)
                     }
                 }
             }
@@ -180,7 +181,7 @@ class TeslaGattClient(
             ) {
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     listener.onLog("Service discovery failed with status $status")
-                    listener.onPhase(ConnectionPhase.DISCONNECTED)
+                    listener.onPhase(ConnectionPhase.DISCONNECTED, status)
                     return
                 }
                 listener.onPhase(ConnectionPhase.DISCOVERING)

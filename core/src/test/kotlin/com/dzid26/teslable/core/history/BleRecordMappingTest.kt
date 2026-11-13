@@ -308,6 +308,10 @@ class BleRecordMappingTest {
         // The state is field 1 of ConnectionEvent: tag 0x08, then the enum number.
         assertContentEquals(byteArrayOf(0x08, 1), ConnectionEvent(state = ConnectionEvent.State.CONNECTED).encode())
         assertContentEquals(byteArrayOf(0x08, 2), ConnectionEvent(state = ConnectionEvent.State.DISCONNECTED).encode())
+        // Decoding an event written before the end-cause and GATT-status fields leaves both absent.
+        val legacy = ConnectionEvent.ADAPTER.decode(byteArrayOf(0x08, 2))
+        assertNull(legacy.end_cause)
+        assertNull(legacy.gatt_status)
     }
 
     @Test
@@ -319,6 +323,39 @@ class BleRecordMappingTest {
         assertEquals("AA:BB:CC:DD:EE:FF", decoded.address)
         // Without an address the event keeps the two bytes it always had.
         assertContentEquals(byteArrayOf(0x08, 1), ConnectionEvent(state = ConnectionEvent.State.CONNECTED).encode())
+    }
+
+    @Test
+    fun `a dropped connection records why it ended and the GATT status`() {
+        val event =
+            ConnectionEvent(
+                state = ConnectionEvent.State.DISCONNECTED,
+                end_cause = ConnectionEvent.EndCause.LINK_LOST,
+                gatt_status = 133,
+            )
+
+        val decoded = ConnectionEvent.ADAPTER.decode(event.encode())
+
+        assertEquals(ConnectionEvent.EndCause.LINK_LOST, decoded.end_cause)
+        assertEquals(133, decoded.gatt_status)
+        // The end cause is field 3 (tag 0x18) and the GATT status field 4 (tag 0x20):
+        // new fields, so an event without them keeps the bytes it always had.
+        assertContentEquals(
+            byteArrayOf(0x08, 2, 0x18, 2, 0x20, 0x85.toByte(), 0x01),
+            event.encode(),
+        )
+        assertContentEquals(byteArrayOf(0x08, 2), ConnectionEvent(state = ConnectionEvent.State.DISCONNECTED).encode())
+    }
+
+    @Test
+    fun `an app-closed connection carries its end cause without a GATT status`() {
+        val event =
+            ConnectionEvent(state = ConnectionEvent.State.DISCONNECTED, end_cause = ConnectionEvent.EndCause.APP_CLOSED)
+
+        val decoded = ConnectionEvent.ADAPTER.decode(event.encode())
+
+        assertEquals(ConnectionEvent.EndCause.APP_CLOSED, decoded.end_cause)
+        assertNull(decoded.gatt_status)
     }
 
     @Test

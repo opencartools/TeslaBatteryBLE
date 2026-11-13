@@ -102,7 +102,13 @@ identity), `docs/requirements/multi-phone.md`
   became ready, are not logged, so a car out of range does not fill the log
   with retries. DISCONNECTED covers every way a ready connection ends: the
   car or Android dropping it, and the app closing it (tracking switched off,
-  or the car moving to a new address). A killed app logs nothing, so a
+  the car moving to a new address, the car cache being cleared, or a scan's
+  name probe finishing). `end_cause` says which of these it was
+  (`APP_CLOSED` or `LINK_LOST`), and `gatt_status` carries Android's GATT
+  status at a lost link: 0 when the remote end closed it cleanly, a nonzero
+  error code otherwise, so a drop's code lands in the log instead of logcat.
+  Both are absent on CONNECTED and on records written before them. A killed
+  app logs nothing, so a
   CONNECTED that follows a CONNECTED means the stretch before it ended
   uncleanly, and the status heartbeat bounds where. Connection events are log
   only: no read model and no UI yet. The address is there to tell a rotated

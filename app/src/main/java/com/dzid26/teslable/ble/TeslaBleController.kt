@@ -915,19 +915,19 @@ class TeslaBleController(
     private fun latestRssi(address: String): Int? = _state.value.connections[address]?.rssi
 
     /**
-     * Logs a change in the connection to [link]'s car: [ConnectionEvent.State.CONNECTED] right after it became ready,
-     * [ConnectionEvent.State.DISCONNECTED] right before a connection that had become ready ends. Both run while the phase is READY,
-     * so a connection attempt that never got there is not logged.
+     * Logs [event] for [link]'s car while the link is READY, so a connection attempt that never got there is not
+     * logged. The record carries the link's current BLE address and the phone's latest RSSI, and a DISCONNECTED
+     * also marks the car's unanswered commands. [ConnectionEvent] documents the state and the fields an event carries.
      */
     private fun recordConnection(
         link: VehicleLink,
-        state: ConnectionEvent.State,
+        event: ConnectionEvent,
     ) {
         if (link.phase != ConnectionPhase.READY) return
         val deviceTimestamp = Instant.ofEpochMilli(System.currentTimeMillis())
-        historyStore.recordConnection(link.bleName, state, link.address, deviceTimestamp, latestRssi(link.address))
+        historyStore.recordConnection(link.bleName, event.copy(address = link.address), deviceTimestamp, latestRssi(link.address))
         // Whatever the car has not answered by now, it will not answer.
-        if (state == ConnectionEvent.State.DISCONNECTED) link.commands.logUnanswered(linkEnded = true)
+        if (event.state == ConnectionEvent.State.DISCONNECTED) link.commands.logUnanswered(linkEnded = true)
     }
 
     internal fun log(message: String) {
@@ -1382,7 +1382,8 @@ class TeslaBleController(
         }
 
         fun close() {
-            recordConnection(this, ConnectionEvent.State.DISCONNECTED)
+            val event = ConnectionEvent(state = ConnectionEvent.State.DISCONNECTED, end_cause = ConnectionEvent.EndCause.APP_CLOSED)
+            recordConnection(this, event)
             cancelCallbacks()
             transport?.close()
             transport = null
@@ -2006,36 +2007,56 @@ class TeslaBleController(
             }
         }
 
+        /**
+         * Handles the transport reporting that the link ended: records the loss with [gattStatus] when a GATT
+         * callback supplied one, drops the transport state, and schedules a retry.
+         */
+        private fun onLinkEnded(
+            phase: ConnectionPhase,
+            gattStatus: Int?,
+        ) {
+            // Only a link that was up is a drop: a failed retry reports DISCONNECTED too.
+            val wasReady = this.phase == ConnectionPhase.READY
+            if (wasReady) lastAliveMillis = System.currentTimeMillis()
+            val event =
+                ConnectionEvent(
+                    state = ConnectionEvent.State.DISCONNECTED,
+                    end_cause = ConnectionEvent.EndCause.LINK_LOST,
+                    gatt_status = gattStatus,
+                )
+            recordConnection(this, event)
+            transport?.close()
+            transport = null
+            handler.removeCallbacks(poll)
+            handler.removeCallbacks(rssiPoll)
+            infotainmentGate.onLinkDropped()
+            actuation.onStopped()
+            readInFlight.onLinkDropped()
+            pendingCommands.clear()
+            handshake.clearPending()
+            val hadData =
+                _state.value.connections[address]?.let {
+                    it.sessions.isNotEmpty() || it.status != null || it.charge != null
+                } == true
+            // Failed is for faults a retry will not fix; a dropped or weak link just reads as disconnected.
+            val display =
+                if (phase == ConnectionPhase.FAILED && !hadData) ConnectionPhase.FAILED else ConnectionPhase.DISCONNECTED
+            this.phase = display
+            updateConnection(address) {
+                it.copy(phase = display, disconnectedAtMillis = System.currentTimeMillis(), pausedUntilMillis = null)
+            }
+            scheduleReconnect()
+            if (wasReady) alertOpenClosure()
+        }
+
         private fun listener() =
             object : TeslaTransport.Listener {
-                override fun onPhase(phase: ConnectionPhase) {
+                override fun onPhase(
+                    phase: ConnectionPhase,
+                    gattStatus: Int?,
+                ) {
                     if (phase == ConnectionPhase.FAILED || phase == ConnectionPhase.DISCONNECTED) {
-                        // Only a link that was up is a drop: a failed retry reports DISCONNECTED too.
-                        val wasReady = this@VehicleLink.phase == ConnectionPhase.READY
-                        if (wasReady) lastAliveMillis = System.currentTimeMillis()
-                        recordConnection(this@VehicleLink, ConnectionEvent.State.DISCONNECTED)
-                        transport?.close()
-                        transport = null
-                        handler.removeCallbacks(poll)
-                        handler.removeCallbacks(rssiPoll)
-                        infotainmentGate.onLinkDropped()
-                        actuation.onStopped()
-                        readInFlight.onLinkDropped()
-                        pendingCommands.clear()
-                        handshake.clearPending()
-                        val hadData =
-                            _state.value.connections[address]?.let {
-                                it.sessions.isNotEmpty() || it.status != null || it.charge != null
-                            } == true
-                        // Failed is for faults a retry will not fix; a dropped or weak link just reads as disconnected.
-                        val display =
-                            if (phase == ConnectionPhase.FAILED && !hadData) ConnectionPhase.FAILED else ConnectionPhase.DISCONNECTED
-                        this@VehicleLink.phase = display
-                        updateConnection(address) {
-                            it.copy(phase = display, disconnectedAtMillis = System.currentTimeMillis(), pausedUntilMillis = null)
-                        }
-                        scheduleReconnect()
-                        if (wasReady) alertOpenClosure()
+                        onLinkEnded(phase, gattStatus)
                         return
                     }
                     this@VehicleLink.phase = phase
@@ -2058,7 +2079,7 @@ class TeslaBleController(
                         firstStatusAfterConnect = true
                         infotainmentPolicy.onLinkReady(System.currentTimeMillis())
                         syncPauseState()
-                        recordConnection(this@VehicleLink, ConnectionEvent.State.CONNECTED)
+                        recordConnection(this@VehicleLink, ConnectionEvent(state = ConnectionEvent.State.CONNECTED))
                         // Additive scans stay under the user's control; the selected
                         // car connecting is the one signal that means "found it".
                         if (_state.value.explicitScan && selectedBleName == bleName) stopScan()

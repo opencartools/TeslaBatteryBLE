@@ -80,6 +80,27 @@ message ConnectionEvent {
     // the same across an address change, so comparing this between events is how
     // a rotated address shows up. Absent when the app did not know it.
     optional string address = 2;
+
+    // Why an established connection ended, on DISCONNECTED only: whether the
+    // app closed the link or the link was lost. Absent on CONNECTED events and
+    // on records written before the field existed.
+    optional EndCause end_cause = 3;
+
+    // Android's GATT status when the link was lost: 0 when the remote end
+    // closed it cleanly, a nonzero error code otherwise (a weak or interrupted
+    // link, a timeout, 133 for the generic failure). Absent when the app
+    // closed the link, and on DISCONNECTED records written before the field
+    // existed.
+    optional int32 gatt_status = 4;
+
+    enum EndCause {
+        END_CAUSE_UNSPECIFIED = 0;
+        // The app closed the link: tracking switched off, the car moving to a
+        // new address, the car cache being cleared, or a scan's name probe done.
+        APP_CLOSED = 1;
+        // The connection dropped or the remote end closed it.
+        LINK_LOST = 2;
+    }
 }
 
 // A request the app sent to the car, kept as built (before encryption) with the
