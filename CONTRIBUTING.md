@@ -1,6 +1,8 @@
 # Contributing to TeslaBatteryBLE
 
-Thanks for helping. This project is local-first, privacy-first, and AGPL-licensed;
+You are welcome to clean up AI slop.
+
+This project is local-first, privacy-first, and AGPL-licensed;
 contributions of all sizes are welcome — code, protocol notes, docs, design, and
 bug reports.
 
