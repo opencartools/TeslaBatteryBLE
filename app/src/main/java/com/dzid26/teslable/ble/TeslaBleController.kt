@@ -20,7 +20,8 @@ import com.dzid26.teslable.core.history.RouteSample
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.Trip
 import com.dzid26.teslable.core.infotainment.InfotainmentPollPolicy
-import com.dzid26.teslable.core.infotainment.InfotainmentSessionGate
+import com.dzid26.teslable.core.infotainment.InfotainmentPollPolicy.ReadKind
+import com.dzid26.teslable.core.infotainment.InfotainmentSessionWait
 import com.dzid26.teslable.history.ChargePriceEditor
 import com.dzid26.teslable.history.HistoryStore
 import com.dzid26.teslable.history.LogExportRunner
@@ -112,7 +113,6 @@ class TeslaBleController(
             actuator = { name -> links[name]?.takeIf { it.phase == ConnectionPhase.READY }?.actuation },
             log = ::log,
         )
-    private val appStateRecorder by lazy { AppStateRecorder(historyStore) }
 
     /** Cars a scan already connected to once, only to read their name; reset by each new scan. */
     private val nameProbes = mutableSetOf<String>()
@@ -221,6 +221,9 @@ class TeslaBleController(
             selectVehicle(saved)
         }
     }
+
+    /** Records the app's own foreground and background changes; needs the store the init block builds. */
+    private val appStateRecorder = AppStateRecorder(historyStore)
 
     // ---------------------------------------------------------------- UI actions
 
@@ -533,7 +536,7 @@ class TeslaBleController(
         }
 
         /** The read behind both the pull and a saved VIN's replay; never gated again. */
-        private fun readLink(name: String) = links[name]?.requestChargeState(Command.Reason.USER_REFRESH)
+        private fun readLink(name: String) = links[name]?.requestChargeState(Command.Reason.USER_REFRESH, ReadKind.USER)
 
         /** True when the VIN prompt took over [intent], so the caller must stop. */
         private fun blocks(
@@ -1004,8 +1007,8 @@ class TeslaBleController(
         /** Decides when an Infotainment read is due (ADR-0009). */
         private val infotainmentPolicy = InfotainmentPollPolicy()
 
-        /** Whether a due read is waiting for the Infotainment handshake; never left set once it is over. */
-        private val infotainmentGate = InfotainmentSessionGate()
+        /** Who waits for the Infotainment session, shared by the reads and the charge actions (ADR-0009). */
+        private val sessionWait = InfotainmentSessionWait()
 
         /** Keeps the command log: every request goes out through [transmit], which logs it with its reason (ADR-0008). */
         val commands = CommandRecorder(bleName, historyStore, rssi = { latestRssi(address) })
@@ -1018,9 +1021,12 @@ class TeslaBleController(
 
                     override fun hasSession() = handshake.has(Domain.DOMAIN_INFOTAINMENT)
 
-                    override fun readWaiting() = infotainmentGate.readWaiting
+                    override fun isReadRunning(): Boolean = read.running
 
-                    override fun readActive(): Boolean = readInFlight.active && !readInFlight.waitingForSession
+                    override fun sessionStep(): InfotainmentSessionWait.Step =
+                        sessionWait.onActionDue(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT))
+
+                    override fun releaseSessionWait() = sessionWait.onActionReleased()
 
                     override fun startSession() = this@VehicleLink.startSession()
 
@@ -1054,10 +1060,12 @@ class TeslaBleController(
                         key: ActuationKey,
                         accepted: Boolean,
                     ) {
-                        if (infotainmentGate.onSessionEstablished()) {
-                            requestChargeState(waitingReadReason, waitingReadChargeOnly)
+                        // The action needed the session, so the read that waited for it can go now, with
+                        // the reason and kind it waited under.
+                        if (read.waitingForSession) {
+                            read.request?.let { requestChargeState(it.reason, it.kind) }
                         } else if (accepted && key != ActuationKey.CHARGE_START && key != ActuationKey.CHARGE_STOP) {
-                            requestChargeState(Command.Reason.USER_ACTION)
+                            requestChargeState(Command.Reason.ACTION_READBACK)
                         }
                         if (accepted && (key == ActuationKey.CHARGE_START || key == ActuationKey.CHARGE_STOP)) {
                             scheduleStartStopSettle()
@@ -1066,22 +1074,13 @@ class TeslaBleController(
                 },
             )
 
-        /** Whether an Infotainment read is in flight, for the spinner; every exit clears it. */
-        private val readInFlight: ReadInFlight =
-            ReadInFlight { progress ->
+        /** The one read going, for the spinner and for whether an action must wait; every exit clears it. */
+        private val read: InfotainmentRead =
+            InfotainmentRead { progress ->
                 updateConnection(address) { it.copy(readProgress = progress) }
                 // The action waits for the read sequence; this is the one point every read exit reaches.
                 if (progress == null) actuation.onReadFinished()
             }
-
-        /** The reason of the read that is waiting for the Infotainment handshake. */
-        private var waitingReadReason = Command.Reason.REASON_UNSPECIFIED
-
-        /** True when the read waiting for its handshake is the charge-only start/stop confirmation. */
-        private var waitingReadChargeOnly = false
-
-        /** True while the read in flight is the charge-only start/stop confirmation. */
-        private var chargeOnlyRead = false
 
         /**
          * When the app last read on coming to the foreground; reopening the screen sooner than
@@ -1143,7 +1142,7 @@ class TeslaBleController(
                 override fun run() {
                     if (phase != ConnectionPhase.READY) return
                     // The action and its reply come first: the periodic reads resume once it settles.
-                    if (!actuation.hasPending && !infotainmentPolicy.isStartStopHeld(System.currentTimeMillis())) {
+                    if (!actuation.hasPending && !infotainmentPolicy.isReadHeld(System.currentTimeMillis())) {
                         transport?.readRssi()
                     }
                     if (!actuation.isInFlight) requestStatus()
@@ -1152,7 +1151,7 @@ class TeslaBleController(
                     // behind the session request (a handshake that gives up releases it).
                     if (handshake.has(Domain.DOMAIN_VEHICLE_SECURITY)) runStartupSlotLookup()
                     expirePendingCommands(System.currentTimeMillis())
-                    readInFlight.expire(System.currentTimeMillis())
+                    read.expire(System.currentTimeMillis())
                     handler.postDelayed(this, POLL_MS)
                 }
             }
@@ -1162,7 +1161,7 @@ class TeslaBleController(
                 override fun run() {
                     if (!uiVisible || phase != ConnectionPhase.READY) return
                     // A GATT read in flight delays the action's write; the signal meter can wait for it.
-                    if (!actuation.hasPending && !infotainmentPolicy.isStartStopHeld(System.currentTimeMillis())) {
+                    if (!actuation.hasPending && !infotainmentPolicy.isReadHeld(System.currentTimeMillis())) {
                         transport?.readRssi()
                     }
                     handler.postDelayed(this, RSSI_POLL_MS)
@@ -1172,17 +1171,17 @@ class TeslaBleController(
         /** One charge-only read two seconds after a start/stop; other reads wait for it. */
         private val settleRead =
             Runnable {
-                requestChargeState(Command.Reason.USER_ACTION, chargeOnly = true)
+                requestChargeState(Command.Reason.ACTION_READBACK, ReadKind.CONFIRMATION)
             }
 
         private fun scheduleStartStopSettle() {
-            infotainmentPolicy.onStartStopAcknowledged(System.currentTimeMillis())
+            infotainmentPolicy.startReadHold(System.currentTimeMillis())
             handler.removeCallbacks(settleRead)
             handler.postDelayed(settleRead, START_STOP_SETTLE_MS)
         }
 
         private fun cancelStartStopSettle() {
-            infotainmentPolicy.releaseStartStopHold()
+            infotainmentPolicy.releaseReadHold()
             handler.removeCallbacks(settleRead)
         }
 
@@ -1281,8 +1280,7 @@ class TeslaBleController(
                     updateConnection(address) { it.copy(sessions = domains) }
                 }
 
-                override fun mayRequestInfotainment(awake: Boolean): Boolean =
-                    (awake && actuation.hasPending) || infotainmentGate.mayRequestSession(awake)
+                override fun mayRequestInfotainment(awake: Boolean): Boolean = sessionWait.mayRequest(awake)
 
                 override fun onEstablished(domain: Domain) {
                     rememberVehicle(address)
@@ -1290,18 +1288,19 @@ class TeslaBleController(
                     resyncsWithoutReply = 0
                     if (domain == Domain.DOMAIN_VEHICLE_SECURITY) runStartupSlotLookup()
                     if (domain == Domain.DOMAIN_INFOTAINMENT) {
-                        actuation.onSessionEstablished()
+                        val served = sessionWait.onSessionEstablished()
+                        val actionSent = actuation.onSessionEstablished()
                         // A read waiting for this session follows the action's answer, so the action is not
                         // read back before the car has had a chance to apply it.
-                        if (!actuation.hasPending && infotainmentGate.onSessionEstablished()) {
-                            requestChargeState(waitingReadReason, waitingReadChargeOnly)
+                        if (!actionSent && InfotainmentSessionWait.Demand.READ in served) {
+                            read.request?.let { requestChargeState(it.reason, it.kind) }
                         }
                     }
                     if (domain == Domain.DOMAIN_VEHICLE_SECURITY && wakeRetry.isPending) startWake()
                 }
 
                 override fun onGaveUp() {
-                    infotainmentGate.onGaveUp()
+                    sessionWait.onGaveUp()
                     actuation.onInterrupted()
                     runStartupSlotLookup()
                     // A wake waits on the VCSEC session; with the handshake abandoned it can never send.
@@ -1391,9 +1390,9 @@ class TeslaBleController(
             handshake.clear()
             pendingCommands.clear()
             pairing.onLinkClosed()
-            infotainmentGate.onLinkDropped()
+            sessionWait.onLinkDropped()
             actuation.onStopped()
-            readInFlight.onLinkDropped()
+            read.onLinkDropped()
             wakeRetry.cancel()
             updateConnection(address) {
                 it.copy(
@@ -1409,7 +1408,7 @@ class TeslaBleController(
             handshake.clear()
             pendingCommands.clear()
             actuation.onStopped()
-            readInFlight.onLinkDropped()
+            read.onLinkDropped()
             pairing.onCacheCleared()
             wakeRetry.cancel()
             cancelStartStopSettle()
@@ -1444,8 +1443,7 @@ class TeslaBleController(
             handler.removeCallbacks(wakeRefresh)
             handler.removeCallbacks(startupFollowUps)
             handler.removeCallbacks(settleRead)
-            infotainmentPolicy.releaseStartStopHold()
-            chargeOnlyRead = false
+            infotainmentPolicy.releaseReadHold()
             startupPending = false
             startupSlotLookupPending = false
             handshake.cancelTimer()
@@ -1544,9 +1542,8 @@ class TeslaBleController(
             }
             wakeRetry.start()
             handler.removeCallbacks(wakeRefresh)
-            // A long-sleeping car rotates its session; a command encrypted with
-            // the old one is dropped without a reply, so handshake again first.
-            // A long-sleeping car rotates its sessions; both domains must handshake again.
+            // A long-sleeping car rotates its sessions; a command encrypted with the old one is
+            // dropped without a reply, so both domains handshake again first.
             handshake.drop(Domain.DOMAIN_VEHICLE_SECURITY)
             handshake.drop(Domain.DOMAIN_INFOTAINMENT)
             handshake.publish()
@@ -1604,75 +1601,67 @@ class TeslaBleController(
         }
 
         /**
-         * Reads the charge state, the first of a read's four requests. [reason] says why; the refresh
-         * button ([Command.Reason.USER_REFRESH]) is sent at once and counted by the policy.
+         * Reads the charge state, the first of a read's four requests. [reason] says why; [kind] says
+         * how it ranks against the read hold and a queued action. The refresh button
+         * ([Command.Reason.USER_REFRESH]) is sent at once and counted by the policy.
          */
         fun requestChargeState(
             reason: Command.Reason = CommandRecords.reasonOf(infotainmentPolicy.lastReadReason),
-            chargeOnly: Boolean = false,
+            kind: ReadKind = ReadKind.AUTOMATIC,
         ) {
-            // A pull is the owner's explicit read: it wins over a start/stop confirmation hold.
-            if (reason == Command.Reason.USER_REFRESH) cancelStartStopSettle()
+            // A pull is the owner's explicit read: it wins over a read hold.
+            if (kind == ReadKind.USER) cancelStartStopSettle()
             val now = System.currentTimeMillis()
-            if (skipsRead(reason, chargeOnly, now)) return
-            if (reason == Command.Reason.USER_REFRESH) infotainmentPolicy.onUserRequest(now)
-            when (infotainmentGate.onReadDue(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT))) {
-                InfotainmentSessionGate.Action.SKIP -> {
+            if (!infotainmentPolicy.admitsRead(kind, now, read.active, actuation.hasPending)) return
+            if (kind == ReadKind.USER) infotainmentPolicy.onUserRequest(now)
+            val request = InfotainmentRead.Request(reason, kind)
+            when (sessionWait.onReadDue(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT))) {
+                InfotainmentSessionWait.Step.SKIP -> {
                     log("${name()}: car is asleep; wake it first")
-                    readInFlight.onSkipped()
+                    read.onSkipped()
                 }
 
-                InfotainmentSessionGate.Action.SEND_READ -> {
-                    chargeOnlyRead = chargeOnly
-                    // The read that waited for this session counts the handshake as done; any other starts here.
-                    if (readInFlight.waitingForSession) {
-                        readInFlight.sessionReady(now)
-                    } else {
-                        readInFlight.begin(now, expectedReplies(chargeOnly, now), afterHandshake = false)
-                    }
-                    sendAuthenticated(
-                        domain = Domain.DOMAIN_INFOTAINMENT,
-                        payload = TeslaCommands.buildChargeStateRequest(),
-                        kind = CommandKind.CHARGE,
-                        reason = reason,
-                    )
-                }
+                InfotainmentSessionWait.Step.SEND -> sendChargeRead(request, now)
 
                 // The retry loop is already running; the read goes out when the session arrives.
-                InfotainmentSessionGate.Action.WAIT_FOR_HANDSHAKE -> {
-                    waitingReadReason = reason
-                    waitingReadChargeOnly = chargeOnly
-                    readInFlight.begin(now, expectedReplies(chargeOnly, now), afterHandshake = true)
-                }
+                InfotainmentSessionWait.Step.WAIT_FOR_HANDSHAKE ->
+                    read.begin(request, now, expectedReplies(kind, now), afterHandshake = true)
 
-                InfotainmentSessionGate.Action.START_HANDSHAKE -> {
-                    waitingReadReason = reason
-                    waitingReadChargeOnly = chargeOnly
+                InfotainmentSessionWait.Step.START_HANDSHAKE -> {
                     log("${name()}: requesting Infotainment session for SOC")
-                    readInFlight.begin(now, expectedReplies(chargeOnly, now), afterHandshake = true)
+                    read.begin(request, now, expectedReplies(kind, now), afterHandshake = true)
                     if (!startSession()) {
-                        infotainmentGate.onNotStartable()
-                        readInFlight.onSkipped()
+                        sessionWait.onNotStartable()
+                        read.onSkipped()
                     }
                 }
             }
             syncPauseState()
         }
 
-        /** A charge-only confirmation lets the read in flight finish; a hold pauses every other read. */
-        private fun skipsRead(
-            reason: Command.Reason,
-            chargeOnly: Boolean,
+        /** Sends the charge request of a read, resuming the one that waited for this session or starting one. */
+        private fun sendChargeRead(
+            request: InfotainmentRead.Request,
             now: Long,
-        ): Boolean =
-            (chargeOnly && readInFlight.active) ||
-                (reason != Command.Reason.USER_REFRESH && !chargeOnly && infotainmentPolicy.isStartStopHeld(now)) ||
-                (reason != Command.Reason.USER_REFRESH && !chargeOnly && actuation.hasPending && !readInFlight.active)
+        ) {
+            // The read that waited for this session counts the handshake as done; any other starts here.
+            if (read.waitingForSession) {
+                read.onSessionReady(request, now)
+            } else {
+                read.begin(request, now, expectedReplies(request.kind, now), afterHandshake = false)
+            }
+            sendAuthenticated(
+                domain = Domain.DOMAIN_INFOTAINMENT,
+                payload = TeslaCommands.buildChargeStateRequest(),
+                kind = CommandKind.CHARGE,
+                reason = request.reason,
+            )
+        }
 
         private fun expectedReplies(
-            chargeOnly: Boolean,
+            kind: ReadKind,
             now: Long,
-        ): Int = if (chargeOnly) 1 else infotainmentPolicy.expectedReplies(now)
+        ): Int = if (kind == ReadKind.CONFIRMATION) 1 else infotainmentPolicy.expectedReplies(now)
 
         /**
          * One read when the app comes to the foreground: the poll may be waiting out its idle
@@ -1685,7 +1674,7 @@ class TeslaBleController(
             val now = System.currentTimeMillis()
             if (now - lastUiReadAtMs < UI_READ_MIN_INTERVAL_MS) return
             lastUiReadAtMs = now
-            requestChargeState(Command.Reason.USER_REFRESH)
+            requestChargeState(Command.Reason.USER_REFRESH, ReadKind.USER)
         }
 
         /**
@@ -1710,7 +1699,7 @@ class TeslaBleController(
             payload: ByteArray,
             kind: CommandKind,
         ) {
-            if (infotainmentPolicy.isStartStopHeld(System.currentTimeMillis())) return
+            if (infotainmentPolicy.isReadHeld(System.currentTimeMillis())) return
             if (!isAwake() || !handshake.has(Domain.DOMAIN_INFOTAINMENT)) return
             sendAuthenticated(domain = Domain.DOMAIN_INFOTAINMENT, payload = payload, kind = kind)
         }
@@ -1748,7 +1737,7 @@ class TeslaBleController(
                 pendingCommands.remove(key)
                 log("${name()}: failed to send ${kind.name.lowercase()} request")
             }
-            if (sent && kind.isRead) readInFlight.onSent(System.currentTimeMillis())
+            if (sent && kind.isRead) read.onSent(System.currentTimeMillis())
             return sent
         }
 
@@ -1808,7 +1797,7 @@ class TeslaBleController(
             val pending = pendingCommands.remove(key) ?: return false
             commands.replied(key, fault, deviceTimestamp)
             // A reply ends the read unless it sends the next request, which turns it back on.
-            if (pending.kind.isRead) readInFlight.onReply()
+            if (pending.kind.isRead) read.onReply()
             if (!encrypted) {
                 log("${name()}: ${pending.kind.name.lowercase()} rejected (${fault?.signed_message_fault?.name})")
                 pending.actuation?.let { key -> actuation.onReply(key, null, fault = true) }
@@ -1922,18 +1911,15 @@ class TeslaBleController(
                 it.copy(charge = charge, chargeAtMillis = deviceTimestamp.toEpochMilli())
             }
             historyStore.record(bleName, charge, deviceTimestamp, latestRssi(address))
-            val confirming = chargeOnlyRead
-            if (confirming) {
-                chargeOnlyRead = false
-                infotainmentPolicy.releaseStartStopHold()
-            }
+            val confirming = read.confirming
+            if (confirming) infotainmentPolicy.releaseReadHold()
             infotainmentPolicy.onChargeReading(charge.chargingStateKind)
             if (previous?.battery_level != charge.battery_level ||
                 previous?.chargingStateKind != charge.chargingStateKind
             ) {
                 log("${name()}: SOC ${charge.battery_level}% (${charge.chargingStateKind?.let(::chargingStateText) ?: "unknown"})")
             }
-            if (!confirming && !infotainmentPolicy.isStartStopHeld(System.currentTimeMillis())) {
+            if (!confirming && !infotainmentPolicy.isReadHeld(System.currentTimeMillis())) {
                 requestFollowUp(TeslaCommands.buildDriveStateRequest(), CommandKind.DRIVE)
             }
         }
@@ -1950,7 +1936,7 @@ class TeslaBleController(
                 try {
                     handleEncryptedResponse(message, deviceTimestamp)
                 } finally {
-                    readInFlight.settle()
+                    read.settle()
                 }
             if (handled) return
             if (pairing.onMessage(message)) return
@@ -1992,7 +1978,7 @@ class TeslaBleController(
                         handshake.drop(Domain.DOMAIN_INFOTAINMENT)
                         handshake.publish()
                     }
-                    infotainmentGate.onAsleep()
+                    sessionWait.onAsleep()
                     handshake.dropPendingInfotainment()
                     actuation.onInterrupted()
                 } else {
@@ -2029,9 +2015,9 @@ class TeslaBleController(
             transport = null
             handler.removeCallbacks(poll)
             handler.removeCallbacks(rssiPoll)
-            infotainmentGate.onLinkDropped()
+            sessionWait.onLinkDropped()
             actuation.onStopped()
-            readInFlight.onLinkDropped()
+            read.onLinkDropped()
             pendingCommands.clear()
             handshake.clearPending()
             val hadData =

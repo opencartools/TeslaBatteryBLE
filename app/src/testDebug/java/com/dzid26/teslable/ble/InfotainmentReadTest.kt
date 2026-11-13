@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ble
 
+import com.dzid26.teslable.core.history.Command
+import com.dzid26.teslable.core.infotainment.InfotainmentPollPolicy.ReadKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class ReadInFlightTest {
+class InfotainmentReadTest {
     private val changes = mutableListOf<ReadProgress?>()
-    private val read = ReadInFlight { changes += it }
+    private val read = InfotainmentRead { changes += it }
+    private val full = InfotainmentRead.Request(Command.Reason.POLICY_HOLD, ReadKind.AUTOMATIC)
 
     /** One reply as the controller handles it: the reply, the follow-up if any, then the settle. */
     private fun reply(followUpAt: Long? = null) {
@@ -21,7 +24,7 @@ class ReadInFlightTest {
     @Test
     fun eachReplyWithAFollowUpFillsOneStepAndTheLastReplyEndsTheRead() {
         assertFalse(read.active)
-        read.begin(START, replies = REPLIES, afterHandshake = false)
+        read.begin(full, START, replies = REPLIES, afterHandshake = false)
         assertEquals(ReadProgress(0, REPLIES), changes.last())
         read.onSent(START) // charge
         reply(followUpAt = START + STEP) // drive
@@ -36,31 +39,33 @@ class ReadInFlightTest {
 
     @Test
     fun aReadThatWaitsForItsSessionCountsTheHandshakeAsAStep() {
-        read.begin(START, replies = REPLIES, afterHandshake = true)
+        read.begin(full, START, replies = REPLIES, afterHandshake = true)
         assertEquals(ReadProgress(0, REPLIES + 1), changes.last())
         assertTrue(read.waitingForSession)
-        // The gate asks again while the handshake runs: the read keeps its place.
-        read.begin(START + STEP, replies = REPLIES, afterHandshake = true)
-        read.sessionReady(START + 2 * STEP)
+        assertFalse(read.running)
+        // The session wait asks again while the handshake runs: the read keeps its place.
+        read.begin(full, START + STEP, replies = REPLIES, afterHandshake = true)
+        read.onSessionReady(full, START + 2 * STEP)
         assertFalse(read.waitingForSession)
+        assertTrue(read.running)
         read.onSent(START + 2 * STEP) // charge
         assertEquals(ReadProgress(1, REPLIES + 1), changes.last())
     }
 
     @Test
     fun aRefreshMidReadKeepsTheProgress() {
-        read.begin(START, replies = REPLIES, afterHandshake = false)
+        read.begin(full, START, replies = REPLIES, afterHandshake = false)
         read.onSent(START)
         reply(followUpAt = START + STEP)
         // A pull-to-refresh or a poll asks again while the read runs: it adds a request, not a restart.
-        read.begin(START + 2 * STEP, replies = REPLIES, afterHandshake = false)
+        read.begin(full, START + 2 * STEP, replies = REPLIES, afterHandshake = false)
         read.onSent(START + 2 * STEP)
         assertEquals(ReadProgress(1, REPLIES), changes.last())
     }
 
     @Test
     fun aReadThatGrowsOnTheWayGrowsItsTotalInsteadOfOverfilling() {
-        read.begin(START, replies = 1, afterHandshake = false)
+        read.begin(full, START, replies = 1, afterHandshake = false)
         read.onSent(START)
         reply(followUpAt = START + STEP) // a follow-up nobody expected
         assertEquals(ReadProgress(1, 2), changes.last())
@@ -69,15 +74,15 @@ class ReadInFlightTest {
     @Test
     fun aReplyWithoutAFollowUpASkippedReadOrADroppedLinkEndsIt() {
         // A failure, a refusal, a reply without data or a follow-up that could not be sent.
-        read.begin(START, replies = REPLIES, afterHandshake = false)
+        read.begin(full, START, replies = REPLIES, afterHandshake = false)
         read.onSent(START)
         reply()
         assertFalse(read.active)
         assertNull(changes.last())
-        read.begin(START, replies = REPLIES, afterHandshake = false)
+        read.begin(full, START, replies = REPLIES, afterHandshake = false)
         read.onSkipped()
         assertFalse(read.active)
-        read.begin(START, replies = REPLIES, afterHandshake = true)
+        read.begin(full, START, replies = REPLIES, afterHandshake = true)
         read.onLinkDropped()
         assertFalse(read.active)
         assertFalse(read.waitingForSession)
@@ -86,25 +91,25 @@ class ReadInFlightTest {
 
     @Test
     fun anUnansweredReadEndsAfterTheCommandTimeoutAndNotBefore() {
-        read.begin(START, replies = REPLIES, afterHandshake = false)
+        read.begin(full, START, replies = REPLIES, afterHandshake = false)
         read.onSent(START)
-        assertFalse(read.expire(START + ReadInFlight.TIMEOUT_MS - 1))
-        assertTrue(read.expire(START + ReadInFlight.TIMEOUT_MS))
+        assertFalse(read.expire(START + InfotainmentRead.TIMEOUT_MS - 1))
+        assertTrue(read.expire(START + InfotainmentRead.TIMEOUT_MS))
         assertFalse(read.active)
-        assertFalse(read.expire(START + 2 * ReadInFlight.TIMEOUT_MS))
+        assertFalse(read.expire(START + 2 * InfotainmentRead.TIMEOUT_MS))
     }
 
     @Test
     fun eachRequestRestartsTheTimeout() {
-        read.begin(START, replies = REPLIES, afterHandshake = false)
+        read.begin(full, START, replies = REPLIES, afterHandshake = false)
         read.onSent(START)
-        reply(followUpAt = START + ReadInFlight.TIMEOUT_MS)
-        assertFalse(read.expire(START + 2 * ReadInFlight.TIMEOUT_MS - 1))
+        reply(followUpAt = START + InfotainmentRead.TIMEOUT_MS)
+        assertFalse(read.expire(START + 2 * InfotainmentRead.TIMEOUT_MS - 1))
     }
 
     @Test
     fun theChangeCallbackFiresOncePerChange() {
-        read.begin(START, replies = 2, afterHandshake = false)
+        read.begin(full, START, replies = 2, afterHandshake = false)
         read.onSent(START)
         reply(followUpAt = START + STEP)
         read.onSent(START + 2 * STEP) // the same request again changes nothing
@@ -118,7 +123,7 @@ class ReadInFlightTest {
         assertEquals(HALF, ReadProgress(1, 2).fraction, 0f)
         assertEquals(1f, ReadProgress(REPLIES + 1, REPLIES).fraction, 0f)
         assertEquals(0f, ReadProgress(0, 0).fraction, 0f)
-        assertEquals(CommandRecorder.TIMEOUT_MS, ReadInFlight.TIMEOUT_MS)
+        assertEquals(CommandRecorder.TIMEOUT_MS, InfotainmentRead.TIMEOUT_MS)
     }
 
     @Test

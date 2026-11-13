@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ble
 
+import com.dzid26.teslable.core.infotainment.InfotainmentSessionWait
 import com.tesla.generated.carserver.server.OperationStatus_E
 import com.tesla.generated.carserver.server.Response
 
@@ -44,11 +45,14 @@ internal interface ActuationHost {
 
     fun hasSession(): Boolean
 
-    /** True while a read already waits for the Infotainment handshake. */
-    fun readWaiting(): Boolean
+    /** True while a read is in flight; a queued action waits for it so the two do not cross. */
+    fun isReadRunning(): Boolean
 
-    /** True while an Infotainment read sequence is in flight. */
-    fun readActive(): Boolean
+    /** What the queued action does about the Infotainment session, whose request the reads share. */
+    fun sessionStep(): InfotainmentSessionWait.Step
+
+    /** The queued action is gone: it no longer waits for the session. */
+    fun releaseSessionWait()
 
     /** Asks the car for sessions; false when nothing went out. */
     fun startSession(): Boolean
@@ -81,7 +85,9 @@ internal interface ActuationHost {
  * The car screen's charge controls: one request in flight, the queued values, and the feedback both
  * produce. It owns no BLE state of its own; everything it needs from the link goes through
  * [ActuationHost]. A sleeping car is woken first, and an awake car without an Infotainment session
- * gets one requested; the queued action goes out as soon as the session exists.
+ * gets one requested; the queued action goes out as soon as the session exists. The session request
+ * is shared with the reads ([InfotainmentSessionWait]), so the channel asks the link what a queued
+ * action does about it rather than keeping a request flag of its own.
  */
 internal class ActuationChannel(
     private val host: ActuationHost,
@@ -94,9 +100,6 @@ internal class ActuationChannel(
 
     /** True while the queued action is waiting for the car to wake. */
     private var wakeRequested = false
-
-    /** True while the session request the action needs is in flight, so the next status tick does not ask again. */
-    private var sessionRequested = false
 
     /** True while a value is queued or a request is out. */
     val hasPending: Boolean get() = inFlight != null || pending.isNotEmpty()
@@ -119,7 +122,7 @@ internal class ActuationChannel(
             wakeRequested = true
             host.wake()
         }
-        publishPending()
+        host.publish(pending.keys.toSet() + listOfNotNull(inFlight))
     }
 
     /** The car reports awake: the queued action may request its session and go out. */
@@ -129,14 +132,13 @@ internal class ActuationChannel(
         sendNext()
     }
 
-    /** The Infotainment session is up: the action that waited for it goes out. */
-    fun onSessionEstablished() {
-        sessionRequested = false
-        sendNext()
-    }
+    /** The Infotainment session is up: an action that waited for it goes out. Returns whether one did. */
+    fun onSessionEstablished(): Boolean = sendNext()
 
     /** The in-flight read is over: an action that waited behind it may go out now. */
-    fun onReadFinished() = sendNext()
+    fun onReadFinished() {
+        sendNext()
+    }
 
     /** The car answered [key]; null means the answer could not be used, and [fault] marks a signed rejection. */
     fun onReply(
@@ -177,55 +179,69 @@ internal class ActuationChannel(
     /** The link dropped or the wake gave up: nothing queued can go out now. */
     fun onStopped() {
         wakeRequested = false
-        sessionRequested = false
         failAll(forgetWake = true)
     }
 
     /** The car fell asleep or the session handshake gave up; a wake already asked for is left to finish. */
     fun onInterrupted() {
-        sessionRequested = false
         if (wakeRequested) return
         failAll(forgetWake = false)
     }
 
-    private fun sendNext() {
-        val ready = pending.isNotEmpty() && inFlight == null && host.isAwake() && !host.readActive()
-        if (!ready) return
-        if (!host.hasSession()) {
-            // A read already asked for the session; the action follows when it arrives. Otherwise ask
-            // once and let the handshake's retries run.
-            if (!host.readWaiting() && !sessionRequested) {
-                sessionRequested = true
-                if (!host.startSession()) {
-                    sessionRequested = false
-                    failAll(forgetWake = false)
+    /**
+     * Sends the next queued action when nothing holds it back. Returns whether one went out, so the
+     * link knows a read waiting for the session must follow the action's answer instead.
+     */
+    private fun sendNext(): Boolean {
+        val ready = inFlight == null && pending.isNotEmpty() && host.isAwake() && !host.isReadRunning()
+        return when {
+            !ready -> false
+            host.hasSession() -> dispatchFirst()
+            else -> {
+                when (host.sessionStep()) {
+                    InfotainmentSessionWait.Step.START_HANDSHAKE ->
+                        if (!host.startSession()) failAll(forgetWake = false)
+
+                    // A session request is already out (the read may have asked for it), the car is
+                    // asleep, or the session exists and the next tick sends on it.
+                    InfotainmentSessionWait.Step.WAIT_FOR_HANDSHAKE,
+                    InfotainmentSessionWait.Step.SKIP,
+                    InfotainmentSessionWait.Step.SEND,
+                    -> Unit
                 }
+                false
             }
-            return
-        }
-        val (key, payload) = pending.entries.first()
-        pending.remove(key)
-        if (host.send(payload, key)) {
-            inFlight = key
-            publishPending()
-        } else {
-            host.publish(pending.keys.toSet(), ActuationFeedback(key, ActuationResult.FAILED))
-            failAll(forgetWake = false)
         }
     }
 
-    /** Drops every queued value and reports each one failed; [forgetWake] cancels a wake that has no action left. */
+    private fun dispatchFirst(): Boolean {
+        val (key, payload) = pending.entries.first()
+        pending.remove(key)
+        if (!host.send(payload, key)) {
+            host.publish(pending.keys.toSet(), ActuationFeedback(key, ActuationResult.FAILED))
+            failAll(forgetWake = false)
+            return false
+        }
+        inFlight = key
+        host.publish(pending.keys.toSet() + listOfNotNull(inFlight))
+        return true
+    }
+
+    /**
+     * Drops every queued value and reports each one failed, in queue order. The screen keeps one
+     * terminal result ([TeslaConnection.lastAction]), so when two controls fail together only the last
+     * one is visible there; the host still observes both, so a later reader of the log or another
+     * consumer does not lose one. [forgetWake] cancels a wake that has no action left.
+     */
     private fun failAll(forgetWake: Boolean) {
         val failed = pending.keys + listOfNotNull(inFlight)
         pending.clear()
         inFlight = null
         wakeRequested = false
+        // Nothing queued waits for a session any more.
+        host.releaseSessionWait()
         if (forgetWake) host.forgetWake()
         failed.forEach { host.publish(emptySet(), ActuationFeedback(it, ActuationResult.FAILED)) }
         host.publish(emptySet())
-    }
-
-    private fun publishPending() {
-        host.publish(pending.keys.toSet() + listOfNotNull(inFlight))
     }
 }

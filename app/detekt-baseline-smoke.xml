@@ -75,7 +75,6 @@
     <ID>ReturnCount:FakeCarProtocol.kt:FakeCarProtocol$private fun handlePairing</ID>
     <ID>ReturnCount:FakeCarProtocol.kt:FakeCarProtocol$private fun handleSessionRequest</ID>
     <ID>ReturnCount:PairingKeyStore.kt:PairingKeyStore$private fun loadInternal: TeslaKeyPair?</ID>
-    <ID>ReturnCount:ReadInFlight.kt:ReadInFlight$fun expire: Boolean</ID>
     <ID>ReturnCount:TeslaBleController.kt:TeslaBleController$fun ensureConnected</ID>
     <ID>ReturnCount:TeslaBleController.kt:TeslaBleController$private fun startDiscovery</ID>
     <ID>ReturnCount:TeslaBleController.kt:TeslaBleController.VehicleLink$fun connect</ID>
