@@ -8,7 +8,9 @@ import com.dzid26.teslable.protocol.TeslaKeys
 import com.dzid26.teslable.protocol.TeslaSession
 import com.tesla.generated.carserver.common.Void
 import com.tesla.generated.carserver.server.Action
+import com.tesla.generated.carserver.server.ActionStatus
 import com.tesla.generated.carserver.server.GetVehicleData
+import com.tesla.generated.carserver.server.VehicleAction
 import com.tesla.generated.carserver.vehicle.ChargeState
 import com.tesla.generated.carserver.vehicle.ClimateState
 import com.tesla.generated.carserver.vehicle.ClosuresState
@@ -43,6 +45,7 @@ import com.tesla.generated.vcsec.WhitelistInfo
 import okio.ByteString.Companion.toByteString
 import java.security.MessageDigest
 import java.time.Instant
+import com.tesla.generated.carserver.server.OperationStatus_E as CarServerStatus
 import com.tesla.generated.carserver.server.Response as CarServerResponse
 
 /**
@@ -77,13 +80,18 @@ class FakeCarProtocol(
     private var charging = false
     private var chargeSessionStartLevel = batteryLevel
 
+    /** The limit and current the charge controls last set; the demo starts at the fixture's values. */
+    var chargeLimit: Int = CHARGE_LIMIT
+        private set
+
+    var chargingAmps: Int = CHARGING_AMPS
+        private set
+
     private val sessions = mutableMapOf<Domain, ByteArray>()
     private val epochs = mutableMapOf<Domain, ByteArray>()
     private var responseCounter = 100
     private var clientPublicKey: ByteArray? = null
     private var clientKeySha1: ByteArray? = null
-
-    val chargeLimit: Int get() = CHARGE_LIMIT
 
     fun setEnrolledKey(publicKeyRaw: ByteArray?) {
         clientPublicKey = publicKeyRaw
@@ -100,7 +108,7 @@ class FakeCarProtocol(
     }
 
     fun chargeOnePercent() {
-        if (!asleep && charging && batteryLevel < CHARGE_LIMIT) batteryLevel++
+        if (!asleep && charging && batteryLevel < chargeLimit) batteryLevel++
     }
 
     fun handle(bytes: ByteArray): List<Response> {
@@ -323,6 +331,11 @@ class FakeCarProtocol(
             out += authenticated(domain, uuid, requestTag, reply)
             return
         }
+        val actionReply = action?.vehicleAction?.let(::actuationResponse)
+        if (actionReply != null) {
+            out += authenticated(domain, uuid, requestTag, actionReply)
+            return
+        }
 
         val unsigned = runCatching { UnsignedMessage.ADAPTER.decode(plaintext) }.getOrNull()
         if (unsigned?.RKEAction != null) {
@@ -354,6 +367,31 @@ class FakeCarProtocol(
             else -> null
         }
 
+    /**
+     * Applies a charge control to the simulated car and acknowledges it. Null for an action the fake
+     * car does not model, so it is not mistaken for one of its replies.
+     */
+    private fun actuationResponse(action: VehicleAction): ByteArray? {
+        val limit = action.chargingSetLimitAction
+        val amps = action.setChargingAmpsAction
+        val startStop = action.chargingStartStopAction
+        when {
+            limit != null -> chargeLimit = limit.percent.coerceIn(MIN_CHARGE_LIMIT, MAX_CHARGE_LIMIT)
+
+            amps != null -> chargingAmps = amps.charging_amps.coerceIn(MIN_CHARGING_AMPS, CHARGING_AMPS_MAX)
+
+            startStop != null -> {
+                charging = startStop.stop == null
+                if (charging) chargeSessionStartLevel = batteryLevel
+            }
+
+            else -> return null
+        }
+        return CarServerResponse(
+            actionStatus = ActionStatus(result = CarServerStatus.OPERATIONSTATUS_OK),
+        ).encode()
+    }
+
     private fun chargeResponse(): ByteArray =
         CarServerResponse(
             vehicleData =
@@ -363,7 +401,12 @@ class FakeCarProtocol(
                             battery_level = batteryLevel,
                             usable_battery_level = batteryLevel,
                             battery_range = batteryLevel * RATED_MILES_PER_PERCENT,
-                            charge_limit_soc = CHARGE_LIMIT,
+                            charge_limit_soc = chargeLimit,
+                            charge_limit_soc_min = MIN_CHARGE_LIMIT,
+                            charge_limit_soc_max = MAX_CHARGE_LIMIT,
+                            charge_current_request = chargingAmps,
+                            charge_current_request_max = CHARGING_AMPS_MAX,
+                            fast_charger_present = false,
                             charge_energy_added =
                                 if (charging) {
                                     (batteryLevel - chargeSessionStartLevel) * KWH_PER_PERCENT
@@ -542,6 +585,11 @@ class FakeCarProtocol(
         const val SESSION_COUNTER = 500
         const val EPOCH_BYTES = 16
         const val CHARGE_LIMIT = 85
+        const val MIN_CHARGE_LIMIT = 50
+        const val MAX_CHARGE_LIMIT = 100
+        const val CHARGING_AMPS = 16
+        const val MIN_CHARGING_AMPS = 5
+        const val CHARGING_AMPS_MAX = 32
         const val RATED_MILES_PER_PERCENT = 3.0f
         const val KWH_PER_PERCENT = 0.75f
 

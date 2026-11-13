@@ -631,6 +631,24 @@ class InfotainmentPollPolicyTest {
         assertNull(policy.pausedUntilMillis(now), "the refresh starts a hold")
     }
 
+    @Test
+    fun aStartStopHoldsReadsUntilAChargeReadingOrTheOwner() {
+        policy.onStartStopAcknowledged(now)
+        assertTrue(policy.isStartStopHeld(now))
+        assertTrue(policy.isStartStopHeld(now + InfotainmentPollPolicy.START_STOP_HOLD_MS - 1))
+        assertFalse(policy.isStartStopHeld(now + InfotainmentPollPolicy.START_STOP_HOLD_MS))
+
+        policy.onStartStopAcknowledged(now)
+        policy.onChargeReading(ChargingStateKind.Charging)
+        assertTrue(policy.isStartStopHeld(now), "a normal reading does not end the hold")
+        policy.releaseStartStopHold()
+        assertFalse(policy.isStartStopHeld(now), "the confirmation reading ends the hold")
+
+        policy.onStartStopAcknowledged(now)
+        policy.onUserRequest(now)
+        assertFalse(policy.isStartStopHeld(now), "a pull ends the hold")
+    }
+
     private companion object {
         const val TIRES = InfotainmentPollPolicy.TIRE_PRESSURE_INTERVAL_MS
         const val TICK = 10_000L

@@ -40,6 +40,10 @@ data class TeslaConnection(
     val disconnectedAtMillis: Long? = null,
     /** How far the Infotainment read in flight has come; null when none is. The VCSEC status poll does not count. */
     val readProgress: ReadProgress? = null,
+    /** The charge controls waiting for a wake, a session or the car's reply. */
+    val actuating: Set<ActuationKey> = emptySet(),
+    /** The last charge control's result for this car; the car screen clears it once shown. */
+    val lastAction: ActuationFeedback? = null,
     /**
      * When the idle poll reads the car next, while it waits out the safety interval; null while reads
      * run every ten seconds (active, holding, asleep, or no read yet). The status pill shows Paused

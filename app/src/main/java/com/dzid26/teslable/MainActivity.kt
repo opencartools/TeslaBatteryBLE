@@ -31,7 +31,11 @@ import com.dzid26.teslable.ble.PairingKeyStore
 import com.dzid26.teslable.ble.TeslaBleController
 import com.dzid26.teslable.ble.hasCompanionChooser
 import com.dzid26.teslable.ble.hasLocationPermission
+import com.dzid26.teslable.ble.setChargeLimit
+import com.dzid26.teslable.ble.setChargingAmps
 import com.dzid26.teslable.ble.shouldTrack
+import com.dzid26.teslable.ble.startCharging
+import com.dzid26.teslable.ble.stopCharging
 import com.dzid26.teslable.core.history.AppState
 import com.dzid26.teslable.history.HistorySamples
 import com.dzid26.teslable.ui.AboutScreen
@@ -198,6 +202,11 @@ class MainActivity : ComponentActivity() {
                                         onRequestVin = controller::requestVin,
                                         onDismissVin = controller::dismissVinRequest,
                                         onOpenSettings = { screen = AppScreen.SETTINGS },
+                                        onSetChargeLimit = { name, percent -> controller.setChargeLimit(percent, name) },
+                                        onSetChargingAmps = { name, amps -> controller.setChargingAmps(amps, name) },
+                                        onStartCharging = { name -> controller.startCharging(name) },
+                                        onStopCharging = { name -> controller.stopCharging(name) },
+                                        onActionFeedbackShown = { name -> controller.consumeActionFeedback(name) },
                                     )
                                 }
                             }
