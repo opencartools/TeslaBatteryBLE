@@ -89,7 +89,7 @@ internal data class ChargeStepperModel(
     val set: (Int) -> Unit,
 )
 
-/** Everything the charge card shows for one car state, or null when the car has not reported enough. */
+/** Everything the charge card shows for one car state, or null when there is nothing to show. */
 internal data class ChargeControlsModel(
     val limit: ChargeStepperModel?,
     val amps: ChargeStepperModel?,
@@ -99,13 +99,23 @@ internal data class ChargeControlsModel(
 /**
  * Derives the card's content from the car's last charge state. A DC fast charger keeps both rows but
  * disables the current one; an unplugged car still offers the limit so it can be set before plugging in.
+ * An open charge port shows the card with a Start button even when the car has not reported a state,
+ * because the port is the only signal available before the next Infotainment read.
  */
 internal fun chargeControlsModel(
     charge: ChargeState?,
     actions: ChargeControlActions,
+    portOpen: Boolean = false,
 ): ChargeControlsModel? {
-    if (charge == null) return null
-    val button = chargeButton(charge)
+    if (charge == null) {
+        return if (portOpen) ChargeControlsModel(limit = null, amps = null, button = ChargeButton.START) else null
+    }
+    val button =
+        if (portOpen && chargeButton(charge) == ChargeButton.NONE) {
+            ChargeButton.START
+        } else {
+            chargeButton(charge)
+        }
     val limit =
         charge.charge_limit_soc?.let { current ->
             val range = chargeLimitRange(charge)

@@ -28,6 +28,12 @@ class ChargeControlsSnapshots {
         }
 
     @Test
+    fun chargeControlsCardPortOpen() =
+        paparazzi.snapCard("charge-controls-card_port-open") {
+            ChargeControlsCard(model = model(charge = null, portOpen = true), actuating = emptySet(), failure = null, actions = actions)
+        }
+
+    @Test
     fun chargeControlsCardFailure() =
         paparazzi.snapCard("charge-controls-card_refused") {
             ChargeControlsCard(
@@ -169,7 +175,10 @@ class ChargeControlsSnapshots {
         battery_range = 234f,
     )
 
-    private fun model(charge: ChargeState): ChargeControlsModel = checkNotNull(chargeControlsModel(charge, actions))
+    private fun model(
+        charge: ChargeState?,
+        portOpen: Boolean = false,
+    ): ChargeControlsModel = checkNotNull(chargeControlsModel(charge, actions, portOpen))
 
     private companion object {
         const val NOW = 1_760_000_000_000L

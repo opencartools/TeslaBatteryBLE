@@ -130,6 +130,7 @@ import com.dzid26.teslable.protocol.asleep
 import com.dzid26.teslable.protocol.chargingMph
 import com.dzid26.teslable.protocol.chargingStateKind
 import com.tesla.generated.carserver.vehicle.ChargeState
+import com.tesla.generated.vcsec.ClosureState_E
 import kotlinx.coroutines.delay
 import java.text.DecimalFormatSymbols
 import java.time.Instant
@@ -430,12 +431,17 @@ internal fun CarScreen(
                             start = onStartCharging,
                             stop = onStopCharging,
                         )
+                    val portState = connection?.status?.closureStatuses?.chargePort
+                    val portOpen =
+                        portState == ClosureState_E.CLOSURESTATE_OPEN ||
+                            portState == ClosureState_E.CLOSURESTATE_AJAR ||
+                            charge?.charge_port_door_open == true
                     val chargeModel =
                         if (paired &&
                             vehicle?.hasSessionVin == true &&
                             connection?.phase == ConnectionPhase.READY
                         ) {
-                            chargeControlsModel(charge, chargeActions)
+                            chargeControlsModel(charge, chargeActions, portOpen)
                         } else {
                             null
                         }

@@ -61,6 +61,17 @@ class ChargeControlsTest {
         assertNull(chargeControlsModel(null, actions))
     }
 
+    @Test
+    fun `an open charge port shows the card and a start button`() {
+        val actions = ChargeControlActions(setLimit = {}, setAmps = {}, start = {}, stop = {})
+        assertNull(chargeControlsModel(null, actions))
+        val noState = chargeControlsModel(null, actions, portOpen = true)
+        assertNotNull(noState)
+        assertEquals(ChargeButton.START, noState?.button)
+        val unplugged = chargeControlsModel(charge(state = ChargeState.ChargingState(Disconnected = Void())), actions, portOpen = true)
+        assertEquals(ChargeButton.START, unplugged?.button)
+    }
+
     private fun charge(
         state: ChargeState.ChargingState = ChargeState.ChargingState(Charging = Void()),
         fast: Boolean = false,
