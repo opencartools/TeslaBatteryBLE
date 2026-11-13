@@ -28,6 +28,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'app/**'
+      - 'core/**'
       - 'gradle/libs.versions.toml'
       - '.github/workflows/pr-paparazzi.yml'
   push:
