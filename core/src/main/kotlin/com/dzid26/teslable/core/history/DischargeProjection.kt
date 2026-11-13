@@ -22,14 +22,14 @@ data class DischargeProjection(
     val fromSoc: Float = from.batteryLevel.toFloat(),
     /** The unrounded level one horizon ahead; [projectedPercent] is this, rounded. */
     val projectedSoc: Float = projectedPercent.toFloat(),
-    /** The lower edge of the beam at the horizon: two standard errors of the rate; null when the fit is too thin. */
+    /** The lower edge of the beam at the horizon: the mixed parked rate. */
     val lowSoc: Float? = null,
-    /** The upper edge of the beam at the horizon; null like [lowSoc]. */
+    /** The upper edge of the beam at the horizon: the line plus its uncertainty. */
     val highSoc: Float? = null,
-    /** The mixed rate (asleep and awake pairs together), percent per hour, when [percentPerHour] is the deep-sleep rate; else null. */
+    /** The mixed parked rate (every parked pair), percent per hour: the beam's lower edge. */
     val mixedPercentPerHour: Double? = null,
 ) {
-    /** The beam's two edges together; null when the fit is too thin for one. */
+    /** The beam's two edges together. */
     val beam: Pair<Float, Float>?
         get() {
             val low = lowSoc ?: return null
@@ -63,19 +63,19 @@ data class DischargeProjection(
  * of the pairs around it and the rounding of every pair's readings, in
  * quadrature, joined with the scale's own slope error.
  *
- * The line follows the deep-sleep rate once the car has slept enough to tell: the
- * rate of the pairs it slept through (a VCSEC status inside the gap says asleep
- * and none says awake). The mixed rate (every parked pair, asleep or awake) is
- * reported beside it, and the beam's lower edge reaches the mixed line, so the
- * beam spans deep sleep to what the battery really did. Without enough sleep
- * the line is the mixed rate.
+ * The line follows the power-down rate: the pairs where the car sat parked with
+ * nobody in it and Sentry and climate off, an hour or more apart. Without enough
+ * of those pairs there is no line. The mixed rate (every parked pair, awake or
+ * asleep) is the beam's lower edge, so the beam spans power-down to what the
+ * battery really did.
  *
  * While charging it still projects: the line shows where the battery would
  * head if unplugged now, next to the charge projection. Returns null once the
  * whole projection lies in the past (the last sample is older than the
  * horizon), when the range holds less than [MIN_RATE_SPAN_MILLIS] of parked
- * time, or when the summed drop is not positive: a rising or flat line would
- * make the rate meaningless.
+ * time, when there are not enough power-down pairs to call a rate, or when the
+ * summed drop is not positive: a rising or flat line would make the rate
+ * meaningless.
  *
  * @param samples one vehicle's battery samples, oldest first.
  * @param drives the same vehicle's drive samples, oldest first.
@@ -100,16 +100,14 @@ fun dischargeProjection(
 
     val fromSoc = last.soc(scale)
     val mixedRate = parked.drop / parked.millis
-    // The line follows the deep-sleep rate when the car has slept enough to tell, else the mixed one.
-    val sleepRate = parked.sleepRatePerMilli?.takeIf { it < mixedRate }
-    val mainRate = sleepRate ?: mixedRate
+    // The line follows the power-down rate only: without enough quiet time there is no line.
+    val mainRate = parked.sleepRatePerMilli?.takeIf { it <= mixedRate } ?: return null
     val projectedSoc = (fromSoc - mainRate * horizon).toFloat().coerceIn(0f, FULL_PERCENT)
     val mixedSoc = (fromSoc - mixedRate * horizon).toFloat().coerceIn(0f, FULL_PERCENT)
     val halfWidth = 2.0 * hypot(parked.errorPerMilli, mainRate * (scale.levelScaleError() ?: 0.0)) * horizon
     val hasStats = parked.pairs >= MIN_BEAM_PAIRS
-    val hasBeam = hasStats || sleepRate != null
-    // The beam: the statistics around the line, reaching down to the mixed line when the main one is the sleep rate.
-    val low = if (hasStats) minOf((projectedSoc - halfWidth).toFloat(), mixedSoc) else mixedSoc
+    // The beam runs from the mixed parked line up to the line, and a little above it for the rate's uncertainty.
+    val low = mixedSoc
     val high = if (hasStats) (projectedSoc + halfWidth).toFloat() else projectedSoc
     return DischargeProjection(
         from = last,
@@ -119,9 +117,9 @@ fun dischargeProjection(
         percentPerHour = mainRate * HOUR,
         fromSoc = fromSoc,
         projectedSoc = projectedSoc,
-        lowSoc = if (hasBeam) low.coerceIn(0f, FULL_PERCENT) else null,
-        highSoc = if (hasBeam) high.coerceIn(0f, minOf(fromSoc, FULL_PERCENT)) else null,
-        mixedPercentPerHour = if (sleepRate != null) mixedRate * HOUR else null,
+        lowSoc = low.coerceIn(0f, FULL_PERCENT),
+        highSoc = high.coerceIn(0f, minOf(fromSoc, FULL_PERCENT)),
+        mixedPercentPerHour = mixedRate * HOUR,
     )
 }
 
@@ -143,7 +141,7 @@ data class ProjectionContext(
     internal val climateReadings: List<ActivitySample> by lazy { activity.filter { it.kind == ActivityKind.CLIMATE } }
 }
 
-/** The drop (percent) and duration of the pairs the car slept through. */
+/** The drop (percent) and duration of the power-down pairs. */
 private class SleepSpan(
     val drop: Double,
     val millis: Long,
@@ -159,10 +157,10 @@ private class ParkedDrain(
     val squaredResiduals: Double,
     /** The rounding variance of the summed drop: two readings for every pair. */
     val roundingVariance: Double = 0.0,
-    /** The drop and duration of the pairs the car slept through. */
+    /** The drop and duration of the power-down pairs. */
     val sleep: SleepSpan = SleepSpan(0.0, 0L, 0),
 ) {
-    /** The drain rate of the slept-through pairs, percent per millisecond; null with too little sleep. */
+    /** The drain rate of the power-down pairs, percent per millisecond; null with too little of it. */
     val sleepRatePerMilli: Double? get() =
         if (sleep.pairs >= MIN_SLEEP_PAIRS &&
             sleep.millis >= MIN_RATE_SPAN_MILLIS
@@ -263,10 +261,10 @@ private const val WEEK_MILLIS = 7 * 24 * 60 * 60_000L
 /** A full battery, percent. */
 private const val FULL_PERCENT = 100f
 
-/** An asleep rate needs this many slept-through pairs: one pair's rounding can fake a rate or a zero. */
+/** A power-down rate needs this many pairs: one pair's rounding can fake a rate or a zero. */
 private const val MIN_SLEEP_PAIRS = 2
 
-/** A beam needs this many parked pairs behind the rate. */
+/** The band top needs this many parked pairs for the statistical margin. */
 private const val MIN_BEAM_PAIRS = 3
 
 /** Two end readings, each with the same rounding variance. */
@@ -276,7 +274,7 @@ private const val MINUTE = 60_000L
 
 private const val HOUR = 60 * MINUTE
 
-/** A pair of reads at least this far apart is mostly sleep: a locked car stays awake only a while after the owner leaves. */
+/** A pair of reads at least this far apart is mostly power-down: a locked car stays awake only a while after the owner leaves. */
 internal const val MIN_SLEEP_PAIR_MILLIS = HOUR
 
 /** Less parked time than this makes the rate too noisy to extrapolate. */

@@ -161,7 +161,7 @@
     <string name="health_full_range_hint" formatted="false">Rated range from 100% down to 0%. The car still holds about 3kWh (the buffer) below 0%, so this range does not include it.</string>
     <string name="health_soh_hint">Full range divided by the new-car rated range. To match the degradation your CAN tool shows, adjust the rated range in Edit car (the pencil).</string>
     <string name="history_parked_range_hint">Worst and best case at that point: the drain could be two standard errors faster or slower than measured, from how much the parked readings scatter around the line.</string>
-    <string name="history_parked_rate_hint_asleep">Power-down drain: the rate over the stretches the car sat parked with nobody in it and Sentry and climate off, an hour or more apart, the quietest the battery drains. The dashed line follows it.</string>
+    <string name="history_parked_rate_hint_asleep">Power-down drain: the rate over the stretches the car sat parked with nobody in it and Sentry and climate off, an hour or more apart, the quietest the battery drains. The dashed line follows it, and the band reaches down to the rate over all parked time.</string>
     <string name="history_parked_rate_hint_mixed">Parked drain over all parked time, powered down or not. Once enough power-down time is measured, this switches to the power-down rate.</string>
     <string name="read_blocked_asleep">The car is asleep. Waking it.</string>
     <string name="read_blocked_needs_vin">Enter the car\'s VIN first.</string>
