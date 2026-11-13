@@ -1055,7 +1055,7 @@ class TeslaBleController(
                         accepted: Boolean,
                     ) {
                         if (infotainmentGate.onSessionEstablished()) {
-                            requestChargeState(waitingReadReason)
+                            requestChargeState(waitingReadReason, waitingReadChargeOnly)
                         } else if (accepted && key != ActuationKey.CHARGE_START && key != ActuationKey.CHARGE_STOP) {
                             requestChargeState(Command.Reason.USER_ACTION)
                         }
