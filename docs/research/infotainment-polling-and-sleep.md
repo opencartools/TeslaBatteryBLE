@@ -114,7 +114,7 @@ set when a read started the Infotainment handshake and cleared only when the
 session was established or the link closed. When the handshake never finished
 (retries ran out, the car went back to sleep, or the link dropped) the flag
 stayed set, the policy never got `sessionReady`, and no new handshake started.
-Fixed by `InfotainmentSessionGate`; see ADR-0009.
+Fixed by `InfotainmentSessionWait`; see ADR-0009.
 
 ### 2026-10-09 afternoon
 

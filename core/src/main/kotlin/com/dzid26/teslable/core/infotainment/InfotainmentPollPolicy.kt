@@ -39,8 +39,8 @@ import com.tesla.generated.vcsec.VehicleStatus
  *    that is neither CLOSED nor UNKNOWN counts as open, so ajar is open), a fresh start (see
  *    [onFreshStart]) and a user request. A change in user presence alone is not a change: it flips
  *    with phone-key range and would keep resetting the car's sleep countdown.
- * 5. A start or stop holds automatic reads until its confirmation charge reading or
- *    [START_STOP_HOLD_MS], so the card does not show the state from before the change.
+ * 5. A read hold keeps automatic reads quiet until the read that confirms the change or
+ *    [READ_HOLD_MS], so the card does not show the state from before it. A start or stop starts one.
  *
  * Reconnects: the transition memory (previous asleep, locked and closure state) survives a dropped
  * link, so a wake, lock change or door change that happened while the link was down still starts the
@@ -65,6 +65,18 @@ class InfotainmentPollPolicy {
         SAFETY,
     }
 
+    /** What a read is for, as far as precedence against the hold and a queued action goes. */
+    enum class ReadKind {
+        /** The owner asked (the refresh button, the screen opening, a pull): never held back. */
+        USER,
+
+        /** The charge-only start/stop confirmation: runs alone, so it cannot share a read's replies. */
+        CONFIRMATION,
+
+        /** A poll read: waits out the hold and a queued action. */
+        AUTOMATIC,
+    }
+
     /** The reason of the read the latest [onStatus] answered true for, or null before the first one. */
     var lastReadReason: Reason? = null
         private set
@@ -87,7 +99,7 @@ class InfotainmentPollPolicy {
     private var previousAsleep: Boolean? = null
     private var previousLocked: Boolean? = null
     private var previousOpenClosures: Int? = null
-    private var startStopHoldUntilMs = 0L
+    private var readHoldUntilMs = 0L
 
     /**
      * Whether the car is doing something that warrants a read every [READ_INTERVAL_MS] on its own:
@@ -119,7 +131,7 @@ class InfotainmentPollPolicy {
         previousAsleep = null
         previousLocked = null
         previousOpenClosures = null
-        startStopHoldUntilMs = 0L
+        readHoldUntilMs = 0L
         lastChangeAtMs = nowMillis
     }
 
@@ -139,7 +151,7 @@ class InfotainmentPollPolicy {
     fun onUserRequest(nowMillis: Long) {
         lastReadAtMs = nowMillis
         lastChangeAtMs = nowMillis
-        releaseStartStopHold()
+        releaseReadHold()
     }
 
     /** The latest charge reading. Charging or Starting is activity. */
@@ -148,20 +160,38 @@ class InfotainmentPollPolicy {
     }
 
     /**
-     * A start/stop was acknowledged: keep automatic reads quiet until its confirmation reading, or
-     * [START_STOP_HOLD_MS] when that never arrives, so the card does not show the old state.
+     * Starts the read hold: automatic reads stay quiet until the read that confirms the change, or
+     * [READ_HOLD_MS] when that never arrives, so the card does not show the old state. A start or stop
+     * starts it; the name does not tie it to one kind of change.
      */
-    fun onStartStopAcknowledged(nowMillis: Long) {
-        startStopHoldUntilMs = nowMillis + START_STOP_HOLD_MS
+    fun startReadHold(nowMillis: Long) {
+        readHoldUntilMs = nowMillis + READ_HOLD_MS
     }
 
-    /** True while automatic reads wait for a start/stop confirmation. */
-    fun isStartStopHeld(nowMillis: Long): Boolean = nowMillis < startStopHoldUntilMs
+    /** True while automatic reads wait for the read that confirms a change. */
+    fun isReadHeld(nowMillis: Long): Boolean = nowMillis < readHoldUntilMs
 
-    /** Ends a start/stop hold: the confirmation reading, a user request, or a dropped link. */
-    fun releaseStartStopHold() {
-        startStopHoldUntilMs = 0L
+    /** Ends the read hold: the confirming reading, a user request, or a dropped link. */
+    fun releaseReadHold() {
+        readHoldUntilMs = 0L
     }
+
+    /**
+     * Whether a read of [kind] may start now. The precedence: the owner's read always goes; the
+     * confirmation does not join a read already running; an automatic read waits out the hold and a
+     * queued action, but may join a read that is already running.
+     */
+    fun admitsRead(
+        kind: ReadKind,
+        nowMillis: Long,
+        readActive: Boolean,
+        actionPending: Boolean,
+    ): Boolean =
+        when (kind) {
+            ReadKind.USER -> true
+            ReadKind.CONFIRMATION -> !readActive
+            ReadKind.AUTOMATIC -> !isReadHeld(nowMillis) && (!actionPending || readActive)
+        }
 
     /** The latest drive reading. Shift state D, R or N is activity. */
     fun onDriveReading(
@@ -328,7 +358,7 @@ class InfotainmentPollPolicy {
         const val HOLD_ABSENT_MS = 60_000L
 
         /** A start/stop confirmation holds automatic reads at most this long. */
-        const val START_STOP_HOLD_MS = 15_000L
+        const val READ_HOLD_MS = 15_000L
 
         /**
          * The idle safety read: a little longer than the 1.5 minutes the car takes to sleep after the

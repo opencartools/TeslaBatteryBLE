@@ -202,8 +202,10 @@ identity), `docs/requirements/multi-phone.md`
     `POLICY_ACTIVE`, `POLICY_HOLD`, `POLICY_SAFETY` and `FRESH_START` (the
     poll policy says why a read is due, `InfotainmentPollPolicy.lastReadReason`),
     `SESSION_HANDSHAKE`, `FOLLOW_UP` (drive, closures, climate after the
-    previous reply), `PAIRING` and `KEY_LOOKUP`. A read that waits for its
-    Infotainment handshake keeps the reason it was made for.
+    previous reply), `PAIRING`, `KEY_LOOKUP`, `USER_ACTION` (a charge control
+    the owner set) and `ACTION_READBACK` (the charge read the app sends after
+    one, to confirm it). A read that waits for its Infotainment handshake keeps
+    the reason it was made for.
   - `CommandResult` (field 10): logged only when the car refuses a command or
     never answers it, holding the reason, the domain and the raw status:
     `ActionStatus` (an Infotainment reply with an error result),
