@@ -120,6 +120,7 @@ message Command {
         PAIRING = 9;           // checking the whitelist for our key, or adding it
         KEY_LOOKUP = 10;       // locating our key's slot in the whitelist
         USER_ACTION = 11;      // a charge control the owner set on the car screen
+        ACTION_READBACK = 12;  // the charge read the app sends after a charge control, to confirm it
     }
 
     Reason reason = 1;

@@ -2,6 +2,9 @@
 
 package com.dzid26.teslable.ble
 
+import com.dzid26.teslable.core.history.Command
+import com.dzid26.teslable.core.infotainment.InfotainmentPollPolicy.ReadKind
+
 /** How far an Infotainment read has come: [done] of [total] steps (the session handshake, when needed, and each reply). */
 data class ReadProgress(
     val done: Int,
@@ -12,48 +15,69 @@ data class ReadProgress(
 }
 
 /**
- * Whether an Infotainment read (charge, drive, closures, climate, then location and tire pressure
- * when due, in sequence) is in flight for one car, and how far it has come, for the progress ring on
- * its card. The VCSEC status poll does not count.
+ * The one Infotainment read (charge, drive, closures, climate, then location and tire pressure when
+ * due, in sequence) this car is doing: why it reads, whether it is the charge-only confirmation, and
+ * how far it has come for the progress ring on its card. The VCSEC status poll does not count.
  *
  * A read starts with [begin], which sets how many steps it expects: the replies, plus the session
- * handshake when the read has to wait for one ([sessionReady] counts that step). It is in flight while
- * a request is out ([onSent]) and goes off at every exit: a reply that sends no follow-up (the last
- * reply of the sequence, a failure, a refusal, a reply without data, or a follow-up that could not be
- * sent) via [onReply] with no [onSent] after it, the gate skipping the read because the car is asleep
- * ([onSkipped]), the link dropping ([onLinkDropped]), or no activity for [TIMEOUT_MS] ([expire]), so
- * it can never stay on. A read that turns out longer than expected (a location or tire pressure read
- * became due on the way) grows its total rather than overfilling the ring.
+ * handshake when the read has to wait for one ([onSessionReady] counts that step). It is in flight
+ * while a request is out ([onSent]) and goes off at every exit: a reply that sends no follow-up (the
+ * last reply of the sequence, a failure, a refusal, a reply without data, or a follow-up that could
+ * not be sent) via [onReply] with no [onSent] after it, the session wait skipping the
+ * read because the car is asleep ([onSkipped]), the link dropping ([onLinkDropped]), or no activity
+ * for [TIMEOUT_MS] ([expire]), so it can never stay on. A read that turns out longer than expected (a
+ * location or tire pressure read became due on the way) grows its total rather than overfilling the
+ * ring.
  * One instance per vehicle link, used on the main thread.
  *
  * @param onChange called with the new progress whenever it changes, null when the read is over.
  */
-internal class ReadInFlight(
+internal class InfotainmentRead(
     private val onChange: (ReadProgress?) -> Unit = {},
 ) {
+    /** What a read asks for: the reason the command log keeps, and the precedence it runs under. */
+    data class Request(
+        val reason: Command.Reason,
+        val kind: ReadKind,
+    )
+
     private var lastActivityMs: Long? = null
     private var done = 0
     private var total = 0
     private var awaitingSession = false
     private var published: ReadProgress? = null
 
-    /** True while a read is in flight. */
-    val active: Boolean get() = lastActivityMs != null
+    /** The read that is going, or null when the car reads nothing. */
+    var request: Request? = null
+        private set
+
+    /** True while a read is going: waiting for its session or in flight. */
+    val active: Boolean get() = request != null
+
+    /** True while the read is in flight; false while it still waits for its session. */
+    val running: Boolean get() = active && !awaitingSession
 
     /** True while the read waits for its session handshake. */
     val waitingForSession: Boolean get() = active && awaitingSession
 
+    /** True when the read in flight is the charge-only start/stop confirmation. */
+    val confirming: Boolean get() = request?.kind == ReadKind.CONFIRMATION
+
     /**
-     * A read starts at [nowMs] expecting [replies] replies, after a session handshake first when
-     * [afterHandshake]. A read already in flight keeps its progress: a refresh or a poll mid-read only
-     * adds requests, which [onSent] counts by growing the total.
+     * A read is requested at [nowMs], expecting [replies] replies, after a session handshake first
+     * when [afterHandshake]. The request replaces the one already going, so the newest reason and
+     * kind win; a read already in flight keeps its progress: a refresh or a poll mid-read only adds
+     * requests, which [onSent] counts by growing the total.
      */
     fun begin(
+        request: Request,
         nowMs: Long,
         replies: Int,
         afterHandshake: Boolean,
     ) {
-        if (active) return
+        val starting = this.request == null
+        this.request = request
+        if (!starting) return
         awaitingSession = afterHandshake
         done = 0
         total = replies + if (afterHandshake) 1 else 0
@@ -62,8 +86,12 @@ internal class ReadInFlight(
     }
 
     /** The session the read was waiting for is up: the handshake step is done. */
-    fun sessionReady(nowMs: Long) {
+    fun onSessionReady(
+        request: Request,
+        nowMs: Long,
+    ) {
         if (!waitingForSession) return
+        this.request = request
         awaitingSession = false
         done++
         lastActivityMs = nowMs
@@ -87,7 +115,7 @@ internal class ReadInFlight(
 
     /** Ends the read when the reply just handled sent no follow-up; called after every reply is handled. */
     fun settle() {
-        if (!active) clear()
+        if (lastActivityMs == null) clear()
     }
 
     /** The read was skipped because the car is asleep. */
@@ -98,10 +126,10 @@ internal class ReadInFlight(
 
     /** Ends the read when nothing happened for [TIMEOUT_MS]; returns whether it did. */
     fun expire(nowMs: Long): Boolean {
-        val last = lastActivityMs ?: return false
-        if (nowMs - last < TIMEOUT_MS) return false
-        clear()
-        return true
+        val last = lastActivityMs
+        val due = last != null && nowMs - last >= TIMEOUT_MS
+        if (due) clear()
+        return due
     }
 
     private fun publish() {
@@ -112,6 +140,7 @@ internal class ReadInFlight(
     }
 
     private fun clear() {
+        request = null
         lastActivityMs = null
         awaitingSession = false
         done = 0

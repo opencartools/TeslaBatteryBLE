@@ -4,9 +4,11 @@ package com.dzid26.teslable.ui
 import androidx.annotation.StringRes
 import com.dzid26.teslable.R
 import com.dzid26.teslable.ble.ActuationKey
+import com.dzid26.teslable.ble.CommandRecorder
 import com.dzid26.teslable.protocol.ChargingStateKind
 import com.dzid26.teslable.protocol.chargingStateKind
 import com.tesla.generated.carserver.vehicle.ChargeState
+import com.tesla.generated.vcsec.ClosureState_E
 
 /** The step Tesla's app uses. The car accepts any percent target. */
 internal const val CHARGE_LIMIT_STEP = 5
@@ -17,8 +19,11 @@ internal const val CHARGE_LIMIT_STEP = 5
  */
 internal const val MIN_CHARGING_AMPS = 1
 
-/** How long an optimistic value stays up before the car's own value takes it back. */
-internal const val APPLY_TIMEOUT_MS = 15_000L
+/**
+ * How long an optimistic value stays up. It follows the command log's unanswered wait: by then the
+ * app has either seen the reply or given up on it, so the car's own value is the truth again.
+ */
+internal const val APPLY_TIMEOUT_MS = CommandRecorder.TIMEOUT_MS
 
 /**
  * Tesla's charge-limit range. The car narrows it with `charge_limit_soc_min` and
@@ -96,26 +101,31 @@ internal data class ChargeControlsModel(
     val button: ChargeButton,
 )
 
+/** Whether the car reports its charge port open. VCSEC's closure and the charge state's own flag both say so. */
+internal fun isPortOpen(
+    closure: ClosureState_E?,
+    doorOpen: Boolean?,
+): Boolean = closure == ClosureState_E.CLOSURESTATE_OPEN || doorOpen == true
+
 /**
  * Derives the card's content from the car's last charge state. A DC fast charger keeps both rows but
  * disables the current one; an unplugged car still offers the limit so it can be set before plugging in.
- * An open charge port shows the card with a Start button even when the car has not reported a state,
- * because the port is the only signal available before the next Infotainment read.
+ *
+ * An open charge port shows the card even when the car has not reported a state, because the port is
+ * the only signal available before the next Infotainment read. Port open and not actively charging
+ * offers Start: the override promotes every non-charging state, including Complete and Unknown, not
+ * only the unplugged one.
  */
 internal fun chargeControlsModel(
     charge: ChargeState?,
     actions: ChargeControlActions,
-    portOpen: Boolean = false,
+    portOpen: Boolean,
 ): ChargeControlsModel? {
     if (charge == null) {
         return if (portOpen) ChargeControlsModel(limit = null, amps = null, button = ChargeButton.START) else null
     }
-    val button =
-        if (portOpen && chargeButton(charge) == ChargeButton.NONE) {
-            ChargeButton.START
-        } else {
-            chargeButton(charge)
-        }
+    val reported = chargeButton(charge)
+    val button = if (portOpen && reported == ChargeButton.NONE) ChargeButton.START else reported
     val limit =
         charge.charge_limit_soc?.let { current ->
             val range = chargeLimitRange(charge)

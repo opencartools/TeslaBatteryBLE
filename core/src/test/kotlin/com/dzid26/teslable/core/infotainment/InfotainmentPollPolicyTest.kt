@@ -632,21 +632,56 @@ class InfotainmentPollPolicyTest {
     }
 
     @Test
-    fun aStartStopHoldsReadsUntilAChargeReadingOrTheOwner() {
-        policy.onStartStopAcknowledged(now)
-        assertTrue(policy.isStartStopHeld(now))
-        assertTrue(policy.isStartStopHeld(now + InfotainmentPollPolicy.START_STOP_HOLD_MS - 1))
-        assertFalse(policy.isStartStopHeld(now + InfotainmentPollPolicy.START_STOP_HOLD_MS))
+    fun aReadHoldKeepsAutomaticReadsQuietUntilTheConfirmationOrTheOwner() {
+        policy.startReadHold(now)
+        assertTrue(policy.isReadHeld(now))
+        assertTrue(policy.isReadHeld(now + InfotainmentPollPolicy.READ_HOLD_MS - 1))
+        assertFalse(policy.isReadHeld(now + InfotainmentPollPolicy.READ_HOLD_MS))
 
-        policy.onStartStopAcknowledged(now)
+        policy.startReadHold(now)
         policy.onChargeReading(ChargingStateKind.Charging)
-        assertTrue(policy.isStartStopHeld(now), "a normal reading does not end the hold")
-        policy.releaseStartStopHold()
-        assertFalse(policy.isStartStopHeld(now), "the confirmation reading ends the hold")
+        assertTrue(policy.isReadHeld(now), "a normal reading does not end the hold")
+        policy.releaseReadHold()
+        assertFalse(policy.isReadHeld(now), "the confirmation reading ends the hold")
 
-        policy.onStartStopAcknowledged(now)
+        policy.startReadHold(now)
         policy.onUserRequest(now)
-        assertFalse(policy.isStartStopHeld(now), "a pull ends the hold")
+        assertFalse(policy.isReadHeld(now), "a pull ends the hold")
+    }
+
+    @Test
+    fun theOwnersReadAlwaysGoes() {
+        policy.startReadHold(now)
+        assertTrue(policy.admitsRead(InfotainmentPollPolicy.ReadKind.USER, now, readActive = false, actionPending = true))
+    }
+
+    @Test
+    fun theConfirmationDoesNotJoinAReadAlreadyRunning() {
+        assertFalse(
+            policy.admitsRead(InfotainmentPollPolicy.ReadKind.CONFIRMATION, now, readActive = true, actionPending = false),
+        )
+        assertTrue(
+            policy.admitsRead(InfotainmentPollPolicy.ReadKind.CONFIRMATION, now, readActive = false, actionPending = true),
+            "the action's own read-back does not block the confirmation",
+        )
+    }
+
+    @Test
+    fun anAutomaticReadWaitsOutTheHoldAndAQueuedAction() {
+        policy.startReadHold(now)
+        assertFalse(
+            policy.admitsRead(InfotainmentPollPolicy.ReadKind.AUTOMATIC, now, readActive = false, actionPending = false),
+            "the hold pauses it",
+        )
+        policy.releaseReadHold()
+        assertFalse(
+            policy.admitsRead(InfotainmentPollPolicy.ReadKind.AUTOMATIC, now, readActive = false, actionPending = true),
+            "a queued action comes first",
+        )
+        assertTrue(
+            policy.admitsRead(InfotainmentPollPolicy.ReadKind.AUTOMATIC, now, readActive = true, actionPending = true),
+            "a read already running may grow with another request",
+        )
     }
 
     private companion object {

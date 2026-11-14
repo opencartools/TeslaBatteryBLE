@@ -88,12 +88,15 @@ due. One instance per vehicle link.
   door change that happened while the link was down therefore starts the hold on
   the first status after the reconnect.
 
-The Infotainment session is requested on demand, by the read itself
-(`InfotainmentSessionGate`, `core`), never on connect:
+The Infotainment session is requested on demand, by the read or the queued
+charge action that needs it (`InfotainmentSessionWait`, `core`), never on connect:
 
 - A due read with no session starts the handshake and goes out when the
   session is established; further due reads while it is in flight do not send
   another request.
+- A queued charge action shares that one request: it starts the handshake when
+  it is first in need, waits for a read's request, and both go out on the same
+  established session.
 - Never while VCSEC says asleep: a sleeping car cannot answer, and the request
   might wake it. On connect only the VCSEC session is requested.
 - The wait for the handshake ends when the session is established, the retries

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ble
 
+import com.dzid26.teslable.core.infotainment.InfotainmentSessionWait
 import com.dzid26.teslable.protocol.TeslaChargeCommands
 import com.tesla.generated.carserver.server.Action
 import com.tesla.generated.carserver.server.ActionStatus
@@ -62,7 +63,7 @@ class ActuationChannelTest {
     @Test
     fun `an action waits for a read that already asked for the session`() {
         host.awake = true
-        host.readWaiting = true
+        host.wait.onReadDue(awake = true, hasSession = false, request = Unit)
 
         channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
 
@@ -222,6 +223,36 @@ class ActuationChannelTest {
         assertEquals(ActuationFeedback(ActuationKey.CHARGE_STOP, ActuationResult.ACCEPTED), host.feedback.single())
     }
 
+    @Test
+    fun `two queued controls both report when the link drops`() {
+        channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
+        channel.submit(ActuationKey.CHARGING_AMPS, TeslaChargeCommands.buildChargingAmpsRequest(20))
+
+        channel.onStopped()
+
+        // Both go out; the screen keeps the last one (see failAll's note), the host sees both.
+        assertEquals(
+            listOf(
+                ActuationFeedback(ActuationKey.CHARGE_LIMIT, ActuationResult.FAILED),
+                ActuationFeedback(ActuationKey.CHARGING_AMPS, ActuationResult.FAILED),
+            ),
+            host.feedback,
+        )
+        assertTrue(host.pendingStates.last().isEmpty())
+    }
+
+    @Test
+    fun `a dropped queue releases only the action's wait`() {
+        host.awake = true
+        host.wait.onReadDue(awake = true, hasSession = false, request = Unit)
+        channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
+
+        channel.onStopped()
+
+        assertEquals(setOf(InfotainmentSessionWait.Demand.READ), host.wait.onSessionEstablished())
+        assertTrue(host.wait.hasWaitingRead)
+    }
+
     private fun sendLimit() = send(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
 
     private fun send(
@@ -257,7 +288,6 @@ class ActuationChannelTest {
         var awake = false
         var session = false
         var readInFlight = false
-        var readWaiting = false
         var sendResult = true
         var startSessionResult = true
         var wakeCalls = 0
@@ -265,6 +295,7 @@ class ActuationChannelTest {
         var forgetCalls = 0
         var resumedReads = 0
         var lastResumeAccepted: Boolean? = null
+        val wait = InfotainmentSessionWait<Unit>()
         val sent = mutableListOf<Pair<ActuationKey, ByteArray>>()
         val feedback = mutableListOf<ActuationFeedback>()
         val pendingStates = mutableListOf<Set<ActuationKey>>()
@@ -273,9 +304,11 @@ class ActuationChannelTest {
 
         override fun hasSession(): Boolean = session
 
-        override fun readWaiting(): Boolean = readWaiting
+        override fun isReadRunning(): Boolean = readInFlight
 
-        override fun readActive(): Boolean = readInFlight
+        override fun requestSessionForAction(): Boolean = wait.requestForAction(awake, session)
+
+        override fun releaseSessionWait() = wait.onActionReleased()
 
         override fun startSession(): Boolean {
             sessionStarts++

@@ -70,8 +70,6 @@ import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.EnergyPriceStore
 import com.dzid26.teslable.R
 import com.dzid26.teslable.UnitStore
-import com.dzid26.teslable.ble.ActuationKey
-import com.dzid26.teslable.ble.ActuationResult
 import com.dzid26.teslable.ble.BatteryPercent
 import com.dzid26.teslable.ble.BleUiState
 import com.dzid26.teslable.ble.ConnectionDisplay
@@ -130,7 +128,6 @@ import com.dzid26.teslable.protocol.asleep
 import com.dzid26.teslable.protocol.chargingMph
 import com.dzid26.teslable.protocol.chargingStateKind
 import com.tesla.generated.carserver.vehicle.ChargeState
-import com.tesla.generated.vcsec.ClosureState_E
 import kotlinx.coroutines.delay
 import java.text.DecimalFormatSymbols
 import java.time.Instant
@@ -250,42 +247,6 @@ internal fun CarScreen(
     }
     val carName = vehicle?.bleName
     val snackbarHostState = remember(carName) { SnackbarHostState() }
-    var quietFailure by remember(carName) { mutableStateOf<ActuationKey?>(null) }
-    var snackbarText by remember(carName) { mutableStateOf<String?>(null) }
-    // The result lives on the car that produced it, so a background car cannot paint this screen.
-    val feedback = connection?.lastAction
-    val feedbackText = feedback?.let { stringResource(it.message()) }
-    LaunchedEffect(feedback) {
-        val event = feedback ?: return@LaunchedEffect
-        // Take the event before showing it: a screen left mid-snackbar must not replay it next visit.
-        if (event.key.failureMessage() == null) {
-            snackbarText = feedbackText
-        } else {
-            // A lost answer is not a refusal: the value or the next read decides, so leave the line alone.
-            // A success clears a line left by the previous tap; only a refusal or a failure paints one.
-            when (event.result) {
-                ActuationResult.REFUSED, ActuationResult.FAILED -> quietFailure = event.key
-                ActuationResult.ACCEPTED -> quietFailure = null
-                ActuationResult.NO_ANSWER -> Unit
-            }
-        }
-        onActionFeedbackShown()
-    }
-    LaunchedEffect(snackbarText) {
-        val text = snackbarText ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(text)
-        snackbarText = null
-    }
-    // A tap clears the previous line as soon as its action is queued; the child never mutates this state.
-    LaunchedEffect(connection?.actuating) {
-        if (connection?.actuating?.isNotEmpty() == true) quietFailure = null
-    }
-    // A refusal stays while the owner reads it, then goes; a stale line must never outlive its action.
-    LaunchedEffect(quietFailure) {
-        if (quietFailure == null) return@LaunchedEffect
-        delay(QUIET_FAILURE_MS)
-        quietFailure = null
-    }
     Scaffold(
         modifier = Modifier.countingTouches(),
         topBar = {
@@ -433,8 +394,7 @@ internal fun CarScreen(
                         )
                     // The port door is the only pre-read signal; only a fully open door counts.
                     val portOpen =
-                        connection?.status?.closureStatuses?.chargePort == ClosureState_E.CLOSURESTATE_OPEN ||
-                            charge?.charge_port_door_open == true
+                        isPortOpen(connection?.status?.closureStatuses?.chargePort, charge?.charge_port_door_open)
                     val chargeModel =
                         if (paired &&
                             vehicle?.hasSessionVin == true &&
@@ -444,24 +404,19 @@ internal fun CarScreen(
                         } else {
                             null
                         }
-                    LaunchedEffect(chargeModel == null) {
-                        if (chargeModel == null) quietFailure = null
-                    }
-                    // The car reported a value for the control the line was about: it has been settled.
-                    LaunchedEffect(charge?.charge_limit_soc) {
-                        if (quietFailure == ActuationKey.CHARGE_LIMIT) quietFailure = null
-                    }
-                    LaunchedEffect(charge?.charge_current_request) {
-                        if (quietFailure == ActuationKey.CHARGING_AMPS) quietFailure = null
-                    }
-                    if (chargeModel != null) {
-                        ChargeControlsCard(
-                            model = chargeModel,
-                            actuating = connection?.actuating.orEmpty(),
-                            failure = quietFailure,
-                            actions = chargeActions,
-                        )
-                    }
+                    ChargeControlsSection(
+                        state =
+                            ChargeControlsState(
+                                carKey = carName,
+                                model = chargeModel,
+                                charge = charge,
+                                actuating = connection?.actuating.orEmpty(),
+                                feedback = connection?.lastAction,
+                            ),
+                        snackbarHostState = snackbarHostState,
+                        onFeedbackShown = onActionFeedbackShown,
+                        actions = chargeActions,
+                    )
                     val liveRoute = activeRoute(vehicle?.let { routes[it.bleName] }, nowMillis ?: rememberNowMillis())
                     TripSection(
                         route = liveRoute,
@@ -1189,9 +1144,6 @@ private fun HistoryRange.label(): String =
 private const val FULL_LEVEL = 100
 
 private const val REFRESH_FEEDBACK_MS = 2500L
-
-/** How long a refusal stays on the card before it clears; long enough to read, short enough not to stick. */
-private const val QUIET_FAILURE_MS = 6000L
 
 private val EDIT_ICON_LIFT = (-10).dp
 private val EDIT_ICON = 18.dp
