@@ -69,9 +69,9 @@ Observed on 2026-11-14: a charge ran from 18:45 (27%) to at least 21:49 (35%). E
 ## Ideas to settle the open ones
 
 - Run Sentry and climate for a few hours, then pull logs: shows whether VCSEC 7 or 8 move with either.
-- Charge the car with someone sitting in it (or open the app while it charges) and pull logs: shows
-  whether VCSEC 7 or 8 ever move with charging. Without a charge that pairs with field 7 present, the
-  schema is the only reason to say VCSEC cannot tell charging from parked.
+- Charge the car with someone sitting in it and pull logs: shows whether VCSEC 7 or 8 ever move with
+  charging. The "app open while it charges" half was done on 2026-11-14 and neither field moved; no charge
+  in the logs yet pairs with field 7 present, so the person-in-the-car half is the one that would close it.
 - Pull a debug build's log through a pairing, a wake and a lock/unlock, then line VehicleStatus 7 up with
   the app's own link and session events: tells whether it follows the phone key or the car. Debug builds
   print it as `VCSEC unknown fields 7=2, 8.1=2` (from `UnknownFields.kt` in `protocol`), so the run needs
