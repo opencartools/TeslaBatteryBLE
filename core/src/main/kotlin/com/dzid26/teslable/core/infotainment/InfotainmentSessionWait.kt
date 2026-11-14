@@ -10,15 +10,20 @@ package com.dzid26.teslable.core.infotainment
  * the request might wake it. A read and an action share the one request: whichever asks first starts
  * the handshake, and the other waits for that same one instead of asking again.
  *
+ * The read that waits is kept here with its caller's payload ([T]), not only in the read's own
+ * progress model: a read whose progress ring timed out still belongs to the handshake that was asked
+ * for it, and goes out when that handshake arrives.
+ *
  * Every wait ends in exactly one of three ways: the session is established
- * ([onSessionEstablished]), the action goes away ([onActionReleased]), or the wait is abandoned
- * ([onGaveUp], [onAsleep], [onLinkDropped], [onNotStartable]). A wait that is never ended would
- * leave the caller thinking a handshake is still in flight, so it would never start another one; a
- * real car logged VCSEC status for a whole drive without a single read that way.
+ * ([onSessionEstablished], the waiter then sends its request), the action goes away
+ * ([onActionReleased]), or the wait is abandoned ([onGaveUp], [onAsleep], [onLinkDropped],
+ * [onNotStartable]). A wait that is never ended would leave the caller thinking a handshake is still
+ * in flight, so it would never start another one; a real car logged VCSEC status for a whole drive
+ * without a single read that way.
  *
  * Pure, so it ports to other platforms; one instance per vehicle link, not thread-safe.
  */
-class InfotainmentSessionWait {
+class InfotainmentSessionWait<T> {
     /** What is waiting for the session. */
     enum class Demand {
         /** A read that [InfotainmentPollPolicy] found due. */
@@ -28,47 +33,96 @@ class InfotainmentSessionWait {
         ACTION,
     }
 
-    /** What a caller may do about the session. */
+    /** What a read may do about the session. */
     enum class Step {
-        /** A session exists: send the request now. */
+        /** A session exists: send the read now. */
         SEND,
 
-        /** No session and none requested yet: request it; the request follows on success. */
+        /** No session and none requested yet: request it; the read follows on success. */
         START_HANDSHAKE,
 
-        /** A request is already in flight: do not send another; the wait follows on success. */
+        /** A request is already in flight: do not send another; the read follows on success. */
         WAIT_FOR_HANDSHAKE,
 
         /** The car is not awake: do nothing. */
         SKIP,
     }
 
-    /** Who waits right now; a non-empty set also means a handshake is in flight. */
+    /** Who waits right now. */
     private val waiting = mutableSetOf<Demand>()
 
-    /** A read is waiting for the handshake to finish. */
-    val readWaiting: Boolean get() = Demand.READ in waiting
+    /** The read that waits for the session, with the caller's payload, until it is sent or dropped. */
+    private var pendingRead: T? = null
 
-    /** A queued charge action is waiting for the handshake to finish. */
-    val actionWaiting: Boolean get() = Demand.ACTION in waiting
-
-    /** Someone is waiting for the session. */
-    val hasWaiting: Boolean get() = waiting.isNotEmpty()
+    /** True while a read waits for the session, whether its progress ring is still up or timed out. */
+    val hasWaitingRead: Boolean get() = Demand.READ in waiting || pendingRead != null
 
     /** Whether the Infotainment session may be requested now (retries included). */
     fun mayRequest(awake: Boolean): Boolean = awake && waiting.isNotEmpty()
 
-    /** Decides what a due read does. [awake] is the latest VCSEC verdict. */
+    /**
+     * Decides what a due read does. [awake] is the latest VCSEC verdict; [request] is what to send
+     * when the session arrives, held until [takeReadRequest] or the next due read replaces it.
+     */
     fun onReadDue(
         awake: Boolean,
         hasSession: Boolean,
-    ): Step = decide(Demand.READ, awake, hasSession)
+        request: T,
+    ): Step =
+        when {
+            !awake -> {
+                waiting -= Demand.READ
+                pendingRead = null
+                Step.SKIP
+            }
 
-    /** Decides what a queued charge action does. */
-    fun onActionDue(
+            hasSession -> {
+                waiting -= Demand.READ
+                pendingRead = null
+                Step.SEND
+            }
+
+            waiting.isNotEmpty() -> {
+                waiting += Demand.READ
+                pendingRead = request
+                Step.WAIT_FOR_HANDSHAKE
+            }
+
+            else -> {
+                waiting += Demand.READ
+                pendingRead = request
+                Step.START_HANDSHAKE
+            }
+        }
+
+    /**
+     * Asks for the queued action's place in the session wait. True when the caller must start the
+     * handshake now; false when one is already in flight or the car cannot answer.
+     */
+    fun requestForAction(
         awake: Boolean,
         hasSession: Boolean,
-    ): Step = decide(Demand.ACTION, awake, hasSession)
+    ): Boolean {
+        val start =
+            when {
+                !awake || hasSession -> false
+                waiting.isNotEmpty() -> false
+                else -> true
+            }
+        if (awake && !hasSession) {
+            waiting += Demand.ACTION
+        } else {
+            waiting -= Demand.ACTION
+        }
+        return start
+    }
+
+    /** The read that waited for the session, with its payload; null when none does. Clears it. */
+    fun takeReadRequest(): T? {
+        val request = pendingRead
+        pendingRead = null
+        return request
+    }
 
     /** The Infotainment session is established. Returns who was waiting for it. */
     fun onSessionEstablished(): Set<Demand> {
@@ -96,32 +150,6 @@ class InfotainmentSessionWait {
 
     private fun clear() {
         waiting.clear()
+        pendingRead = null
     }
-
-    private fun decide(
-        demand: Demand,
-        awake: Boolean,
-        hasSession: Boolean,
-    ): Step =
-        when {
-            !awake -> {
-                waiting -= demand
-                Step.SKIP
-            }
-
-            hasSession -> {
-                waiting -= demand
-                Step.SEND
-            }
-
-            waiting.isNotEmpty() -> {
-                waiting += demand
-                Step.WAIT_FOR_HANDSHAKE
-            }
-
-            else -> {
-                waiting += demand
-                Step.START_HANDSHAKE
-            }
-        }
 }

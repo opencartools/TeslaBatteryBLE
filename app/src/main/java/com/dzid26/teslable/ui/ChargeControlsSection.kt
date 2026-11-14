@@ -21,7 +21,7 @@ private const val QUIET_FAILURE_MS = 6_000L
 /** One car's charge-control readings, grouped so the section stays within the parameter limit. */
 internal data class ChargeControlsState(
     /** The car the readings belong to: the section keeps its feedback per car. */
-    val carKey: Any?,
+    val carKey: String?,
     val model: ChargeControlsModel?,
     val charge: ChargeState?,
     val actuating: Set<ActuationKey>,

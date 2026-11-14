@@ -9,122 +9,90 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class InfotainmentSessionWaitTest {
-    private val wait = InfotainmentSessionWait()
+    private val wait = InfotainmentSessionWait<String>()
 
     @Test
     fun `read with a session goes out without a handshake`() {
-        assertEquals(Step.SEND, wait.onReadDue(awake = true, hasSession = true))
-        assertFalse(wait.readWaiting)
+        assertEquals(Step.SEND, wait.onReadDue(awake = true, hasSession = true, request = "read"))
+        assertFalse(wait.hasWaitingRead)
     }
 
     @Test
     fun `first due read starts the handshake and later ones wait for it`() {
-        assertEquals(Step.START_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false))
-        assertTrue(wait.readWaiting)
-        assertEquals(Step.WAIT_FOR_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false))
-        assertEquals(Step.WAIT_FOR_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false))
+        assertEquals(Step.START_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false, request = "read"))
+        assertTrue(wait.hasWaitingRead)
+        assertEquals(Step.WAIT_FOR_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false, request = "read again"))
+        assertEquals(Step.WAIT_FOR_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false, request = "read again"))
+        assertEquals("read again", wait.takeReadRequest(), "the newest request replaces the one waiting")
     }
 
     @Test
-    fun `established session releases the waiting read once`() {
-        wait.onReadDue(awake = true, hasSession = false)
+    fun `established session serves the waiting read once`() {
+        wait.onReadDue(awake = true, hasSession = false, request = "read")
         assertEquals(setOf(Demand.READ), wait.onSessionEstablished())
-        assertFalse(wait.readWaiting)
         assertTrue(wait.onSessionEstablished().isEmpty())
+    }
+
+    @Test
+    fun `a read whose ring timed out still goes out when the session arrives`() {
+        wait.onReadDue(awake = true, hasSession = false, request = "read")
+        // The read's progress model expired meanwhile; the wait still holds its request.
+        assertEquals(setOf(Demand.READ), wait.onSessionEstablished())
+        assertTrue(wait.hasWaitingRead)
+        assertEquals("read", wait.takeReadRequest())
+        assertFalse(wait.hasWaitingRead)
     }
 
     @Test
     fun `session is requested only while awake and someone waits`() {
         assertFalse(wait.mayRequest(awake = true))
-        wait.onReadDue(awake = true, hasSession = false)
+        wait.onReadDue(awake = true, hasSession = false, request = "read")
         assertTrue(wait.mayRequest(awake = true))
         assertFalse(wait.mayRequest(awake = false))
     }
 
     @Test
     fun `a sleeping car never starts a handshake`() {
-        assertEquals(Step.SKIP, wait.onReadDue(awake = false, hasSession = false))
-        assertFalse(wait.readWaiting)
+        assertEquals(Step.SKIP, wait.onReadDue(awake = false, hasSession = false, request = "read"))
+        assertFalse(wait.hasWaitingRead)
         assertFalse(wait.mayRequest(awake = false))
     }
 
     @Test
-    fun `an action with a session goes out without a handshake`() {
-        assertEquals(Step.SEND, wait.onActionDue(awake = true, hasSession = true))
-        assertFalse(wait.actionWaiting)
-    }
-
-    @Test
-    fun `a queued action starts the handshake the next read then waits for`() {
-        assertEquals(Step.START_HANDSHAKE, wait.onActionDue(awake = true, hasSession = false))
-        assertTrue(wait.actionWaiting)
-        assertEquals(Step.WAIT_FOR_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false))
-        assertTrue(wait.readWaiting)
-        assertEquals(setOf(Demand.ACTION, Demand.READ), wait.onSessionEstablished())
-        assertFalse(wait.hasWaiting)
-    }
-
-    @Test
-    fun `a read and an action share the one request`() {
-        wait.onReadDue(awake = true, hasSession = false)
-        assertEquals(Step.WAIT_FOR_HANDSHAKE, wait.onActionDue(awake = true, hasSession = false))
-        assertTrue(wait.readWaiting)
-        assertTrue(wait.actionWaiting)
-        assertEquals(setOf(Demand.READ, Demand.ACTION), wait.onSessionEstablished())
-    }
-
-    @Test
-    fun `a released action leaves the waiting read alone`() {
-        wait.onActionDue(awake = true, hasSession = false)
-        wait.onReadDue(awake = true, hasSession = false)
-        wait.onActionReleased()
-        assertFalse(wait.actionWaiting)
-        assertTrue(wait.readWaiting)
-        assertTrue(wait.mayRequest(awake = true))
-    }
-
-    @Test
-    fun `a sleeping queued action is not left waiting`() {
-        assertEquals(Step.SKIP, wait.onActionDue(awake = false, hasSession = false))
-        assertFalse(wait.actionWaiting)
-        assertFalse(wait.mayRequest(awake = true))
-    }
-
-    @Test
     fun `give-up unblocks the next due read`() {
-        wait.onReadDue(awake = true, hasSession = false)
+        wait.onReadDue(awake = true, hasSession = false, request = "read")
         wait.onGaveUp()
-        assertFalse(wait.readWaiting)
-        assertEquals(Step.START_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false))
+        assertFalse(wait.hasWaitingRead)
+        assertEquals(Step.START_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false, request = "read"))
     }
 
     @Test
     fun `car falling asleep unblocks the next due read after the wake`() {
-        wait.onReadDue(awake = true, hasSession = false)
+        wait.onReadDue(awake = true, hasSession = false, request = "read")
         wait.onAsleep()
-        assertFalse(wait.readWaiting)
-        assertEquals(Step.START_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false))
+        assertFalse(wait.hasWaitingRead)
+        assertEquals(Step.START_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false, request = "read"))
     }
 
     @Test
     fun `dropped link unblocks the next due read after the reconnect`() {
-        wait.onReadDue(awake = true, hasSession = false)
+        wait.onReadDue(awake = true, hasSession = false, request = "read")
         wait.onLinkDropped()
-        assertFalse(wait.readWaiting)
-        assertEquals(Step.START_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false))
+        assertFalse(wait.hasWaitingRead)
+        assertEquals(Step.START_HANDSHAKE, wait.onReadDue(awake = true, hasSession = false, request = "read"))
     }
 
     @Test
     fun `unstartable handshake does not leave a read waiting`() {
-        wait.onReadDue(awake = true, hasSession = false)
+        wait.onReadDue(awake = true, hasSession = false, request = "read")
         wait.onNotStartable()
-        assertFalse(wait.readWaiting)
+        assertFalse(wait.hasWaitingRead)
     }
 
     @Test
     fun `waiting read is dropped when the car is found asleep at the next due read`() {
-        wait.onReadDue(awake = true, hasSession = false)
-        assertEquals(Step.SKIP, wait.onReadDue(awake = false, hasSession = false))
-        assertFalse(wait.readWaiting)
+        wait.onReadDue(awake = true, hasSession = false, request = "read")
+        assertEquals(Step.SKIP, wait.onReadDue(awake = false, hasSession = false, request = "read"))
+        assertFalse(wait.hasWaitingRead)
     }
 }

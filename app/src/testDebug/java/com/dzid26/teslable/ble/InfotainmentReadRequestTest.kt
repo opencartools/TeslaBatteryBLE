@@ -42,12 +42,16 @@ class InfotainmentReadRequestTest {
 
     @Test
     fun aRequestWhileTheReadRunsKeepsTheProgressButTakesTheNewRequest() {
-        read.begin(full, nowMs = START, replies = 4, afterHandshake = false)
-        read.onSent(START)
-        read.begin(confirmation, nowMs = START + STEP, replies = 1, afterHandshake = false)
-        assertEquals(ReadKind.CONFIRMATION, read.request?.kind)
-        assertTrue(read.active)
-        assertTrue(read.running)
+        val changes = mutableListOf<ReadProgress?>()
+        val running = InfotainmentRead { changes += it }
+        running.begin(full, nowMs = START, replies = 4, afterHandshake = false)
+        running.onSent(START)
+        val progress = changes.last()
+        running.begin(confirmation, nowMs = START + STEP, replies = 1, afterHandshake = false)
+        assertEquals("the running read keeps its progress", progress, changes.last())
+        assertEquals(ReadKind.CONFIRMATION, running.request?.kind)
+        assertTrue(running.active)
+        assertTrue(running.running)
     }
 
     @Test

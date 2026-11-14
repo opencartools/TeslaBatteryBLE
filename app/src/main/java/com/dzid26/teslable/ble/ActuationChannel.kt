@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.dzid26.teslable.ble
 
-import com.dzid26.teslable.core.infotainment.InfotainmentSessionWait
 import com.tesla.generated.carserver.server.OperationStatus_E
 import com.tesla.generated.carserver.server.Response
 
@@ -49,7 +48,7 @@ internal interface ActuationHost {
     fun isReadRunning(): Boolean
 
     /** What the queued action does about the Infotainment session, whose request the reads share. */
-    fun sessionStep(): InfotainmentSessionWait.Step
+    fun requestSessionForAction(): Boolean
 
     /** The queued action is gone: it no longer waits for the session. */
     fun releaseSessionWait()
@@ -86,8 +85,8 @@ internal interface ActuationHost {
  * produce. It owns no BLE state of its own; everything it needs from the link goes through
  * [ActuationHost]. A sleeping car is woken first, and an awake car without an Infotainment session
  * gets one requested; the queued action goes out as soon as the session exists. The session request
- * is shared with the reads ([InfotainmentSessionWait]), so the channel asks the link what a queued
- * action does about it rather than keeping a request flag of its own.
+ * is shared with the reads, so the channel asks the link whether the action must start one rather
+ * than keeping a request flag of its own.
  */
 internal class ActuationChannel(
     private val host: ActuationHost,
@@ -198,17 +197,7 @@ internal class ActuationChannel(
             !ready -> false
             host.hasSession() -> dispatchFirst()
             else -> {
-                when (host.sessionStep()) {
-                    InfotainmentSessionWait.Step.START_HANDSHAKE ->
-                        if (!host.startSession()) failAll(forgetWake = false)
-
-                    // A session request is already out (the read may have asked for it), the car is
-                    // asleep, or the session exists and the next tick sends on it.
-                    InfotainmentSessionWait.Step.WAIT_FOR_HANDSHAKE,
-                    InfotainmentSessionWait.Step.SKIP,
-                    InfotainmentSessionWait.Step.SEND,
-                    -> Unit
-                }
+                if (host.requestSessionForAction() && !host.startSession()) failAll(forgetWake = false)
                 false
             }
         }

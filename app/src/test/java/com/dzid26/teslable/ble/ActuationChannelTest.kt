@@ -9,7 +9,6 @@ import com.tesla.generated.carserver.server.OperationStatus_E
 import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.carserver.server.ResultReason
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -64,7 +63,7 @@ class ActuationChannelTest {
     @Test
     fun `an action waits for a read that already asked for the session`() {
         host.awake = true
-        host.wait.onReadDue(awake = true, hasSession = false)
+        host.wait.onReadDue(awake = true, hasSession = false, request = Unit)
 
         channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
 
@@ -245,14 +244,13 @@ class ActuationChannelTest {
     @Test
     fun `a dropped queue releases only the action's wait`() {
         host.awake = true
-        host.wait.onReadDue(awake = true, hasSession = false)
+        host.wait.onReadDue(awake = true, hasSession = false, request = Unit)
         channel.submit(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
-        assertTrue(host.wait.actionWaiting)
 
         channel.onStopped()
 
-        assertFalse(host.wait.actionWaiting)
-        assertTrue(host.wait.readWaiting)
+        assertEquals(setOf(InfotainmentSessionWait.Demand.READ), host.wait.onSessionEstablished())
+        assertTrue(host.wait.hasWaitingRead)
     }
 
     private fun sendLimit() = send(ActuationKey.CHARGE_LIMIT, TeslaChargeCommands.buildChargeLimitRequest(80))
@@ -297,7 +295,7 @@ class ActuationChannelTest {
         var forgetCalls = 0
         var resumedReads = 0
         var lastResumeAccepted: Boolean? = null
-        val wait = InfotainmentSessionWait()
+        val wait = InfotainmentSessionWait<Unit>()
         val sent = mutableListOf<Pair<ActuationKey, ByteArray>>()
         val feedback = mutableListOf<ActuationFeedback>()
         val pendingStates = mutableListOf<Set<ActuationKey>>()
@@ -308,7 +306,7 @@ class ActuationChannelTest {
 
         override fun isReadRunning(): Boolean = readInFlight
 
-        override fun sessionStep(): InfotainmentSessionWait.Step = wait.onActionDue(awake, session)
+        override fun requestSessionForAction(): Boolean = wait.requestForAction(awake, session)
 
         override fun releaseSessionWait() = wait.onActionReleased()
 

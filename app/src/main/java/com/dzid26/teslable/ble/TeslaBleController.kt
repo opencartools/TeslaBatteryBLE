@@ -1008,7 +1008,7 @@ class TeslaBleController(
         private val infotainmentPolicy = InfotainmentPollPolicy()
 
         /** Who waits for the Infotainment session, shared by the reads and the charge actions (ADR-0009). */
-        private val sessionWait = InfotainmentSessionWait()
+        private val sessionWait = InfotainmentSessionWait<InfotainmentRead.Request>()
 
         /** Keeps the command log: every request goes out through [transmit], which logs it with its reason (ADR-0008). */
         val commands = CommandRecorder(bleName, historyStore, rssi = { latestRssi(address) })
@@ -1023,8 +1023,8 @@ class TeslaBleController(
 
                     override fun isReadRunning(): Boolean = read.running
 
-                    override fun sessionStep(): InfotainmentSessionWait.Step =
-                        sessionWait.onActionDue(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT))
+                    override fun requestSessionForAction(): Boolean =
+                        sessionWait.requestForAction(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT))
 
                     override fun releaseSessionWait() = sessionWait.onActionReleased()
 
@@ -1062,8 +1062,8 @@ class TeslaBleController(
                     ) {
                         // The action needed the session, so the read that waited for it can go now, with
                         // the reason and kind it waited under.
-                        if (read.waitingForSession) {
-                            read.request?.let { requestChargeState(it.reason, it.kind) }
+                        if (sessionWait.hasWaitingRead) {
+                            resumeWaitingRead()
                         } else if (accepted && key != ActuationKey.CHARGE_START && key != ActuationKey.CHARGE_STOP) {
                             requestChargeState(Command.Reason.ACTION_READBACK)
                         }
@@ -1293,7 +1293,7 @@ class TeslaBleController(
                         // A read waiting for this session follows the action's answer, so the action is not
                         // read back before the car has had a chance to apply it.
                         if (!actionSent && InfotainmentSessionWait.Demand.READ in served) {
-                            read.request?.let { requestChargeState(it.reason, it.kind) }
+                            resumeWaitingRead()
                         }
                     }
                     if (domain == Domain.DOMAIN_VEHICLE_SECURITY && wakeRetry.isPending) startWake()
@@ -1615,7 +1615,7 @@ class TeslaBleController(
             if (!infotainmentPolicy.admitsRead(kind, now, read.active, actuation.hasPending)) return
             if (kind == ReadKind.USER) infotainmentPolicy.onUserRequest(now)
             val request = InfotainmentRead.Request(reason, kind)
-            when (sessionWait.onReadDue(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT))) {
+            when (sessionWait.onReadDue(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT), request)) {
                 InfotainmentSessionWait.Step.SKIP -> {
                     log("${name()}: car is asleep; wake it first")
                     read.onSkipped()
@@ -1637,6 +1637,15 @@ class TeslaBleController(
                 }
             }
             syncPauseState()
+        }
+
+        /**
+         * Sends the read that waited for the session, with the reason and kind it waited under. The
+         * request comes from the read itself, or from the wait when the read's ring timed out first.
+         */
+        private fun resumeWaitingRead() {
+            val pending = sessionWait.takeReadRequest()
+            (read.request ?: pending)?.let { requestChargeState(it.reason, it.kind) }
         }
 
         /** Sends the charge request of a read, resuming the one that waited for this session or starting one. */
