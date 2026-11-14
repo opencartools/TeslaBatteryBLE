@@ -1614,7 +1614,19 @@ class TeslaBleController(
             val now = System.currentTimeMillis()
             if (!infotainmentPolicy.admitsRead(kind, now, read.active, actuation.hasPending)) return
             if (kind == ReadKind.USER) infotainmentPolicy.onUserRequest(now)
-            val request = InfotainmentRead.Request(reason, kind)
+            dispatchRead(InfotainmentRead.Request(reason, kind), now)
+            syncPauseState()
+        }
+
+        /**
+         * Sends a read that already holds its place, or asks for the session it needs. Admission
+         * ([InfotainmentPollPolicy.admitsRead]) belongs to the first request, not here: a read that
+         * waited for its session was admitted then, and only needs to go out now.
+         */
+        private fun dispatchRead(
+            request: InfotainmentRead.Request,
+            now: Long,
+        ) {
             when (sessionWait.onReadDue(isAwake(), handshake.has(Domain.DOMAIN_INFOTAINMENT), request)) {
                 InfotainmentSessionWait.Step.SKIP -> {
                     log("${name()}: car is asleep; wake it first")
@@ -1625,27 +1637,28 @@ class TeslaBleController(
 
                 // The retry loop is already running; the read goes out when the session arrives.
                 InfotainmentSessionWait.Step.WAIT_FOR_HANDSHAKE ->
-                    read.begin(request, now, expectedReplies(kind, now), afterHandshake = true)
+                    read.begin(request, now, expectedReplies(request.kind, now), afterHandshake = true)
 
                 InfotainmentSessionWait.Step.START_HANDSHAKE -> {
                     log("${name()}: requesting Infotainment session for SOC")
-                    read.begin(request, now, expectedReplies(kind, now), afterHandshake = true)
+                    read.begin(request, now, expectedReplies(request.kind, now), afterHandshake = true)
                     if (!startSession()) {
                         sessionWait.onNotStartable()
                         read.onSkipped()
                     }
                 }
             }
-            syncPauseState()
         }
 
         /**
          * Sends the read that waited for the session, with the reason and kind it waited under. The
          * request comes from the read itself, or from the wait when the read's ring timed out first.
+         * No admission pass: the read was admitted when it was first requested.
          */
         private fun resumeWaitingRead() {
             val pending = sessionWait.takeReadRequest()
-            (read.request ?: pending)?.let { requestChargeState(it.reason, it.kind) }
+            val request = read.request ?: pending ?: return
+            dispatchRead(request, System.currentTimeMillis())
         }
 
         /** Sends the charge request of a read, resuming the one that waited for this session or starting one. */

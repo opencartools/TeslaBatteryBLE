@@ -55,7 +55,7 @@ class InfotainmentSessionWait<T> {
     private var pendingRead: T? = null
 
     /** True while a read waits for the session, whether its progress ring is still up or timed out. */
-    val hasWaitingRead: Boolean get() = Demand.READ in waiting || pendingRead != null
+    val hasWaitingRead: Boolean get() = pendingRead != null
 
     /** Whether the Infotainment session may be requested now (retries included). */
     fun mayRequest(awake: Boolean): Boolean = awake && waiting.isNotEmpty()
