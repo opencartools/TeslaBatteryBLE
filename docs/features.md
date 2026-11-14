@@ -44,7 +44,7 @@ What the app does today, in detail. The short version is in the [README](../READ
   lines project the charge completion and the parked drain a round figure ahead
   (3h, 12h, 3 days, a week for the 30d range; stretches where the odometer moved, or the car was in gear, are left out). The
   parked line follows the power-down rate, the stretches with nobody in it and Sentry and climate off, an hour or more
-  apart; without enough of those it is left out, and its band reaches down to the rate over all parked time. Both
+  apart; without enough of those it is left out, and its band shows how far the rate could be off. Both
   are fitted on the rated range once the scale is learned, so they read in
   fractions of a percent, and the charge line carries a faint beam for how far the fit could
   be off (also the supply-voltage swings seen in the session).

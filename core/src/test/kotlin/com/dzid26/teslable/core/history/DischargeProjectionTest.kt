@@ -8,7 +8,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class DischargeProjectionTest {
     private fun sample(
@@ -218,7 +217,7 @@ class DischargeProjectionTest {
     }
 
     @Test
-    fun `the band top widens with noisy pairs`() {
+    fun `the band widens with noisy pairs`() {
         val steady =
             listOf(
                 ranged(0, 80, 241.5f),
@@ -235,7 +234,7 @@ class DischargeProjectionTest {
             )
         val twoPairs = steady.take(3)
         val short = assertNotNull(project(twoPairs, context = ProjectionContext(scale = scale), rangeMillis = 24 * HOUR))
-        // Two pairs have no statistical margin: the band top is the line.
+        // Two pairs have no statistical margin: the band is the line.
         assertEquals(short.projectedSoc, short.highSoc!!, 0.01f)
 
         val tidy = assertNotNull(project(steady, context = ProjectionContext(scale = scale), rangeMillis = 24 * HOUR))
@@ -258,9 +257,9 @@ class DischargeProjectionTest {
         // Quiet: 2 points over 4 h = 0.5 %/h is the line; mixed: 5 points over 6 h.
         assertEquals(0.5, projection.percentPerHour, 1e-9)
         assertEquals(5.0 / 6.0, projection.mixedPercentPerHour!!, 1e-9)
-        // 12 h at 0.5 %/h from 75 is 69; the beam's lower edge reaches the mixed line, 65.
+        // 12 h at 0.5 %/h from 75 is 69; two power-down pairs have no statistical margin.
         assertEquals(69f, projection.projectedSoc, 0.01f)
-        assertTrue(projection.lowSoc!! <= 65f)
+        assertEquals(projection.projectedSoc, projection.lowSoc)
         // A single quiet pair is not enough to call a rate.
         val one = listOf(sample(0, 80), sample(120, 79), sample(240, 76))
         val oneQuiet = listOf(climate(180))

@@ -22,11 +22,11 @@ data class DischargeProjection(
     val fromSoc: Float = from.batteryLevel.toFloat(),
     /** The unrounded level one horizon ahead; [projectedPercent] is this, rounded. */
     val projectedSoc: Float = projectedPercent.toFloat(),
-    /** The lower edge of the beam at the horizon: the mixed parked rate. */
+    /** The lower edge of the beam at the horizon: the line minus its uncertainty, or the line when the fit is too thin. */
     val lowSoc: Float? = null,
-    /** The upper edge of the beam at the horizon: the line plus its uncertainty. */
+    /** The upper edge of the beam at the horizon: the line plus its uncertainty, or the line when the fit is too thin. */
     val highSoc: Float? = null,
-    /** The mixed parked rate (every parked pair), percent per hour: the beam's lower edge. */
+    /** The mixed parked rate (every parked pair), percent per hour, reported beside the power-down rate. */
     val mixedPercentPerHour: Double? = null,
 ) {
     /** The beam's two edges together. */
@@ -65,9 +65,8 @@ data class DischargeProjection(
  *
  * The line follows the power-down rate: the pairs where the car sat parked with
  * nobody in it and Sentry and climate off, an hour or more apart. Without enough
- * of those pairs there is no line. The mixed rate (every parked pair, awake or
- * asleep) is the beam's lower edge, so the beam spans power-down to what the
- * battery really did.
+ * of those pairs there is no line. The beam is that rate's own uncertainty: the
+ * spread of the power-down pairs and their readings' rounding.
  *
  * While charging it still projects: the line shows where the battery would
  * head if unplugged now, next to the charge projection. Returns null once the
@@ -103,11 +102,10 @@ fun dischargeProjection(
     // The line follows the power-down rate only: without enough quiet time there is no line.
     val mainRate = parked.sleepRatePerMilli?.takeIf { it <= mixedRate } ?: return null
     val projectedSoc = (fromSoc - mainRate * horizon).toFloat().coerceIn(0f, FULL_PERCENT)
-    val mixedSoc = (fromSoc - mixedRate * horizon).toFloat().coerceIn(0f, FULL_PERCENT)
-    val halfWidth = 2.0 * hypot(parked.errorPerMilli, mainRate * (scale.levelScaleError() ?: 0.0)) * horizon
-    val hasStats = parked.pairs >= MIN_BEAM_PAIRS
-    // The beam runs from the mixed parked line up to the line, and a little above it for the rate's uncertainty.
-    val low = mixedSoc
+    val halfWidth = 2.0 * hypot(parked.sleep.errorPerMilli, mainRate * (scale.levelScaleError() ?: 0.0)) * horizon
+    val hasStats = parked.sleep.pairs >= MIN_BEAM_PAIRS
+    // The beam is the power-down rate's own uncertainty, a little above and below the line.
+    val low = if (hasStats) (projectedSoc - halfWidth).toFloat() else projectedSoc
     val high = if (hasStats) (projectedSoc + halfWidth).toFloat() else projectedSoc
     return DischargeProjection(
         from = last,
@@ -141,22 +139,25 @@ data class ProjectionContext(
     internal val climateReadings: List<ActivitySample> by lazy { activity.filter { it.kind == ActivityKind.CLIMATE } }
 }
 
-/** The drop (percent) and duration of the power-down pairs. */
+/** The drop, duration and spread of the power-down pairs. */
 private class SleepSpan(
     val drop: Double,
     val millis: Long,
     val pairs: Int,
-)
+    /** Sum of each pair's squared residual from the power-down rate. */
+    val squaredResiduals: Double = 0.0,
+    /** The rounding variance of the summed drop: two readings for every pair. */
+    val roundingVariance: Double = 0.0,
+) {
+    /** One standard error of the power-down rate, percent per millisecond. */
+    val errorPerMilli: Double
+        get() = if (millis <= 0L) 0.0 else sqrt(squaredResiduals * pairs / maxOf(pairs - 1, 1) + roundingVariance) / millis
+}
 
-/** The summed signed drop (percent) and duration of the parked pairs, with their spread. */
+/** The summed signed drop (percent) and duration of the parked pairs, with the power-down span. */
 private class ParkedDrain(
     val drop: Double,
     val millis: Long,
-    val pairs: Int,
-    /** Sum of each pair's squared residual from the mean rate. */
-    val squaredResiduals: Double,
-    /** The rounding variance of the summed drop: two readings for every pair. */
-    val roundingVariance: Double = 0.0,
     /** The drop and duration of the power-down pairs. */
     val sleep: SleepSpan = SleepSpan(0.0, 0L, 0),
 ) {
@@ -169,14 +170,6 @@ private class ParkedDrain(
         } else {
             null
         }
-
-    /**
-     * One standard error of the rate, percent per millisecond: the pairs' scatter
-     * (sample variance, over n - 1) and the rounding of every pair's two readings,
-     * in quadrature.
-     */
-    val errorPerMilli: Double
-        get() = sqrt(squaredResiduals * pairs / maxOf(pairs - 1, 1) + roundingVariance) / millis
 }
 
 /** Sums the parked pairs of [samples]; [drives] all carry an odometer and are oldest first. */
@@ -203,29 +196,31 @@ private fun parkedDrain(
     }
     val drop = drops.sum()
     val millis = spans.sum()
-    if (millis <= 0L) return ParkedDrain(drop, millis, drops.size, 0.0)
-    val rate = drop / millis
-    var squared = 0.0
-    for (index in drops.indices) {
-        val residual = drops[index] - rate * spans[index]
-        squared += residual * residual
-    }
-    // Every pair's two rounded readings count, not only the two ends: within a run
-    // the pairs telescope, but the band should reflect how many readings went into
-    // the rate. The residuals above already carry some of that rounding, so counting
-    // it again errs wide, which is the intended side.
+    if (millis <= 0L) return ParkedDrain(drop, millis)
     val resolution = readingResolution(scale)
-    val rounding = TWO_READINGS_VARIANCE * drops.size * resolution * resolution
+    val powerDown = quiet.indices.filter { quiet[it] }
+    val powerDownDrop = powerDown.sumOf { drops[it] }
+    val powerDownMillis = powerDown.sumOf { spans[it] }
+    val powerDownRate = if (powerDownMillis > 0L) powerDownDrop / powerDownMillis else 0.0
+    var powerDownSquared = 0.0
+    for (index in powerDown) {
+        val residual = drops[index] - powerDownRate * spans[index]
+        powerDownSquared += residual * residual
+    }
+    // Every power-down pair's two rounded readings count, not only the two ends:
+    // within a run the pairs telescope, but the band should reflect how many
+    // readings went into the rate. The residuals already carry some of that
+    // rounding, so counting it again errs wide, which is the intended side.
+    val powerDownRounding = TWO_READINGS_VARIANCE * powerDown.size * resolution * resolution
     return ParkedDrain(
         drop,
         millis,
-        drops.size,
-        squared,
-        rounding,
         SleepSpan(
-            drops.filterIndexed { index, _ -> quiet[index] }.sum(),
-            spans.filterIndexed { index, _ -> quiet[index] }.sum(),
-            quiet.count { it },
+            powerDownDrop,
+            powerDownMillis,
+            powerDown.size,
+            powerDownSquared,
+            powerDownRounding,
         ),
     )
 }
@@ -264,7 +259,7 @@ private const val FULL_PERCENT = 100f
 /** A power-down rate needs this many pairs: one pair's rounding can fake a rate or a zero. */
 private const val MIN_SLEEP_PAIRS = 2
 
-/** The band top needs this many parked pairs for the statistical margin. */
+/** The band needs this many power-down pairs for the statistical margin. */
 private const val MIN_BEAM_PAIRS = 3
 
 /** Two end readings, each with the same rounding variance. */
