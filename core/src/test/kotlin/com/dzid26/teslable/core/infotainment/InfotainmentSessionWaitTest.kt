@@ -6,6 +6,7 @@ import com.dzid26.teslable.core.infotainment.InfotainmentSessionWait.Step
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class InfotainmentSessionWaitTest {
@@ -31,6 +32,10 @@ class InfotainmentSessionWaitTest {
         wait.onReadDue(awake = true, hasSession = false, request = "read")
         assertEquals(setOf(Demand.READ), wait.onSessionEstablished())
         assertTrue(wait.onSessionEstablished().isEmpty())
+        // The request is handed back once; a later session does not replay it.
+        assertEquals("read", wait.takeReadRequest())
+        assertNull(wait.takeReadRequest())
+        assertFalse(wait.hasWaitingRead)
     }
 
     @Test
