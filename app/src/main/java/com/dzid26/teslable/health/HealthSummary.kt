@@ -57,8 +57,11 @@ fun healthSummary(
     // The one full-range definition is the fitted scale of the level steps
     // (`FullRangeScaleEstimator`); a charge session contributes the rated
     // constant (kWh per rated mile) from the energy and miles it added.
+    // Only a session swinging at least MIN_SWING_PERCENT may set it: a 1%
+    // top-up carries a couple of rated miles of counter resolution and can
+    // pin nothing.
     val scale = FullRangeScales.of(samples)
-    val backboneSession = sessions.lastOrNull { it.kwhPerMile != null }
+    val backboneSession = sessions.lastOrNull { it.kwhPerMile != null && it.swingPercent >= MIN_SWING_PERCENT }
     val energySession =
         sessions.lastOrNull { it.energyAddedKwh != null && it.swingPercent >= MIN_SWING_PERCENT }
     // The range at 100%: the fitted line's value at displayed SOC 100.

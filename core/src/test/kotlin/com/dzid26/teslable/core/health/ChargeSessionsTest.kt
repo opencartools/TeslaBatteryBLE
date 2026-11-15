@@ -74,6 +74,23 @@ class ChargeSessionsTest {
     }
 
     @Test
+    fun `a small downward dip in the totals is jitter, not a restart`() {
+        // The car's totals wobble down by a hundredth while it charges (17.04, 17.02, 17.0 at 47%).
+        val samples =
+            listOf(
+                sample(0, 46, energyAddedKwh = 16.56f, milesAddedRated = 67.5f),
+                sample(60, 47, energyAddedKwh = 17.04f, milesAddedRated = 69.5f),
+                sample(90, 47, energyAddedKwh = 17.02f, milesAddedRated = 69.5f),
+                sample(120, 47, energyAddedKwh = 17f, milesAddedRated = 69.5f),
+            )
+        val session = chargeSessions(samples).single()
+        // Growth from the first sample, not the carry-over total: 0.44 kWh over 2 rated miles.
+        assertEquals(0.44f, session.energyAddedKwh!!, 0.001f)
+        assertEquals(2f, session.milesAddedRated!!, 0.001f)
+        assertEquals(0.22f, session.kwhPerMile!!, 0.001f)
+    }
+
+    @Test
     fun `a total missing from the first sample counts as zero there`() {
         val samples =
             listOf(

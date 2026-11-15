@@ -81,6 +81,30 @@ class HealthSummaryTest {
     }
 
     @Test
+    fun `a thin last session does not set the rated constant`() {
+        val samples =
+            ladder() +
+                listOf(
+                    sample(2000, 20),
+                    // A healthy charge: 40% swing, 26.25 kWh over 120 rated miles.
+                    sample(2010, 20, ChargingStateKind.Charging, energyAddedKwh = 0f),
+                    sample(2020, 40, ChargingStateKind.Charging, energyAddedKwh = 13.125f, milesAddedRated = 60f),
+                    sample(2030, 60, ChargingStateKind.Charging, energyAddedKwh = 26.25f, milesAddedRated = 120f),
+                    sample(2040, 60),
+                    // Then a 1% top-up whose counters carried over: 0.44 kWh against 2 rated miles,
+                    // which would set 0.22 kWh/mile if the gate let it through.
+                    sample(2050, 60, ChargingStateKind.Charging, energyAddedKwh = 16.56f, milesAddedRated = 67.5f),
+                    sample(2060, 61, ChargingStateKind.Charging, energyAddedKwh = 17f, milesAddedRated = 69.5f),
+                    sample(2070, 61),
+                )
+        val summary = healthSummary(samples)
+        // The healthy session sets the constant: 26.25 kWh over 120 rated miles.
+        assertEquals(0.21875f, summary.ratedKwhPerMile!!, 0.0001f)
+        assertEquals(0.21875f * summary.fullRangeMiles!!, summary.capacityKwh!!, 0.01f)
+        assertEquals(40f, summary.capacitySwingPercent!!, 0.01f)
+    }
+
+    @Test
     fun `full range comes from the fitted level steps`() {
         val summary = healthSummary(ladder())
         assertEquals(300f, summary.fullRangeMiles!!, 2f)

@@ -80,9 +80,11 @@ data class ChargeSession(
  * start (the app was opened or came into range mid-charge). Each session therefore
  * carries the growth of those totals from its first to its last sample, which pairs
  * with the SOC swing between the same two samples. A total missing from the first
- * sample counts as zero there. A total that goes down inside the session was
- * restarted by the car (a stale value from the previous session on a `Starting`
- * sample, say); the session then carries the last value.
+ * sample counts as zero there. A total that drops by at least [RESTART_DROP_SHARE]
+ * of itself inside the session was restarted by the car (a stale value from the
+ * previous session on a `Starting` sample, say); the session then carries the last
+ * value. Smaller dips are jitter — the totals wobble down by a hundredth while
+ * the car charges — and the growth from first to last stands.
  */
 fun chargeSessions(samples: List<BatterySample>): List<ChargeSession> = chargeRuns(samples).map { it.toSession() }
 
@@ -158,11 +160,14 @@ internal fun chargerKindOf(
 /**
  * How far one of the car's running totals grew from the first to the last sample
  * of a run. Null when the last sample has no value or the total did not grow.
+ * A dip of at least [RESTART_DROP_SHARE] of the total means the car restarted
+ * it, and then the last value is the growth; a smaller dip is jitter.
  */
 private fun List<BatterySample>.counterGrowth(counter: (BatterySample) -> Float?): Float? {
     val end = counter(last()) ?: return null
     val start = counter(first()) ?: 0f
-    val restarted = mapNotNull(counter).zipWithNext().any { (before, after) -> after < before }
+    val restarted =
+        mapNotNull(counter).zipWithNext().any { (before, after) -> after < before * (1f - RESTART_DROP_SHARE) }
     return (if (restarted) end else end - start).takeIf { it > 0f }
 }
 
@@ -196,6 +201,9 @@ fun chargeSessionOpen(
 
 /** Below this swing the estimator itself refuses to compute a capacity. */
 const val MIN_SWING_PERCENT = 5f
+
+/** A running total dropping by at least this share of itself means the car restarted it; smaller dips are jitter. */
+private const val RESTART_DROP_SHARE = 0.1f
 
 /** The lowest mains voltage, 100V supplies included, with room for a sagging line. */
 private const val AC_MIN_VOLTS = 90
