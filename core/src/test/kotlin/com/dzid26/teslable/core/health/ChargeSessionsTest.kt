@@ -91,6 +91,45 @@ class ChargeSessionsTest {
     }
 
     @Test
+    fun `a rated-mile wobble at a small total is not a restart`() {
+        // Half a mile down is one quantum of the car's half-mile counter, not a restart.
+        val samples =
+            listOf(
+                sample(0, 40, energyAddedKwh = 0.3f, milesAddedRated = 4.5f),
+                sample(30, 41, energyAddedKwh = 0.34f, milesAddedRated = 4f),
+                sample(60, 42, energyAddedKwh = 0.38f, milesAddedRated = 4.75f),
+            )
+        val session = chargeSessions(samples).single()
+        // Growth from the first reading; the old share rule would have carried the 4.75.
+        assertEquals(0.25f, session.milesAddedRated!!, 0.001f)
+    }
+
+    @Test
+    fun `a tiny energy dip at a small total is not a restart`() {
+        // The observed jitter, 0.04 kWh, is more than a tenth of a 0.3 kWh total.
+        val samples =
+            listOf(
+                sample(0, 40, energyAddedKwh = 0.3f),
+                sample(30, 41, energyAddedKwh = 0.26f),
+                sample(60, 42, energyAddedKwh = 0.34f),
+            )
+        val session = chargeSessions(samples).single()
+        assertEquals(0.04f, session.energyAddedKwh!!, 0.001f)
+    }
+
+    @Test
+    fun `a restart that lands on a non-zero offset measures from the offset`() {
+        val samples =
+            listOf(
+                sample(0, 30, ChargingStateKind.Starting, energyAddedKwh = 10f),
+                sample(1, 30, energyAddedKwh = 2f),
+                sample(60, 50, energyAddedKwh = 15f),
+            )
+        // The restarted total began at 2, so the session added 13; carrying the last value would say 15.
+        assertEquals(13f, chargeSessions(samples).single().energyAddedKwh)
+    }
+
+    @Test
     fun `a total missing from the first sample counts as zero there`() {
         val samples =
             listOf(

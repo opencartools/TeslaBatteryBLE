@@ -78,13 +78,13 @@ data class ChargeSession(
  * The car reports `charge_energy_added` and `charge_miles_added_rated` as running
  * totals since it began the session, and the first sample seen is often not that
  * start (the app was opened or came into range mid-charge). Each session therefore
- * carries the growth of those totals from its first to its last sample, which pairs
- * with the SOC swing between the same two samples. A total missing from the first
- * sample counts as zero there. A total that drops by at least [RESTART_DROP_SHARE]
- * of itself inside the session was restarted by the car (a stale value from the
- * previous session on a `Starting` sample, say); the session then carries the last
- * value. Smaller dips are jitter — the totals wobble down by a hundredth while
- * the car charges — and the growth from first to last stands.
+ * carries the growth of those totals across the session, which pairs with the SOC
+ * swing between the same two samples. A total missing from the first sample counts
+ * as zero there. A total that drops sharply inside the session was restarted by the
+ * car (a stale value from the previous session on a `Starting` sample, say); the
+ * session then measures growth from where it restarted. Smaller dips are jitter —
+ * the totals wobble down by a hundredth while the car charges — and the growth from
+ * first to last stands.
  */
 fun chargeSessions(samples: List<BatterySample>): List<ChargeSession> = chargeRuns(samples).map { it.toSession() }
 
@@ -132,8 +132,8 @@ private fun List<BatterySample>.toSession(): ChargeSession =
         endMillis = last().timestampMillis,
         startPercent = first().batteryLevel.toFloat(),
         endPercent = last().batteryLevel.toFloat(),
-        energyAddedKwh = counterGrowth { it.chargeEnergyAdded },
-        milesAddedRated = counterGrowth { it.chargeMilesAddedRated },
+        energyAddedKwh = counterGrowth(ENERGY_NOISE_KWH) { it.chargeEnergyAdded },
+        milesAddedRated = counterGrowth(MILES_NOISE) { it.chargeMilesAddedRated },
         vehicleId = first().vehicleId,
     ).let { it.copy(chargerKind = chargerKindOf(this, it.averageKw)) }
 
@@ -158,17 +158,21 @@ internal fun chargerKindOf(
 }
 
 /**
- * How far one of the car's running totals grew from the first to the last sample
- * of a run. Null when the last sample has no value or the total did not grow.
- * A dip of at least [RESTART_DROP_SHARE] of the total means the car restarted
- * it, and then the last value is the growth; a smaller dip is jitter.
+ * How far one of the car's running totals grew, measured from the value it held after
+ * the last restart (or from the first reading when it never restarted). Null when the
+ * last sample has no value or the total did not grow.
  */
-private fun List<BatterySample>.counterGrowth(counter: (BatterySample) -> Float?): Float? {
+private fun List<BatterySample>.counterGrowth(
+    noise: Float,
+    counter: (BatterySample) -> Float?,
+): Float? {
     val end = counter(last()) ?: return null
-    val start = counter(first()) ?: 0f
-    val restarted =
-        mapNotNull(counter).zipWithNext().any { (before, after) -> after < before * (1f - RESTART_DROP_SHARE) }
-    return (if (restarted) end else end - start).takeIf { it > 0f }
+    val readings = mapNotNull(counter)
+    // The car restarts a total to near zero; a smaller drop is the total wobbling.
+    val baseline =
+        readings.zipWithNext().lastOrNull { (before, after) -> before - after > noise }?.second
+            ?: counter(first()) ?: 0f
+    return (end - baseline).takeIf { it > 0f }
 }
 
 /**
@@ -199,11 +203,11 @@ fun chargeSessionOpen(
         nowMillis,
     )
 
-/** Below this swing the estimator itself refuses to compute a capacity. */
-const val MIN_SWING_PERCENT = 5f
+/** The car's energy total wobbles by a hundredth or two; a drop past this is a restart. */
+private const val ENERGY_NOISE_KWH = 0.1f
 
-/** A running total dropping by at least this share of itself means the car restarted it; smaller dips are jitter. */
-private const val RESTART_DROP_SHARE = 0.1f
+/** Rated miles come in half-miles; a drop past this is a restart, not a wobble. */
+private const val MILES_NOISE = 1f
 
 /** The lowest mains voltage, 100V supplies included, with room for a sagging line. */
 private const val AC_MIN_VOLTS = 90

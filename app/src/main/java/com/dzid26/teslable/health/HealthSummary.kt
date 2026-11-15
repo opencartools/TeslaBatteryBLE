@@ -30,7 +30,6 @@ data class HealthSummary(
     val capacityKwh: Float?,
     /** The session's rated constant, kWh per rated mile. */
     val ratedKwhPerMile: Float?,
-    val capacitySwingPercent: Float?,
     val fullRangeMiles: Float?,
     /** Level steps the full-range fit used. */
     val fullRangeSteps: Int,
@@ -59,11 +58,13 @@ fun healthSummary(
     // constant (kWh per rated mile) from the energy and miles it added.
     // Only a session swinging at least MIN_SWING_PERCENT may set it: a 1%
     // top-up carries a couple of rated miles of counter resolution and can
-    // pin nothing.
+    // pin nothing. SOC swing and rated miles are proportional, so the swing
+    // gate bounds the rated miles behind the ratio too.
     val scale = FullRangeScales.of(samples)
-    val backboneSession = sessions.lastOrNull { it.kwhPerMile != null && it.swingPercent >= MIN_SWING_PERCENT }
-    val energySession =
-        sessions.lastOrNull { it.energyAddedKwh != null && it.swingPercent >= MIN_SWING_PERCENT }
+    val usable = sessions.filter { it.swingPercent >= MIN_SWING_PERCENT }
+    val backboneSession = usable.lastOrNull { it.kwhPerMile != null }
+    val energySession = usable.lastOrNull { it.energyAddedKwh != null }
+    val figure = backboneSession ?: energySession
     // The range at 100%: the fitted line's value at displayed SOC 100.
     val fullRangeMiles = scale?.milesAtFull
     val ratedKwhPerMile = backboneSession?.kwhPerMile
@@ -85,11 +86,10 @@ fun healthSummary(
         sohPercent = sohPercent,
         capacityKwh = capacityKwh,
         ratedKwhPerMile = ratedKwhPerMile,
-        capacitySwingPercent = (backboneSession ?: energySession)?.swingPercent,
         fullRangeMiles = fullRangeMiles,
         fullRangeSteps = scale?.samples ?: 0,
         confidence = confidenceFor(sessions.size),
-        qualityNote = qualityNote(backboneSession ?: energySession ?: lastSession),
+        qualityNote = qualityNote(figure ?: lastSession),
         newCapacityKwh = ratedKwhPerMile?.let { constant -> epaRatedRangeMiles?.takeIf { it > 0f }?.let { constant * it } },
     )
 }

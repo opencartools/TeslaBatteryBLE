@@ -72,7 +72,6 @@ class HealthSummaryTest {
                 )
         val summary = healthSummary(samples)
         assertNotNull(summary.capacityKwh)
-        assertEquals(40f, summary.capacitySwingPercent!!, 0.01f)
         // The backbone constant: 26.25 kWh over 120 rated miles.
         assertEquals(0.21875f, summary.ratedKwhPerMile!!, 0.0001f)
         // The fitted scale, not the session's swing, gives the full range.
@@ -101,7 +100,6 @@ class HealthSummaryTest {
         // The healthy session sets the constant: 26.25 kWh over 120 rated miles.
         assertEquals(0.21875f, summary.ratedKwhPerMile!!, 0.0001f)
         assertEquals(0.21875f * summary.fullRangeMiles!!, summary.capacityKwh!!, 0.01f)
-        assertEquals(40f, summary.capacitySwingPercent!!, 0.01f)
     }
 
     @Test
