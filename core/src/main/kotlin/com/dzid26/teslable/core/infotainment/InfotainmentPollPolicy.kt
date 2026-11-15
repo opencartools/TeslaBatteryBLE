@@ -29,11 +29,11 @@ import com.tesla.generated.vcsec.VehicleStatus
  *      person leaving cuts the remaining hold to the short one.
  * 3. Idle safety read: awake, not active and not holding, one read once [IDLE_SAFETY_INTERVAL_MS] has
  *    passed since the last read. It catches an event the status misses (remote climate, Sentry, a
- *    remote wake) when the car stays awake anyway. The interval is a little longer than the 1.5
- *    minutes the car takes to sleep after the last read (2026-11-12): a car that would sleep is
- *    already asleep when the read comes due, so it is skipped and its sleep is never extended. The
- *    safety read does not start a hold. [pausedUntilMillis] says when the next one is due, so the
- *    screen can show Paused while the poll waits.
+ *    remote wake) when the car stays awake anyway. The interval is [SLEEP_AFTER_READ_MS] plus
+ *    [IDLE_SAFETY_MARGIN_MS]: a car that would sleep is already asleep when the read comes due, so
+ *    it is skipped and its sleep is never extended. The safety read does not start a hold.
+ *    [pausedUntilMillis] says when the next one is due, so the screen can show Paused while the poll
+ *    waits.
  * 4. Status changes start or restart the hold: asleep to awake, any lock-state change (locking too,
  *    which catches drive-away locking), any closure changing between open and not open (a closure
  *    that is neither CLOSED nor UNKNOWN counts as open, so ajar is open), a fresh start (see
@@ -361,11 +361,19 @@ class InfotainmentPollPolicy {
         const val READ_HOLD_MS = 15_000L
 
         /**
-         * The idle safety read: a little longer than the 1.5 minutes the car takes to sleep after the
-         * last read (2026-11-12), so a car that would sleep is asleep by then and is never kept awake
-         * by it.
+         * How long the car takes to fall asleep after the last Infotainment request: 89.7 s measured on
+         * 2026-11-12 (ADR-0009), rounded up to the whole 90 s a read has to clear.
          */
-        const val IDLE_SAFETY_INTERVAL_MS = 120_000L
+        const val SLEEP_AFTER_READ_MS = 90_000L
+
+        /** Slack over [SLEEP_AFTER_READ_MS], so a read that lands a moment late still finds the car asleep. */
+        const val IDLE_SAFETY_MARGIN_MS = 30_000L
+
+        /**
+         * The idle safety read: [SLEEP_AFTER_READ_MS] plus [IDLE_SAFETY_MARGIN_MS], so a car that would
+         * sleep is asleep by then and the read never keeps it awake.
+         */
+        const val IDLE_SAFETY_INTERVAL_MS = SLEEP_AFTER_READ_MS + IDLE_SAFETY_MARGIN_MS
 
         /** A location read is at most this far apart while driving, even when the odometer stands still. */
         const val LOCATION_MAX_INTERVAL_MS = 300_000L

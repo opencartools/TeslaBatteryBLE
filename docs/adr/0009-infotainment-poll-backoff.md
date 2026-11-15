@@ -46,13 +46,14 @@ due. One instance per vehicle link.
     every status, so when the person leaves, the remaining hold drops to the
     short one.
 - Idle safety read: while VCSEC says awake and the car is neither active nor
-  in a hold, one read once 2 minutes (`IDLE_SAFETY_INTERVAL_MS`) have passed
-  since the last read. It catches an event the status does not show (remote
-  climate, Sentry, a remote wake) when the car stays awake anyway. 2 minutes sits
-  just above the 1.5 minutes the car takes to sleep after the last read
-  (2026-11-12): a car that would sleep is asleep when the read comes due, so the
-  read is skipped and its sleep is never extended. It does not start a hold. The
-  value is tuned from the real-car check.
+  in a hold, one read once `IDLE_SAFETY_INTERVAL_MS` has passed since the last
+  read. It catches an event the status does not show (remote climate, Sentry, a
+  remote wake) when the car stays awake anyway. The interval is the measured
+  sleep latency plus a margin: `SLEEP_AFTER_READ_MS` (90 s, the 89.7 s the car
+  took to sleep after the last read, measured 2026-11-12) plus
+  `IDLE_SAFETY_MARGIN_MS` (30 s), so a car that would sleep is asleep when the
+  read comes due and the read never extends its sleep. It does not start a
+  hold. The value is tuned from the real-car check.
 - The screen shows the idle wait (owner, 2026-11-01). `pausedUntilMillis` answers
   when the next idle read is due, the moment `onStatus` next answers true, and the
   car's pill reads Paused while it is set; a tap on the pill shows a toast with that
