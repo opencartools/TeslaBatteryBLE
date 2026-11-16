@@ -3,14 +3,39 @@
 package com.dzid26.teslable.ui
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.Path
 import com.dzid26.teslable.core.history.ChargeProjection
 import com.dzid26.teslable.core.history.DischargeProjection
+import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
+import com.patrykandpatrick.vico.compose.cartesian.decoration.Decoration
 
 /** A series, and the wedge beside it when the projection has a beam. */
 internal class Projected(
     val spec: SeriesSpec,
     val beam: Beam?,
 )
+
+/** The projection beams: translucent wedges under the lines. */
+internal class Beams(
+    private val beams: List<Beam>,
+) : Decoration {
+    override fun drawUnderLayers(context: CartesianDrawingContext) {
+        with(context) {
+            beams.forEach { beam ->
+                val path =
+                    Path().apply {
+                        moveTo(canvasX(beam.xs[0]), canvasY(beam.ys[0]))
+                        lineTo(canvasX(beam.xs[1]), canvasY(beam.ys[1]))
+                        lineTo(canvasX(beam.xs[2]), canvasY(beam.ys[2]))
+                        close()
+                    }
+                val fill = beam.color
+                canvas.drawPath(path, Paint().apply { color = fill })
+            }
+        }
+    }
+}
 
 internal fun chargeProjected(
     target: ChargeProjection,

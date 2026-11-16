@@ -7,8 +7,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -16,15 +14,14 @@ import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.ChargeProjection
 import com.dzid26.teslable.core.history.DischargeProjection
 import com.dzid26.teslable.core.history.FullRangeScale
+import com.dzid26.teslable.core.history.PowerDownGap
 import com.dzid26.teslable.core.history.soc
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
-import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.Zoom
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModel
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.data.LineCartesianLayerModel
-import com.patrykandpatrick.vico.compose.cartesian.decoration.Decoration
 import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.marker.DefaultCartesianMarker
@@ -46,6 +43,8 @@ internal data class ChartData(
     val charge: ChargeProjection?,
     val discharge: DischargeProjection?,
     val scale: FullRangeScale?,
+    // The quiet stretches the parked rate is fitted from, shaded behind the plot.
+    val powerDown: List<PowerDownGap> = emptyList(),
 )
 
 /** The time window and how its times are written. */
@@ -92,11 +91,8 @@ internal class Beam(
 )
 
 /**
- * Battery percent over time: the measured line (green while charging) with a
- * dot per measurement, and the dashed charge or parked-drain projection with
- * its beam. Pressing the chart shows a cursor with the value and the time at
- * the nearest point. Two fingers pan and zoom it sideways ([viewport]); the
- * percent axis fits what is on screen.
+ * Battery percent over time: the measured line with a dot per reading, the projections and
+ * their beams, the shaded power-down stretches, and a cursor under the finger.
  */
 @Composable
 internal fun BatteryChart(
@@ -107,23 +103,22 @@ internal fun BatteryChart(
 ) {
     val samples = data.samples
     val charge = data.charge
-    val discharge = data.discharge
     val scale = data.scale
     val lineColor = MaterialTheme.colorScheme.primary
-    val chargingColor = chargingChartColor
     // Keyed on the minute: the card passes a fresh wall-clock read on every recomposition, which
     // would rebuild the model and drop a cursor mid-press.
     val window =
         remember(axis.windowStart / MILLIS_PER_MINUTE, axis.windowEnd / MILLIS_PER_MINUTE) { Window(axis.windowStart, axis.windowEnd) }
-    val spanHours = window.spanHours
 
     val shape =
-        remember(samples, charge, discharge, scale, window, lineColor) {
-            batteryShape(data, window, lineColor, chargingColor)
+        remember(samples, charge, data.discharge, scale, data.powerDown, window, lineColor) {
+            batteryShape(data, window, lineColor, chargingChartColor)
         }
-    val lines = rememberBatteryLines(lineColor, chargingColor, parkedMuted = charge != null)
+    val lines = rememberBatteryLines(lineColor, chargingChartColor, parkedMuted = charge != null)
+    val icons = remember { BandIcons() }
+    val historyBands = rememberHistoryBands(shape.bands, icons)
     val timeFormatter = rememberTimeFormatter(window, axis.showDate, axis.is24Hour)
-    val view = remember(shape, spanHours, viewport.start, viewport.end) { shape.view(spanHours, viewport) }
+    val view = remember(shape, window.spanHours, viewport.start, viewport.end) { shape.view(window.spanHours, viewport) }
     val xStep = (view.maxX - view.minX) / X_LABEL_STEPS
     val clock =
         remember(window, view.maxX - view.minX, viewport.isFull) {
@@ -149,23 +144,25 @@ internal fun BatteryChart(
                 startAxis = rememberPercentAxis(view.gridlines),
                 bottomAxis = rememberTimeAxis(timeFormatter, clock),
                 decorations =
-                    remember(shape.specs, shape.beams, pin, cursor, lineColor, viewport) {
-                        listOf(
-                            ViewportTracker(viewport),
-                            ClippedWhenZoomed(Beams(shape.beams), viewport),
-                            ScrubCursor(pin, cursor, shape.specs.flatMap { it.xs.zip(it.ys) }, lineColor),
-                        )
+                    remember(shape.specs, shape.beams, pin, cursor, lineColor, viewport, historyBands) {
+                        batteryDecorations(ChartLayers(shape, pin, cursor, lineColor, viewport, historyBands))
                     },
                 layerPadding = rememberEdgePadding(),
                 getXStep = { _, _, _ -> xStep },
             )
-        CartesianChartHost(
-            chart = chart,
-            model = remember(shape.specs) { batteryModel(shape.specs) },
-            modifier = modifier.scrubbing(pin, viewport, LocalHapticFeedback.current).semantics { contentDescription = description },
-            scrollState = rememberVicoScrollState(scrollEnabled = false),
-            zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content),
-        )
+        BandIconHost(modifier, icons) {
+            CartesianChartHost(
+                chart = chart,
+                model = remember(shape.specs) { batteryModel(shape.specs) },
+                modifier =
+                    Modifier
+                        .matchParentSize()
+                        .scrubbing(pin, viewport, LocalHapticFeedback.current, icons)
+                        .semantics { contentDescription = description },
+                scrollState = rememberVicoScrollState(scrollEnabled = false),
+                zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.Content),
+            )
+        }
     }
 }
 
@@ -227,10 +224,10 @@ private fun chartDescription(
     return "Battery history chart, ${formatPercent(socs.min())}% to ${formatPercent(socs.max())}%"
 }
 
-/** The data behind one chart: its series, wedges and axis range. */
 internal class BatteryShape(
     val specs: List<SeriesSpec>,
     val beams: List<Beam>,
+    val bands: List<Band>,
     val yMin: Double,
     val yMax: Double,
 ) {
@@ -252,7 +249,7 @@ internal class BatteryShape(
         val ys = if (viewport.isFull) emptyList() else specs.flatMap { it.ysAround(shown) }
         if (ys.isEmpty()) return BatteryView(shown.start, shown.endInclusive, range, gridlines)
         val (low, high) = roundedBounds(ys.min().toFloat(), ys.max().toFloat())
-        val fitted = BatteryShape(specs, beams, low.toDouble(), high.toDouble())
+        val fitted = BatteryShape(specs, beams, bands, low.toDouble(), high.toDouble())
         return BatteryView(shown.start, shown.endInclusive, fitted.range, fitted.gridlines)
     }
 }
@@ -299,6 +296,13 @@ internal fun batteryShape(
     return BatteryShape(
         specs = (measuredSpecs(samples, xs, ys) + projections.map { it.spec }).map { it.normalized() },
         beams = projections.mapNotNull { it.beam },
+        bands =
+            data.powerDown.mapNotNull { span ->
+                // Clamped to the window: a span that reaches past its edge is cut there, and one off it draws nothing.
+                val start = window.hours(span.startMillis)
+                val end = window.hours(span.endMillis)
+                if (end > start) Band(start, end, BandKind.PARKED) else null
+            },
         yMin = yMin.toDouble(),
         yMax = yMax.toDouble(),
     )
@@ -373,27 +377,6 @@ private fun batteryModel(specs: List<SeriesSpec>): CartesianChartModel =
             specs.forEach { series(x = it.xs, y = it.ys) }
         },
     )
-
-/** The projection beams: translucent wedges under the lines. */
-private class Beams(
-    private val beams: List<Beam>,
-) : Decoration {
-    override fun drawUnderLayers(context: CartesianDrawingContext) {
-        with(context) {
-            beams.forEach { beam ->
-                val path =
-                    Path().apply {
-                        moveTo(canvasX(beam.xs[0]), canvasY(beam.ys[0]))
-                        lineTo(canvasX(beam.xs[1]), canvasY(beam.ys[1]))
-                        lineTo(canvasX(beam.xs[2]), canvasY(beam.ys[2]))
-                        close()
-                    }
-                val fill = beam.color
-                canvas.drawPath(path, Paint().apply { color = fill })
-            }
-        }
-    }
-}
 
 private const val MILLIS_PER_HOUR = 3_600_000.0
 private const val X_LABEL_STEPS = 4

@@ -838,7 +838,7 @@ class CardSnapshots {
                 readAtMillis = NOW - readMinutesAgo * MINUTE,
             )
 
-        private fun historySample(
+        internal fun historySample(
             hoursAgo: Long,
             percent: Int,
         ) = BatterySample(
@@ -850,15 +850,18 @@ class CardSnapshots {
             readAtMillis = NOW - hoursAgo * HOUR,
         )
 
-        private fun parkedDrive(sample: BatterySample) =
-            DriveSample(
-                timestampMillis = sample.timestampMillis + MINUTE,
-                vehicleId = BLE_NAME,
-                shiftState = ShiftStateKind.P,
-                speed = 0,
-                power = 0,
-                odometerInHundredthsOfAMile = ODOMETER,
-            )
+        /** A drive read right after [sample], at [odometer]: a difference between two of them is a drive. */
+        internal fun parkedDrive(
+            sample: BatterySample,
+            odometer: Int = ODOMETER,
+        ) = DriveSample(
+            timestampMillis = sample.timestampMillis + MINUTE,
+            vehicleId = BLE_NAME,
+            shiftState = ShiftStateKind.P,
+            speed = 0,
+            power = 0,
+            odometerInHundredthsOfAMile = odometer,
+        )
 
         private fun projectionSample(
             minutesAgo: Long,
@@ -875,7 +878,7 @@ class CardSnapshots {
             readAtMillis = NOW - minutesAgo * MINUTE,
         )
 
-        private const val ODOMETER = 1_234_500
+        internal const val ODOMETER = 1_234_500
 
         /** A reading on a 300 mi car (3 mi per point): the level rounds, the range does not. */
         private fun rangeSample(
