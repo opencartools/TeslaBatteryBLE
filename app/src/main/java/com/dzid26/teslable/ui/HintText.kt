@@ -132,7 +132,8 @@ internal fun ParkedProjectionLine(
     color: Color,
 ) {
     val rates = parkedRates(projection, androidx.compose.ui.text.intl.Locale.current.platformLocale)
-    val beam = projection.beam?.takeIf { (low, high) -> low.roundToInt() != high.roundToInt() }
+    val band = projection.beam
+    val beam = band?.takeIf { (low, high) -> low.roundToInt() != high.roundToInt() }
     // Figures like "57–59%" start with a digit: without a strong character the RTL layout would
     // set them right to left and scramble them. Fall back to LTR instead of to the layout.
     val style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.ContentOrLtr)
@@ -173,7 +174,11 @@ internal fun ParkedProjectionLine(
                 } ?: stringResource(R.string.history_parked_rate_tiny),
             hint =
                 stringResource(
-                    if (rates.asleep) R.string.history_parked_rate_hint_asleep else R.string.history_parked_rate_hint_mixed,
+                    if (band == null) {
+                        R.string.history_parked_rate_hint_power_down_no_band
+                    } else {
+                        R.string.history_parked_rate_hint_power_down
+                    },
                 ),
             color = color,
             style = style,

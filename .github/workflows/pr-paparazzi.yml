@@ -1,14 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 name: PR paparazzi
 
-# Fast JVM snapshots of the battery cards (cars-list VehicleCard and car-view
-# HeroCard, 6 states each; the history card, 2 states) and the three full
-# screens (cars list, car view, settings, one representative state each),
-# light AND dark, plus each card state once more at Jelly Star width in light
-# only: 48 PNGs total. This workflow builds pull
-# request code, so it runs without secrets and with a read-only token: it
-# records the 48 snapshots for the AFTER commit and the BEFORE commit (the
-# merge base with the default branch, so the diff is the PR's whole visual
+# Fast JVM snapshots of the app's cards and full screens (the history card
+# covers the parked projection gates), light AND dark, plus each card state
+# once more at Jelly Star width in light only: three images per state. This
+# workflow builds pull request code, so it runs without secrets and with a
+# read-only token: it records the snapshots for the AFTER commit and the BEFORE
+# commit (the merge base with the default branch, so the diff is the PR's whole visual
 # change, not only its last push) through .github/scripts/paparazzi-diff.sh — the
 # same script reviewers run locally — byte-compares the PNGs, and uploads
 # only the differing ones (before/after pairs, or after-only when a snapshot
