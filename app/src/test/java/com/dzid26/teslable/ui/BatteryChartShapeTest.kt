@@ -5,6 +5,7 @@ package com.dzid26.teslable.ui
 import androidx.compose.ui.graphics.Color
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.ChargeProjection
+import com.dzid26.teslable.core.history.PowerDownGap
 import com.dzid26.teslable.protocol.ChargingStateKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -122,6 +123,31 @@ class BatteryChartShapeTest {
         assertEquals(50.0, spec.ys.first(), 0.0)
         assertEquals(80.0, spec.ys.last(), 0.0)
         assertNull(shape(listOf(sample(0.0, 50))).beams.firstOrNull())
+    }
+
+    @Test
+    fun powerDownBandsAreClippedToTheWindow() {
+        val shape =
+            batteryShape(
+                ChartData(
+                    samples = listOf(sample(0.0, 80), sample(1.0, 79)),
+                    charge = null,
+                    discharge = null,
+                    scale = null,
+                    powerDown =
+                        listOf(
+                            // Straddles the window's start: only the part on it is drawn.
+                            PowerDownGap(-hour, 2 * hour),
+                            PowerDownGap(3 * hour, 4 * hour),
+                            // Wholly before it: nothing to draw.
+                            PowerDownGap(-3 * hour, -2 * hour),
+                        ),
+                ),
+                Window(0L, 5 * hour),
+                Color.Blue,
+                Color.Green,
+            )
+        assertEquals(listOf(0.0 to 2.0, 3.0 to 4.0), shape.bands.map { it.startHours to it.endHours })
     }
 
     @Test

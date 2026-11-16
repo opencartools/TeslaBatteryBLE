@@ -42,7 +42,10 @@ What the app does today, in detail. The short version is in the [README](../READ
 - **History graph** (6h / 24h / 7d / 30d / all; 30d and all reach back over the whole history kept, older than about two weeks at a coarser step) with since-last-charge stats to a tenth of a percent once the full range is learned (touch or drag sideways across it for a cursor with the percent, range and time; it stays while you scroll and a tap elsewhere hides it; two fingers pan and zoom it sideways while the percent axis keeps fitting the readings on screen, a hold then a drag shades a span and shows its change, length and rate, and lifting zooms to that span; a tap on the chosen range chip zooms back out), and a **drive graph** of battery percent over distance driven (the same cursor adds the distance and the time of the reading; last 15 / 50 / 150km or 10 / 30 / 100mi, or since the last charge) with regeneration, and any reading where the rated range rose while driving, marked by green dots, and by a green gradient beside a green dot where the rated range did not fall, and, under it, the distance driven to a tenth and the percent used per mile or km, plus the efficiency, energy and the cost per 100mi or 100km at your home price once the full range and the rated constant are learned (tap any efficiency figure to cycle Wh per distance, kWh per 100 distance and distance per kWh; it is the same Settings choice, applied app-wide);
   every measurement is a dot (dense samples form a thick band), and dashed
   lines project the charge completion and the parked drain a round figure ahead
-  (3h, 12h, 3 days, a week for the 30d range; stretches where the odometer moved, or the car was in gear, are left out). Both
+  (3h, 12h, 3 days, a week for the 30d range; stretches where the odometer moved, or the car was in gear, are left out).
+  The quiet stretches the parked rate counts - nobody in the car, Sentry and climate off, an hour or more apart - are
+  shaded gray behind the chart, and a stretch wide enough carries a parking sign that explains the power down on a tap;
+  so the rate can be seen against the gaps it came from. Both
   are fitted on the rated range once the scale is learned, so they read in
   fractions of a percent, and each carries a faint beam for how far the fit could
   be off (for a charge also the supply-voltage swings seen in the session).

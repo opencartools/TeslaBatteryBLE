@@ -99,6 +99,7 @@ import com.dzid26.teslable.core.history.DischargeProjection
 import com.dzid26.teslable.core.history.DriveSample
 import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.HistoryRange
+import com.dzid26.teslable.core.history.PowerDownGap
 import com.dzid26.teslable.core.history.ProjectionContext
 import com.dzid26.teslable.core.history.RouteSample
 import com.dzid26.teslable.core.history.StatusSample
@@ -111,6 +112,7 @@ import com.dzid26.teslable.core.history.currentRest
 import com.dzid26.teslable.core.history.dischargeProjection
 import com.dzid26.teslable.core.history.fromTime
 import com.dzid26.teslable.core.history.markingLive
+import com.dzid26.teslable.core.history.powerDownGaps
 import com.dzid26.teslable.core.history.projectionHorizonMillis
 import com.dzid26.teslable.core.history.restStats
 import com.dzid26.teslable.core.history.socTenths
@@ -1070,7 +1072,7 @@ private fun TimeChart(
             now
         }
     BatteryChart(
-        data = ChartData(visible, charge, discharge, scale),
+        data = ChartData(visible, charge, discharge, scale, figures.powerDown),
         axis =
             TimeAxis(
                 windowStart = range.durationMillis?.let { now - it } ?: visible.first().timestampMillis,
@@ -1102,6 +1104,8 @@ internal class BatteryHistoryFigures(
     val baseMillis: Long,
     val charge: ChargeProjection?,
     val discharge: DischargeProjection?,
+    /** The quiet stretches the parked rate is fitted from, shaded behind the chart. */
+    val powerDown: List<PowerDownGap>,
     val lastCharge: ChargeStats?,
 )
 
@@ -1125,6 +1129,7 @@ private fun batteryHistoryFigures(
         baseMillis = baseMillis,
         charge = if (projections) chargeProjection(samples, scale = context.scale) else null,
         discharge = if (projections) dischargeProjection(samples, drives, baseMillis, nowMillis, context) else null,
+        powerDown = if (projections) powerDownGaps(samples, drives, baseMillis, context) else emptyList(),
         lastCharge = lastFinishedChargeStats(samples, nowMillis),
     )
 }

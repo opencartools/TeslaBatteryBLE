@@ -122,9 +122,10 @@ internal fun Modifier.scrubbing(
     viewport: ChartViewport? = null,
     // The tick when a held press starts a span.
     haptics: HapticFeedback? = null,
+    // The chart's parking signs: a tap on one opens its explanation instead of leaving the cursor there.
+    icons: BandIcons? = null,
 ): Modifier =
-    pointerInput(pin, viewport, haptics) {
-        val gesture = Gesture(viewConfiguration.touchSlop, viewConfiguration.longPressTimeoutMillis, MIN_SPAN.toPx())
+    pointerInput(pin, viewport, haptics, icons) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             CursorDismiss.chartGesture = CursorDismiss.gesture
@@ -132,13 +133,22 @@ internal fun Modifier.scrubbing(
             val restoredBefore = pin.restoredX
             // The point the cursor stood on, which a pan or zoom keeps it on.
             val shownBefore = pin.shownX?.takeIf { before != null || restoredBefore != null }
-            pin.canvasX = down.position.x
+            val icon = icons?.iconAt(down.position, viewConfiguration.touchSlop)
+            // An icon is a button: pressing it neither moves the cursor nor starts a span.
+            val gesture =
+                Gesture(
+                    slop = viewConfiguration.touchSlop,
+                    holdMillis = if (icon == null) viewConfiguration.longPressTimeoutMillis else 0L,
+                    minSpanPx = MIN_SPAN.toPx(),
+                )
+            if (icon == null) pin.canvasX = down.position.x
             pin.restoredX = null
             val (step, pinch) = followScrub(pin, down, gesture, viewport) { haptics?.performHapticFeedback(HapticFeedbackType.LongPress) }
             val anchor = pin.anchorX
             pin.anchorX = null
+            val canZoom = viewport != null
             when {
-                pinch != null && viewport != null -> {
+                pinch != null && canZoom -> {
                     pin.canvasX = null
                     pin.restoredX = shownBefore
                     followPinch(viewport, pinch, gesture.slop)
@@ -147,7 +157,7 @@ internal fun Modifier.scrubbing(
                     pin.canvasX = before
                     pin.restoredX = restoredBefore
                 }
-                step == ScrubStep.SPAN && viewport != null && anchor != null -> {
+                step == ScrubStep.SPAN && canZoom && anchor != null -> {
                     val end = pin.canvasX ?: anchor
                     // A span narrower than MIN_SPAN is a press that changed its mind: the cursor stays where it was let go.
                     if (abs(end - anchor) >= gesture.minSpanPx) {
@@ -155,9 +165,22 @@ internal fun Modifier.scrubbing(
                         pin.clear()
                     }
                 }
+                else -> openIcon(pin, icon, icons, step)
             }
         }
     }
+
+/** Opens the explanation of the icon a tap landed on: nothing else ends on an undecided [step]. */
+private fun openIcon(
+    pin: CursorPin,
+    icon: BandIcon?,
+    icons: BandIcons?,
+    step: ScrubStep,
+) {
+    if (icon == null || icons == null || step != ScrubStep.UNDECIDED) return
+    pin.clear()
+    icons.open = icon
+}
 
 /** The touch thresholds: the slop and the long-press time from the platform, and the narrowest span that zooms, px. */
 private class Gesture(
@@ -169,7 +192,8 @@ private class Gesture(
 /**
  * Follows one gesture to its end, or to a second finger landing: the step it ended on ([ScrubStep.UNDECIDED] for a
  * tap), and the event that brought the second finger, which starts a pinch, or null. A press still undecided after
- * the long-press time becomes a span selection ([onSpan] gives the tick), when the chart can zoom.
+ * [Gesture.holdMillis] becomes a span selection ([onSpan] gives the tick), when the chart can zoom and that time is
+ * not zero: a press on a sign has no hold.
  */
 private suspend fun AwaitPointerEventScope.followScrub(
     pin: CursorPin,
@@ -181,7 +205,7 @@ private suspend fun AwaitPointerEventScope.followScrub(
     var step = ScrubStep.UNDECIDED
     var change: PointerInputChange? = down
     while (change != null && step != ScrubStep.SCROLL) {
-        val holding = step == ScrubStep.UNDECIDED && viewport != null
+        val holding = gesture.holdMillis > 0L && step == ScrubStep.UNDECIDED && viewport != null
         val event = if (holding) awaitOrHold(gesture.holdMillis - (change.uptimeMillis - down.uptimeMillis)) else awaitPointerEvent()
         if (event == null) {
             // Held still for the long-press time: the span starts where the finger is.
