@@ -4,7 +4,8 @@ package com.dzid26.teslable.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
@@ -70,15 +71,37 @@ internal fun HistoryCard(
     val distance = remember { DistanceAxisMemory(window) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Battery history", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                AxisSwitch(axis) { axis = it }
-            }
+            HistoryHeader(axis) { axis = it }
             when (axis) {
                 HistoryAxis.TIME -> TimeHistory(samples, drives, view.nowMillis, time, context)
                 HistoryAxis.DISTANCE -> DistanceHistory(samples, drives, distance, context.scale, ratedKwhPerMile)
             }
         }
+    }
+}
+
+/**
+ * The card's title and the axis switch: one row where both fit, the switch on a line of its own where the screen is
+ * too narrow for both, so the title keeps its words whole instead of folding one letter per line. A wrapped switch
+ * starts at the card's start edge: a FlowRow cannot align a line's single item to its end.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HistoryHeader(
+    axis: HistoryAxis,
+    onAxis: (HistoryAxis) -> Unit,
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.history_title),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.align(Alignment.CenterVertically),
+        )
+        AxisSwitch(axis, onAxis)
     }
 }
 
