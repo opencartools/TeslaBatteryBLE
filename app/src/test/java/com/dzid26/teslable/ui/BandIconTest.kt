@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BandIconTest {
-    private val style = IconStyle(sizePx = 16f, insetPx = 6f, minBandPx = 32f)
+    private val style = IconStyle(sizePx = 16f, insetPx = 6f, airPx = 2f, minSizePx = 10f)
 
     /** Ten px per hour, over a view that holds the whole chart. */
     private fun canvasX(hours: Double): Float = (hours * 10).toFloat()
@@ -21,15 +21,21 @@ class BandIconTest {
     ): BandIcon? = bandIcons(listOf(band), visible, canvasX, top = 10f, style = style).singleOrNull()
 
     @Test
-    fun aBandTooNarrowForAnIconGetsNone() {
-        // Two hours is twenty px: under the icon and its air.
-        assertEquals(null, iconOf(Band(0.0, 2.0, BandKind.PARKED)))
+    fun aBandTooNarrowForEvenASmallIconGetsNone() {
+        // Ten px is one hour: under the smallest sign plus its clearance.
+        assertEquals(null, iconOf(Band(0.0, 1.0, BandKind.PARKED)))
     }
 
     @Test
     fun aWideBandCentresItsIconUnderTheTop() {
-        // Four hours is forty px, so the icon is legal: centred at 30 px, sixteen px square, six px down.
+        // Four hours is forty px, so the sign is full size: centred at 30 px, sixteen px square, six px down.
         assertEquals(BandIcon(BandKind.PARKED, left = 22f, top = 10f, right = 38f, bottom = 26f), iconOf(Band(1.0, 5.0, BandKind.PARKED)))
+    }
+
+    @Test
+    fun aNarrowBandGetsASmallerSign() {
+        // Sixteen px of band leaves twelve px of sign after two px of air each side, still centred.
+        assertEquals(BandIcon(BandKind.PARKED, left = 2f, top = 10f, right = 14f, bottom = 22f), iconOf(Band(0.0, 1.6, BandKind.PARKED)))
     }
 
     @Test
