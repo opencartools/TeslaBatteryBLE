@@ -26,7 +26,7 @@ data class DischargeProjection(
     val lowSoc: Float? = null,
     /** The upper edge of the beam at the horizon; null like [lowSoc]. */
     val highSoc: Float? = null,
-    /** The mixed rate (asleep and awake pairs together), percent per hour, when [percentPerHour] is the deep-sleep rate; else null. */
+    /** The mixed rate (every parked pair), percent per hour, when [percentPerHour] is the quiet rate; else null. */
     val mixedPercentPerHour: Double? = null,
 ) {
     /** The beam's two edges together; null when the fit is too thin for one. */
@@ -37,6 +37,17 @@ data class DischargeProjection(
             return low to high
         }
 }
+
+/**
+ * One stretch the car spent powering down: a quiet parked gap of an hour or more between two
+ * reads, one of the pairs the parked drain rate is fitted from. [startMillis] and [endMillis]
+ * are the reads at its ends, so a gap covers exactly the stretch the rate counts. This is the
+ * time bounds alone; [ParkedSpan] carries them with the drop across the stretch.
+ */
+data class PowerDownGap(
+    val startMillis: Long,
+    val endMillis: Long,
+)
 
 /**
  * Projects the parked drain: the drain rate of the parked stretches in the
@@ -63,12 +74,13 @@ data class DischargeProjection(
  * of the pairs around it and the rounding of every pair's readings, in
  * quadrature, joined with the scale's own slope error.
  *
- * The line follows the deep-sleep rate once the car has slept enough to tell: the
- * rate of the pairs it slept through (a VCSEC status inside the gap says asleep
- * and none says awake). The mixed rate (every parked pair, asleep or awake) is
- * reported beside it, and the beam's lower edge reaches the mixed line, so the
- * beam spans deep sleep to what the battery really did. Without enough sleep
- * the line is the mixed rate.
+ * The line follows the quiet rate once the car has been left alone enough to tell: the
+ * rate over the pairs with nobody at the car, Sentry and climate off, an hour or more
+ * apart ([idleBetween]). A VCSEC status saying asleep is not required: a sleeping car
+ * sends nothing, so demanding it would drop exactly the long overnight gaps. The mixed
+ * rate (every parked pair) is reported beside it, and the beam's lower edge reaches the
+ * mixed line, so the beam spans the quiet rate to what the battery really did. Without
+ * enough quiet pairs the line is the mixed rate.
  *
  * While charging it still projects: the line shows where the battery would
  * head if unplugged now, next to the charge projection. Returns null once the
@@ -94,21 +106,20 @@ fun dischargeProjection(
     val horizon = projectionHorizonMillis(rangeMillis)
     if (nowMillis - last.timestampMillis > horizon) return null
 
-    val windowed = samples.filter { it.timestampMillis >= last.timestampMillis - rangeMillis }
-    val parked = parkedDrain(windowed, drives.filter { it.odometerInHundredthsOfAMile != null }, context)
-    if (parked.millis < MIN_RATE_SPAN_MILLIS || parked.drop <= 0.0) return null
+    val windowed = windowedParkedDrain(samples, drives, rangeMillis, context) ?: return null
+    if (windowed.millis < MIN_RATE_SPAN_MILLIS || windowed.drop <= 0.0) return null
 
     val fromSoc = last.soc(scale)
-    val mixedRate = parked.drop / parked.millis
-    // The line follows the deep-sleep rate when the car has slept enough to tell, else the mixed one.
-    val sleepRate = parked.sleepRatePerMilli?.takeIf { it < mixedRate }
+    val mixedRate = windowed.drop / windowed.millis
+    // The line follows the quiet rate when there is enough of it, else the mixed one.
+    val sleepRate = windowed.sleepRatePerMilli?.takeIf { it < mixedRate }
     val mainRate = sleepRate ?: mixedRate
     val projectedSoc = (fromSoc - mainRate * horizon).toFloat().coerceIn(0f, FULL_PERCENT)
     val mixedSoc = (fromSoc - mixedRate * horizon).toFloat().coerceIn(0f, FULL_PERCENT)
-    val halfWidth = 2.0 * hypot(parked.errorPerMilli, mainRate * (scale.levelScaleError() ?: 0.0)) * horizon
-    val hasStats = parked.pairs >= MIN_BEAM_PAIRS
+    val halfWidth = 2.0 * hypot(windowed.errorPerMilli, mainRate * (scale.levelScaleError() ?: 0.0)) * horizon
+    val hasStats = windowed.pairs >= MIN_BEAM_PAIRS
     val hasBeam = hasStats || sleepRate != null
-    // The beam: the statistics around the line, reaching down to the mixed line when the main one is the sleep rate.
+    // The beam: the statistics around the line, reaching down to the mixed line when the main one is the quiet rate.
     val low = if (hasStats) minOf((projectedSoc - halfWidth).toFloat(), mixedSoc) else mixedSoc
     val high = if (hasStats) (projectedSoc + halfWidth).toFloat() else projectedSoc
     return DischargeProjection(
@@ -123,6 +134,44 @@ fun dischargeProjection(
         highSoc = if (hasBeam) high.coerceIn(0f, minOf(fromSoc, FULL_PERCENT)) else null,
         mixedPercentPerHour = if (sleepRate != null) mixedRate * HOUR else null,
     )
+}
+
+/**
+ * The power-down gaps of a range: the quiet parked stretches in it, each run of consecutive
+ * quiet pairs joined into one. A quiet pair is the same one the parked rate counts as
+ * [ProjectionContext]-checked power-down: parked, at least [MIN_SLEEP_PAIR_MILLIS] apart, with
+ * nobody in the car and Sentry and climate off. Same window and same pairs as
+ * [dischargeProjection], so a gap is exactly a stretch behind its rate; the gaps are listed
+ * whether or not a projection is drawn, so a quiet night still shows once the line is gone.
+ *
+ * A gap ends at the read that ends it: a pair whose first read is before the range is not one of
+ * the parked pairs, so a gap that straddles the range's start is left out rather than cut short.
+ *
+ * @param samples one vehicle's battery samples, oldest first.
+ * @param drives the same vehicle's drive samples, oldest first.
+ * @param rangeMillis the selected range, read as [dischargeProjection] reads it.
+ * @param context the fitted scale and the logs that say when the car was alone.
+ */
+fun powerDownGaps(
+    samples: List<BatterySample>,
+    drives: List<DriveSample>,
+    rangeMillis: Long,
+    context: ProjectionContext = ProjectionContext(),
+): List<PowerDownGap> = windowedParkedDrain(samples, drives, rangeMillis, context)?.sleep?.gaps.orEmpty()
+
+/**
+ * The parked drain over the range, from the newest read back: the one window and drive filter that
+ * both [dischargeProjection] and [powerDownGaps] read, so the gaps cannot drift from the rate.
+ */
+private fun windowedParkedDrain(
+    samples: List<BatterySample>,
+    drives: List<DriveSample>,
+    rangeMillis: Long,
+    context: ProjectionContext,
+): ParkedDrain? {
+    val last = samples.lastOrNull() ?: return null
+    val windowed = samples.filter { it.timestampMillis >= last.timestampMillis - rangeMillis }
+    return parkedDrain(windowed, drives.filter { it.odometerInHundredthsOfAMile != null }, context)
 }
 
 /**
@@ -143,26 +192,30 @@ data class ProjectionContext(
     internal val climateReadings: List<ActivitySample> by lazy { activity.filter { it.kind == ActivityKind.CLIMATE } }
 }
 
-/** The drop (percent) and duration of the pairs the car slept through. */
+/** The drop (percent) and duration of the quiet pairs, and the stretches they span. */
 private class SleepSpan(
     val drop: Double,
     val millis: Long,
+    /** How many quiet pairs the sums cover: more than [gaps].size, since a run of hourly reads is one gap. */
     val pairs: Int,
+    /** One stretch per run of consecutive quiet pairs: the seams between them are not breaks. */
+    val gaps: List<PowerDownGap> = emptyList(),
 )
 
 /** The summed signed drop (percent) and duration of the parked pairs, with their spread. */
 private class ParkedDrain(
     val drop: Double,
     val millis: Long,
+    /** How many parked pairs the sums cover, quiet and busy together. */
     val pairs: Int,
     /** Sum of each pair's squared residual from the mean rate. */
     val squaredResiduals: Double,
     /** The rounding variance of the summed drop: two readings for every pair. */
     val roundingVariance: Double = 0.0,
-    /** The drop and duration of the pairs the car slept through. */
+    /** The drop and duration of the quiet pairs. */
     val sleep: SleepSpan = SleepSpan(0.0, 0L, 0),
 ) {
-    /** The drain rate of the slept-through pairs, percent per millisecond; null with too little sleep. */
+    /** The drain rate of the quiet pairs, percent per millisecond; null with too little of it. */
     val sleepRatePerMilli: Double? get() =
         if (sleep.pairs >= MIN_SLEEP_PAIRS &&
             sleep.millis >= MIN_RATE_SPAN_MILLIS
@@ -191,6 +244,7 @@ private fun parkedDrain(
     val drops = mutableListOf<Double>()
     val spans = mutableListOf<Long>()
     val quiet = mutableListOf<Boolean>()
+    val quietPairs = mutableListOf<PowerDownGap>()
     val readings = driveReadingsAt(samples, drives)
     for (index in 1 until samples.size) {
         val a = samples[index - 1]
@@ -200,11 +254,14 @@ private fun parkedDrain(
         if (parkedBetween(a, b, readingA, readingB)) {
             drops += (a.soc(scale) - b.soc(scale)).toDouble()
             spans += b.timestampMillis - a.timestampMillis
-            quiet += b.timestampMillis - a.timestampMillis >= MIN_SLEEP_PAIR_MILLIS && idleBetween(a, b, context)
+            val isQuiet = b.timestampMillis - a.timestampMillis >= MIN_SLEEP_PAIR_MILLIS && idleBetween(a, b, context)
+            quiet += isQuiet
+            if (isQuiet) quietPairs += PowerDownGap(a.timestampMillis, b.timestampMillis)
         }
     }
     val drop = drops.sum()
     val millis = spans.sum()
+    val gaps = quietPairs.merged()
     if (millis <= 0L) return ParkedDrain(drop, millis, drops.size, 0.0)
     val rate = drop / millis
     var squared = 0.0
@@ -228,8 +285,26 @@ private fun parkedDrain(
             drops.filterIndexed { index, _ -> quiet[index] }.sum(),
             spans.filterIndexed { index, _ -> quiet[index] }.sum(),
             quiet.count { it },
+            gaps,
         ),
     )
+}
+
+/**
+ * [this] gaps with each run of consecutive ones joined into one: two quiet pairs that meet at a
+ * read are one stretch, not two bands with a seam between them.
+ */
+private fun List<PowerDownGap>.merged(): List<PowerDownGap> {
+    val merged = mutableListOf<PowerDownGap>()
+    for (gap in this) {
+        val last = merged.lastOrNull()
+        if (last != null && last.endMillis >= gap.startMillis) {
+            merged[merged.lastIndex] = PowerDownGap(last.startMillis, maxOf(last.endMillis, gap.endMillis))
+        } else {
+            merged += gap
+        }
+    }
+    return merged
 }
 
 /** True when two drive readings put the car at one odometer reading and out of gear: it stayed parked between them. */
@@ -263,7 +338,7 @@ private const val WEEK_MILLIS = 7 * 24 * 60 * 60_000L
 /** A full battery, percent. */
 private const val FULL_PERCENT = 100f
 
-/** An asleep rate needs this many slept-through pairs: one pair's rounding can fake a rate or a zero. */
+/** A quiet rate needs this many quiet pairs: one pair's rounding can fake a rate or a zero. */
 private const val MIN_SLEEP_PAIRS = 2
 
 /** A beam needs this many parked pairs behind the rate. */
