@@ -47,7 +47,12 @@ internal fun rememberHistoryBands(
     val style =
         remember(density) {
             with(density) {
-                IconStyle(sizePx = ICON_SIZE.toPx(), insetPx = ICON_INSET.toPx(), minBandPx = ICON_MIN_BAND.toPx())
+                IconStyle(
+                    sizePx = ICON_SIZE.toPx(),
+                    insetPx = ICON_INSET.toPx(),
+                    airPx = ICON_AIR.toPx(),
+                    minSizePx = ICON_MIN_SIZE.toPx(),
+                )
             }
         }
     // A range change or new samples move the bands: the open bubble would point at an empty spot.
@@ -76,13 +81,10 @@ private class HistoryBands(
 ) : Decoration {
     private val iconFill = Paint().apply { color = ICON_FILL }
 
-    // Hoisted: inside Paint().apply, `style` would resolve to Paint.style.
-    private val glyphSize = style.sizePx * ICON_GLYPH_SHARE
     private val glyphPaint =
         android.graphics.Paint().apply {
             isAntiAlias = true
             color = android.graphics.Color.WHITE
-            textSize = glyphSize
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             textAlign = android.graphics.Paint.Align.CENTER
         }
@@ -111,7 +113,7 @@ private class HistoryBands(
     override fun drawOverLayers(context: CartesianDrawingContext) {
         val visible = context.ranges.minX..context.ranges.maxX
         val drawn = bandIcons(bands, visible, { context.canvasX(it) }, context.layerBounds.top + style.insetPx, style)
-        drawn.forEach { context.drawIcon(it, iconFill, glyphPaint) }
+        drawn.forEach { icon -> context.drawIcon(icon, iconFill, glyphPaint) }
         icons.icons = drawn
     }
 }
@@ -122,8 +124,11 @@ private fun CartesianDrawingContext.drawIcon(
     fill: Paint,
     glyph: android.graphics.Paint,
 ) {
-    val radius = (icon.right - icon.left) * ICON_CORNER_SHARE
+    val size = icon.right - icon.left
+    val radius = size * ICON_CORNER_SHARE
     canvas.drawRoundRect(icon.left, icon.top, icon.right, icon.bottom, radius, radius, fill)
+    // The glyph scales with its sign, so a narrow band's small sign still reads as one.
+    glyph.textSize = size * ICON_GLYPH_SHARE
     val baseline = (icon.top + icon.bottom) / 2 - (glyph.descent() + glyph.ascent()) / 2
     canvas.nativeCanvas.drawText(icon.kind.glyph, (icon.left + icon.right) / 2, baseline, glyph)
 }
@@ -133,7 +138,8 @@ private val ICON_FILL = Color(0xFF1565C0).copy(alpha = 0.5f)
 
 private val ICON_SIZE = 16.dp
 private val ICON_INSET = 6.dp
-private val ICON_MIN_BAND = 32.dp
+private val ICON_AIR = 1.dp
+private val ICON_MIN_SIZE = 8.dp
 
 private const val ICON_GLYPH_SHARE = 0.72f
 private const val ICON_CORNER_SHARE = 0.18f

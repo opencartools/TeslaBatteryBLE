@@ -27,11 +27,12 @@ internal data class Band(
     val kind: BandKind,
 )
 
-/** How big a band's icon is, how far under the plot's top it sits, and when it is drawn at all, px. */
+/** How big a band's icon is, how far under the plot's top it sits, and the air and floor it scales between, px. */
 internal data class IconStyle(
     val sizePx: Float,
     val insetPx: Float,
-    val minBandPx: Float,
+    val airPx: Float,
+    val minSizePx: Float,
 )
 
 /** An icon drawn on a band, in the chart's px. */
@@ -72,11 +73,10 @@ internal class BandIcons {
 
 /**
  * [bands] as icons: one per kind, on the part of the band that is on screen, centred under the
- * plot's top [top]. A band whose visible part is too narrow for an icon is left plain, which is
- * why zooming in brings the icons out.
- *
- * The band is cut to [visible] first: a stretch wider than the view would otherwise centre its
- * icon on the hidden part and lose it off the plot.
+ * plot's top [top]. A band narrower than the full icon scales it down to fit, with [IconStyle.airPx]
+ * of clearance each side, down to [IconStyle.minSizePx]; a band too narrow for even that is left
+ * plain. The band is cut to [visible] first, so a stretch wider than the view keeps its icon on the
+ * plot instead of centring it on the hidden part.
  */
 internal fun bandIcons(
     bands: List<Band>,
@@ -90,7 +90,8 @@ internal fun bandIcons(
         val end = canvasX(band.endHours.coerceIn(visible.start, visible.endInclusive))
         val left = minOf(start, end)
         val right = maxOf(start, end)
-        if (right - left < style.minBandPx) return@mapNotNull null
-        val iconLeft = (left + right) / 2 - style.sizePx / 2
-        BandIcon(band.kind, iconLeft, top, iconLeft + style.sizePx, top + style.sizePx)
+        val size = minOf(style.sizePx, right - left - 2 * style.airPx)
+        if (size < style.minSizePx) return@mapNotNull null
+        val iconLeft = (left + right) / 2 - size / 2
+        BandIcon(band.kind, iconLeft, top, iconLeft + size, top + size)
     }
