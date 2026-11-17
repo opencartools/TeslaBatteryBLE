@@ -47,6 +47,7 @@ import com.dzid26.teslable.core.history.ParkedSpan
 import com.dzid26.teslable.core.history.ProjectionContext
 import com.dzid26.teslable.core.history.RestKind
 import com.dzid26.teslable.core.history.RestStats
+import com.dzid26.teslable.core.history.STATUS_CHANGE_MAX_GAP_MILLIS
 import com.dzid26.teslable.core.history.SleepDrop
 import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.core.units.EfficiencyUnit
@@ -935,11 +936,12 @@ class CardSnapshots {
                     }
             }
 
-        // The climate runs during each awake burst and is off in the gaps. The only climate
-        // reading is 20 minutes before the gap starts, past the 16-minute carry-in, so the gaps stay quiet.
+        // The climate runs during each awake burst and is off in the gaps. The reading is
+        // past STATUS_CHANGE_MAX_GAP_MILLIS (one status heartbeat plus a minute of slack), so
+        // the carried-in state does not reach the gap.
         private val powerDownActivity =
             powerDownBursts.dropLast(1).flatMap { from ->
-                listOf(from - 20).map {
+                listOf(from - (STATUS_CHANGE_MAX_GAP_MILLIS / MINUTE + 4)).map {
                     ActivitySample(NOW - it * MINUTE, BLE_NAME, ActivityKind.CLIMATE, on = true)
                 }
             }

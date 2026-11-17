@@ -24,9 +24,15 @@ data class DischargeProjection(
     val projectedSoc: Float = projectedPercent.toFloat(),
     /** Whether the fit had enough power-down pairs for a measured band. */
     val hasBand: Boolean = false,
-    /** The lower edge of the beam at the horizon: the line minus its uncertainty, or the line when the fit is too thin. */
+    /**
+     * The lower edge of the beam at the horizon: the line minus its uncertainty, clipped at 0;
+     * the line when the fit is too thin.
+     */
     val lowSoc: Float? = null,
-    /** The upper edge of the beam at the horizon: the line plus its uncertainty, or the line when the fit is too thin. */
+    /**
+     * The upper edge of the beam at the horizon: the line plus its uncertainty, capped at the
+     * last reading because the battery cannot rise while parked; the line when the fit is too thin.
+     */
     val highSoc: Float? = null,
 ) {
     /** The beam's two edges together; null when the fit is too thin for one. */
@@ -76,7 +82,8 @@ data class PowerDownGap(
  * is a fraction of a percent, not a whole level; without it the integer
  * levels stand in. The beam is two standard errors of that rate: the spread
  * of the power-down pairs around it and the rounding of every pair's
- * readings, in quadrature, joined with the scale's own slope error.
+ * readings, in quadrature, joined with the scale's own slope error. The
+ * upper edge stops at the last reading: a parked battery cannot rise.
  *
  * While charging it still projects: the line shows where the battery would
  * head if unplugged now, next to the charge projection. Returns null once the
@@ -102,17 +109,17 @@ fun dischargeProjection(
     val horizon = projectionHorizonMillis(rangeMillis)
     if (nowMillis - last.timestampMillis > horizon) return null
 
-    val windowed = samples.filter { it.timestampMillis >= last.timestampMillis - rangeMillis }
-    val powerDown = powerDownSpan(windowed, drives.filter { it.odometerInHundredthsOfAMile != null }, context)
+    val powerDown = windowedPowerDown(samples, drives, rangeMillis, context) ?: return null
     val rate = powerDown.ratePerMilli?.takeIf { powerDown.drop > 0.0 } ?: return null
 
     val fromSoc = last.soc(scale)
     val projectedSoc = (fromSoc - rate * horizon).toFloat().coerceIn(0f, FULL_PERCENT)
     val halfWidth = 2.0 * hypot(powerDown.errorPerMilli, rate * (scale.levelScaleError() ?: 0.0)) * horizon
     val hasBand = powerDown.pairs >= MIN_BEAM_PAIRS
-    // The beam is the power-down rate's own uncertainty, a little above and below the line.
+    // The beam is the power-down rate's own uncertainty. The battery cannot rise while
+    // parked, so the best case is the last reading, not a slower drain.
     val low = if (hasBand) (projectedSoc - halfWidth).toFloat() else projectedSoc
-    val high = if (hasBand) (projectedSoc + halfWidth).toFloat() else projectedSoc
+    val high = if (hasBand) minOf((projectedSoc + halfWidth).toFloat(), fromSoc) else projectedSoc
     return DischargeProjection(
         from = last,
         projectedPercent = projectedSoc.roundToInt(),
@@ -123,7 +130,7 @@ fun dischargeProjection(
         projectedSoc = projectedSoc,
         hasBand = hasBand,
         lowSoc = low.coerceIn(0f, FULL_PERCENT),
-        highSoc = high.coerceIn(0f, minOf(fromSoc, FULL_PERCENT)),
+        highSoc = high.coerceIn(0f, FULL_PERCENT),
     )
 }
 

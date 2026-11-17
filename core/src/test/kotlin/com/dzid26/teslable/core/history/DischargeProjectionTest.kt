@@ -8,6 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class DischargeProjectionTest {
     private fun sample(
@@ -180,7 +181,8 @@ class DischargeProjectionTest {
 
     @Test
     fun `null when the percent rose`() {
-        assertNull(project(listOf(sample(0, 70), sample(120, 75))))
+        // One-point rises stay under the charge threshold, so the pairs are parked and the drop is negative.
+        assertNull(project(listOf(sample(0, 70), sample(120, 71), sample(240, 72))))
     }
 
     @Test
@@ -252,6 +254,16 @@ class DischargeProjectionTest {
         val looseWidth = loose.highSoc!! - loose.lowSoc!!
         assertEquals(true, tidyWidth > 0f)
         assertEquals(true, looseWidth > tidyWidth)
+    }
+
+    @Test
+    fun `the band stops at the last reading because the battery cannot rise`() {
+        // Three quiet four-hour pairs lose one point in total: the 12 h uncertainty would put
+        // the upper edge above the last reading, so it stops there.
+        val samples = listOf(sample(0, 80), sample(240, 80), sample(480, 80), sample(720, 79))
+        val projection = assertNotNull(project(samples, rangeMillis = 24 * HOUR))
+        assertEquals(79f, projection.highSoc!!, 0.01f)
+        assertTrue(projection.lowSoc!! < projection.projectedSoc)
     }
 
     /** The climate running at [minutes]: a car kept busy there, not sleeping. */
