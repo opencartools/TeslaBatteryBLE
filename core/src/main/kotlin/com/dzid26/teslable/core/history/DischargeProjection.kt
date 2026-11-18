@@ -82,8 +82,7 @@ data class PowerDownGap(
  * is a fraction of a percent, not a whole level; without it the integer
  * levels stand in. The beam is two standard errors of that rate: the spread
  * of the power-down pairs around it and the rounding of every pair's
- * readings, in quadrature, joined with the scale's own slope error. The
- * upper edge stops at the last reading: a parked battery cannot rise.
+ * readings, in quadrature, joined with the scale's own slope error.
  *
  * While charging it still projects: the line shows where the battery would
  * head if unplugged now, next to the charge projection. Returns null once the
@@ -116,8 +115,7 @@ fun dischargeProjection(
     val projectedSoc = (fromSoc - rate * horizon).toFloat().coerceIn(0f, FULL_PERCENT)
     val halfWidth = 2.0 * hypot(powerDown.errorPerMilli, rate * (scale.levelScaleError() ?: 0.0)) * horizon
     val hasBand = powerDown.pairs >= MIN_BEAM_PAIRS
-    // The beam is the power-down rate's own uncertainty. The battery cannot rise while
-    // parked, so the best case is the last reading, not a slower drain.
+    // The battery cannot rise while parked, so the best case is the last reading.
     val low = if (hasBand) (projectedSoc - halfWidth).toFloat() else projectedSoc
     val high = if (hasBand) minOf((projectedSoc + halfWidth).toFloat(), fromSoc) else projectedSoc
     return DischargeProjection(
