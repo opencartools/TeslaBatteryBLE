@@ -120,17 +120,21 @@ private class DriveFigures(
     val stats: DriveStats?,
 )
 
-/** The distance-window chips: 15 / 50 / 150 km (10 / 30 / 100 mi) and since the last charge. */
+/**
+ * The distance-window chips: 15 / 50 / 150 km (10 / 30 / 100 mi) and since the last charge.
+ * [modifier] is there for the narrow-width layout test, which measures the height of the wrapped row.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DriveChips(
+internal fun DriveChips(
     window: DriveWindow,
     unit: DistanceUnit,
+    modifier: Modifier = Modifier,
     onWindow: (DriveWindow) -> Unit,
 ) {
     // Four chips do not fit a narrow phone on one line; they wrap whole. Slim side padding: Material3's 8 dp each
     // side leaves the widest label on a line of its own on a 240 dp phone.
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         DriveWindow.entries.forEach { entry ->
             val label = entry.label(unit)?.let { "$it${unit.symbol}" } ?: "Since charge"
             FilterChip(
