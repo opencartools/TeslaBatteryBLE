@@ -593,13 +593,17 @@ class CardSnapshots {
     @Test
     fun driveCard() = snapDrive("drive-card_percent", pricePerKwh = 0.30f)
 
+    // The same card in kilometres, where the window labels are wider and wrap differently.
+    @Test
+    fun driveCardMetric() = snapDrive("drive-card_metric", pricePerKwh = 0.30f, frame = DriveFrame(unit = DistanceUnit.KILOMETERS))
+
     // The cursor stands on the fourth reading, 25mi in: the percent, the distance and when it was read.
     @Test
     fun driveCardCursor() = snapDrive("drive-card_cursor", pricePerKwh = 0.30f, cursorX = 25.0)
 
     // Mirrored: the regen bands and the cursor must stay on their readings.
     @Test
-    fun driveCardCursorRtl() = snapDrive("drive-card_cursor-rtl", pricePerKwh = 0.30f, cursorX = 25.0, rtl = true)
+    fun driveCardCursorRtl() = snapDrive("drive-card_cursor-rtl", pricePerKwh = 0.30f, cursorX = 25.0, frame = DriveFrame(rtl = true))
 
     // A pinned scale but no home price: the percent per distance stands in for the cost per distance.
     @Test
@@ -614,19 +618,20 @@ class CardSnapshots {
         pricePerKwh: Float? = null,
         scale: FullRangeScale? = demoTripScale,
         cursorX: Double? = null,
-        // Mirrored, with the regen stretch moved to the start so a mirrored band lands far from where it belongs.
-        rtl: Boolean = false,
+        // The card's layout direction and unit: mirrored, or kilometres whose window labels are longer.
+        frame: DriveFrame = DriveFrame(),
     ) = snapCard(name) {
         val cursor = cursorX?.let { remember { CursorPin(restoredX = it) } }
         CompositionLocalProvider(
             LocalPricePerKwh provides pricePerKwh,
             LocalCurrencyCode provides "USD",
+            LocalDistanceUnit provides frame.unit,
             LocalDriveCursor provides cursor,
-            LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
+            LocalLayoutDirection provides if (frame.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
         ) {
             HistoryCard(
                 samples = driveSamples(),
-                drives = driveReadings(power = if (rtl) regenFirstPower else drivePower),
+                drives = driveReadings(power = if (frame.rtl) regenFirstPower else drivePower),
                 context = ProjectionContext(scale = scale),
                 // The rated constant is learnt along with the scale.
                 ratedKwhPerMile = if (scale != null) 0.25f else null,
@@ -634,6 +639,13 @@ class CardSnapshots {
             )
         }
     }
+
+    /** How the drive card is rendered beyond its data: mirrored, and in miles or kilometres. */
+    private data class DriveFrame(
+        // Mirrored, the regen stretch moves to the start so a mirrored band lands far from where it belongs.
+        val rtl: Boolean = false,
+        val unit: DistanceUnit = DistanceUnit.MILES,
+    )
 
     @Test
     fun screenCarsList() {
