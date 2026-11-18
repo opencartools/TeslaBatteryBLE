@@ -19,8 +19,8 @@
     <string name="settings_backup_state_unencrypted">Currently: vehicle keys are stored without Keystore encryption, and Android 11 and below leave them out of backups.</string>
     <string name="settings_backup_state_off">Currently: vehicle keys are encrypted with this device\'s hardware-backed Keystore (AES). An Android backup can\'t restore them on another phone, so a new phone needs re-pairing with an NFC card tap.</string>
     <string name="settings_backup_schedule">Android decides when to back up (usually daily, while idle and charging). Check or trigger one in system Settings \u2192 Backup. Android restores it during phone setup, a device transfer, or an app install when automatic restore is on; otherwise restore it manually or re-pair.</string>
-    <string name="settings_energy_cost">Home charging</string>
-    <string name="settings_energy_cost_hint">Your home electricity price. It shows what a charge session cost beside the car\'s charge details; leave it empty to hide that. A new price applies from the start of the latest charge.</string>
+    <string name="settings_energy_cost">Charging prices</string>
+    <string name="settings_energy_cost_hint">Your home and work electricity prices. A charge shows what it cost beside the car\'s charge details; leave a price empty to hide that. A new price applies from the start of the latest charge. The work price is used once the app can tell a charge is at work.</string>
     <string name="settings_export_button">Export records</string>
     <plurals name="settings_export_done">
         <item quantity="one">Exported %1$s record.</item>
@@ -54,7 +54,8 @@
     <string name="settings_efficiency_wh">Wh per %1$s</string>
     <string name="settings_efficiency_per_100">kWh per 100 %1$s (EU rating)</string>
     <string name="settings_efficiency_inverse">%1$s per kWh</string>
-    <string name="settings_price_per_kwh">Price per kWh (%1$s)</string>
+    <string name="settings_price_per_kwh">Home price per kWh (%1$s)</string>
+    <string name="settings_work_price_per_kwh">Work price per kWh (%1$s)</string>
     <string name="settings_version">TeslaBatteryBLE version: %1$s</string>
     <string name="settings_closure_alert_toggle">Doors left open alert</string>
     <string name="settings_closure_alert_hint">Notify when you leave the car with a door, trunk or tonneau open. Plays the car lock chirp.</string>

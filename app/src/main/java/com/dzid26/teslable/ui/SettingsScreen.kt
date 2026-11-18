@@ -287,7 +287,7 @@ private fun UnitsCard(unitStore: UnitStore) {
     }
 }
 
-/** The electricity price that turns a charge session's energy into a cost on the car view. */
+/** The home and work electricity prices that turn a charge session's energy into a cost on the car view. */
 @Composable
 private fun EnergyPriceCard(priceStore: EnergyPriceStore) {
     // Nothing saved follows the phone, so the picker shows the phone's currency until one is chosen.
@@ -295,6 +295,7 @@ private fun EnergyPriceCard(priceStore: EnergyPriceStore) {
     val current = chosen ?: localeCurrencyOrNull() ?: currencyOrNull(FALLBACK_CODE)
     val symbol = current?.symbol.orEmpty()
     var text by remember { mutableStateOf(priceStore.pricePerKwh()?.toString().orEmpty()) }
+    var workText by remember { mutableStateOf(priceStore.workPricePerKwh()?.toString().orEmpty()) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(
@@ -324,6 +325,18 @@ private fun EnergyPriceCard(priceStore: EnergyPriceStore) {
                     modifier = Modifier.width(CURRENCY_FIELD_WIDTH),
                 )
             }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = workText,
+                onValueChange = { input ->
+                    workText = input
+                    priceStore.setWorkPricePerKwh(input.replace(',', '.').toFloatOrNull())
+                },
+                label = { Text(stringResource(R.string.settings_work_price_per_kwh, symbol)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(8.dp))
             Text(
                 text = stringResource(R.string.settings_energy_cost_hint),
