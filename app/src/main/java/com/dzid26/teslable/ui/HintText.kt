@@ -145,9 +145,11 @@ internal fun ParkedProjectionLine(
             color = color,
         )
         if (beam != null) {
+            val low = beam.first.roundToInt()
+            val high = beam.second.roundToInt()
             HintText(
-                text = stringResource(R.string.history_parked_range, beam.first.roundToInt(), beam.second.roundToInt()),
-                hint = stringResource(R.string.history_parked_range_hint),
+                text = stringResource(R.string.history_parked_range, low, high),
+                hint = stringResource(R.string.history_parked_range_hint, low, high),
                 color = color,
                 style = style,
             )
