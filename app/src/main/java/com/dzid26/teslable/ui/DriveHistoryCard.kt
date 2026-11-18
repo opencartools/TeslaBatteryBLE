@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -127,11 +128,17 @@ private fun DriveChips(
     unit: DistanceUnit,
     onWindow: (DriveWindow) -> Unit,
 ) {
-    // Four chips do not fit a narrow phone on one line; they wrap whole.
+    // Four chips do not fit a narrow phone on one line; they wrap whole. Slim side padding: Material3's 8 dp each
+    // side leaves the widest label on a line of its own on a 240 dp phone.
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         DriveWindow.entries.forEach { entry ->
             val label = entry.label(unit)?.let { "$it${unit.symbol}" } ?: "Since charge"
-            FilterChip(selected = window == entry, onClick = { onWindow(entry) }, label = { Text(label, maxLines = 1) })
+            FilterChip(
+                selected = window == entry,
+                onClick = { onWindow(entry) },
+                label = { Text(label, maxLines = 1) },
+                contentPadding = PaddingValues(horizontal = 4.dp),
+            )
         }
     }
 }
