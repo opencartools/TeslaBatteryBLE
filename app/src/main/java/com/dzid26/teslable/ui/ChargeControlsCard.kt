@@ -4,6 +4,7 @@ package com.dzid26.teslable.ui
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -85,25 +86,55 @@ private fun ChargeStepperRow(
         if (draft == target) draft = null
     }
     val shown = draft ?: model.current
-    val decreaseLabel = stringResource(model.decreaseLabel)
-    val increaseLabel = stringResource(model.increaseLabel)
 
     fun apply(next: Int) {
         draft = next
         model.set(next)
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(model.label),
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-        )
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // The stepper keeps the label's words whole: on a narrow card it drops to the line under the label.
+        if (maxWidth < STEPPER_SIDE_BY_SIDE_MIN_WIDTH) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                StepperLabel(model.label)
+                StepperControls(model, shown, ::apply, Modifier.fillMaxWidth(), Arrangement.End)
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Weighted so the stepper is measured first and keeps its 48 dp buttons at any font scale.
+                StepperLabel(model.label, Modifier.weight(1f, fill = false))
+                StepperControls(model, shown, ::apply)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepperLabel(
+    label: Int,
+    modifier: Modifier = Modifier,
+) {
+    Text(text = stringResource(label), style = MaterialTheme.typography.bodyLarge, modifier = modifier)
+}
+
+/** The minus, the value and the plus of one stepper. */
+@Composable
+private fun StepperControls(
+    model: ChargeStepperModel,
+    shown: Int,
+    onStep: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    arrangement: Arrangement.Horizontal = Arrangement.Start,
+) {
+    val decreaseLabel = stringResource(model.decreaseLabel)
+    val increaseLabel = stringResource(model.increaseLabel)
+    Row(modifier = modifier, horizontalArrangement = arrangement, verticalAlignment = Alignment.CenterVertically) {
         IconButton(
-            onClick = { apply(model.step(shown, -1)) },
+            onClick = { onStep(model.step(shown, -1)) },
             enabled = model.enabled && shown > model.range.first,
         ) {
             Text(
@@ -124,7 +155,7 @@ private fun ChargeStepperRow(
             )
         }
         IconButton(
-            onClick = { apply(model.step(shown, 1)) },
+            onClick = { onStep(model.step(shown, 1)) },
             enabled = model.enabled && shown < model.range.last,
         ) {
             Text(
@@ -217,3 +248,6 @@ internal fun ActuationFeedback.message(): Int =
         ActuationKey.CHARGE_LIMIT -> R.string.charge_controls_limit_failed
         ActuationKey.CHARGING_AMPS -> R.string.charge_controls_current_failed
     }
+
+/** The label and the stepper need this much width side by side; less and the stepper drops under the label. */
+private val STEPPER_SIDE_BY_SIDE_MIN_WIDTH = 280.dp
