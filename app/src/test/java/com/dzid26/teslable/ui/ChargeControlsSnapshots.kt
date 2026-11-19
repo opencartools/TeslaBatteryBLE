@@ -22,9 +22,9 @@ class ChargeControlsSnapshots {
         }
 
     @Test
-    fun chargeControlsCardUnplugged() =
-        paparazzi.snapCard("charge-controls-card_unplugged") {
-            ChargeControlsCard(model = model(charge(unplugged)), actuating = emptySet(), failure = null, actions = actions)
+    fun chargeControlsCardPluggedComplete() =
+        paparazzi.snapCard("charge-controls-card_plugged-complete") {
+            ChargeControlsCard(model = model(charge(complete)), actuating = emptySet(), failure = null, actions = actions)
         }
 
     @Test
@@ -59,7 +59,7 @@ class ChargeControlsSnapshots {
     fun chargeControlsCardFailure() =
         paparazzi.snapCard("charge-controls-card_refused") {
             ChargeControlsCard(
-                model = model(charge(unplugged)),
+                model = model(charge(complete)),
                 actuating = emptySet(),
                 failure = ActuationKey.CHARGE_LIMIT,
                 actions = actions,
@@ -212,7 +212,7 @@ class ChargeControlsSnapshots {
 
     private fun model(
         charge: ChargeState?,
-        portOpen: Boolean = false,
+        portOpen: Boolean = true,
         enabled: Boolean = true,
         asleep: Boolean = false,
     ): ChargeControlsModel = checkNotNull(chargeControlsModel(charge, actions, portOpen, enabled, asleep))
@@ -221,7 +221,7 @@ class ChargeControlsSnapshots {
         const val NOW = 1_760_000_000_000L
 
         val charging = ChargeState.ChargingState(Charging = Void())
-        val unplugged = ChargeState.ChargingState(Disconnected = Void())
+        val complete = ChargeState.ChargingState(Complete = Void())
         val stopped = ChargeState.ChargingState(Stopped = Void())
         val actions = ChargeControlActions(setLimit = {}, setAmps = {}, start = {}, stop = {})
     }

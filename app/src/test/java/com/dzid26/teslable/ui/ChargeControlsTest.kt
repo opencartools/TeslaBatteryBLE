@@ -52,7 +52,18 @@ class ChargeControlsTest {
     }
 
     @Test
-    fun `the controls show unplugged and on a fast charger`() {
+    fun `the controls show on a fast charger and an unplugged car hides them`() {
+        val fast =
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Charging = Void()), fast = true),
+                actions,
+                portOpen = true,
+                enabled = true,
+                asleep = false,
+            )
+        assertNotNull(fast)
+        assertEquals(true, fast?.limit?.enabled)
+        assertEquals(false, fast?.amps?.enabled)
         val unplugged =
             chargeControlsModel(
                 charge(state = ChargeState.ChargingState(Disconnected = Void())),
@@ -61,19 +72,7 @@ class ChargeControlsTest {
                 enabled = true,
                 asleep = false,
             )
-        assertNotNull(unplugged)
-        assertEquals(true, unplugged?.limit?.enabled)
-        val fast =
-            chargeControlsModel(
-                charge(state = ChargeState.ChargingState(Charging = Void()), fast = true),
-                actions,
-                portOpen = false,
-                enabled = true,
-                asleep = false,
-            )
-        assertNotNull(fast)
-        assertEquals(true, fast?.limit?.enabled)
-        assertEquals(false, fast?.amps?.enabled)
+        assertNull(unplugged)
         assertNull(chargeControlsModel(null, actions, portOpen = false, enabled = true, asleep = false))
     }
 
@@ -83,7 +82,7 @@ class ChargeControlsTest {
             chargeControlsModel(
                 charge(state = ChargeState.ChargingState(Stopped = Void()), amps = 3, maxAmps = 32),
                 actions,
-                portOpen = false,
+                portOpen = true,
                 enabled = true,
                 asleep = false,
             )
@@ -97,7 +96,7 @@ class ChargeControlsTest {
 
     @Test
     fun `a held card disables its controls while the link is down`() {
-        val model = chargeControlsModel(charge(), actions, portOpen = false, enabled = false, asleep = false)
+        val model = chargeControlsModel(charge(), actions, portOpen = true, enabled = false, asleep = false)
         assertNotNull(model)
         assertEquals(false, model?.enabled)
         assertEquals(false, model?.limit?.enabled)
@@ -166,7 +165,7 @@ class ChargeControlsTest {
                 asleep = true,
             )
         assertEquals(ChargeButton.START, charging?.button)
-        // A closed port keeps the reported state: sleep alone does not invent a start.
+        // A closed port hides the card; sleep alone does not invent a start.
         val closed =
             chargeControlsModel(
                 charge(state = ChargeState.ChargingState(Charging = Void())),
@@ -175,7 +174,38 @@ class ChargeControlsTest {
                 enabled = true,
                 asleep = true,
             )
-        assertEquals(ChargeButton.STOP, closed?.button)
+        assertNull(closed)
+    }
+
+    @Test
+    fun `a closed charge port hides the card even with a charge state`() {
+        assertNull(
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Disconnected = Void())),
+                actions,
+                portOpen = false,
+                enabled = true,
+                asleep = false,
+            ),
+        )
+        assertNull(
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Complete = Void())),
+                actions,
+                portOpen = false,
+                enabled = true,
+                asleep = true,
+            ),
+        )
+        assertNull(
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Stopped = Void())),
+                actions,
+                portOpen = false,
+                enabled = true,
+                asleep = false,
+            ),
+        )
     }
 
     @Test

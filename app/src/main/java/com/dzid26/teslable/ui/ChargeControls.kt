@@ -113,9 +113,9 @@ internal fun isPortOpen(
 ): Boolean = closure == ClosureState_E.CLOSURESTATE_OPEN || doorOpen == true
 
 /**
- * The card's content for one car state, or null when there is nothing to show. The rows and button
- * follow the last charge state; [enabled] says whether the link can send, and [reading] marks a card
- * that is waiting for its first state.
+ * The card's content for one car state, or null when the charge port is closed or there is nothing
+ * to show. The rows and button follow the last charge state; [enabled] says whether the link can
+ * send, and [reading] marks a card waiting for its first state.
  */
 internal fun chargeControlsModel(
     charge: ChargeState?,
@@ -123,62 +123,56 @@ internal fun chargeControlsModel(
     portOpen: Boolean,
     enabled: Boolean,
     asleep: Boolean,
-): ChargeControlsModel? {
-    if (charge == null) {
-        // Keep both rows in place while the first reading is on its way.
-        return if (portOpen) {
-            ChargeControlsModel(
-                limit = unknownChargeLimit(),
-                amps = unknownChargingAmps(),
-                button = if (asleep) ChargeButton.START else ChargeButton.NONE,
-                enabled = enabled,
-                reading = !asleep,
-            )
-        } else {
-            null
-        }
-    }
-    // A sleeping car's open port is taken as stopped; an awake one waits for its reading.
-    val button = if (portOpen && asleep) ChargeButton.START else chargeButton(charge)
-    val limit =
-        charge.charge_limit_soc?.let { current ->
-            val range = chargeLimitRange(charge)
-            ChargeStepperModel(
-                key = ActuationKey.CHARGE_LIMIT,
-                label = R.string.charge_controls_limit,
-                valueFormat = R.string.charge_controls_percent,
-                current = current,
-                range = range,
-                enabled = enabled,
-                decreaseLabel = R.string.charge_controls_limit_decrease,
-                increaseLabel = R.string.charge_controls_limit_increase,
-                step = { value, delta -> nextChargeLimit(value, delta, range) },
-                set = actions.setLimit,
-            )
-        }
-    val amps =
-        charge.charge_current_request?.takeIf { it > 0 }?.let { current ->
-            val max = maxOf(current, charge.charge_current_request_max ?: current)
-            ChargeStepperModel(
-                key = ActuationKey.CHARGING_AMPS,
-                label = R.string.charge_controls_current,
-                valueFormat = R.string.charge_controls_amps,
-                current = current,
-                range = minOf(MIN_CHARGING_AMPS, max)..max,
-                enabled = enabled && charge.fast_charger_present != true,
-                decreaseLabel = R.string.charge_controls_current_decrease,
-                increaseLabel = R.string.charge_controls_current_increase,
-                step = { value, delta -> nextChargingAmps(value, delta, max) },
-                set = actions.setAmps,
-            )
-        }
-    val hasContent = limit != null || amps != null || button != ChargeButton.NONE
-    return if (!hasContent && !portOpen) {
+): ChargeControlsModel? =
+    if (!portOpen) {
         null
+    } else if (charge == null) {
+        // Keep both rows in place while the first reading is on its way.
+        ChargeControlsModel(
+            limit = unknownChargeLimit(),
+            amps = unknownChargingAmps(),
+            button = if (asleep) ChargeButton.START else ChargeButton.NONE,
+            enabled = enabled,
+            reading = !asleep,
+        )
     } else {
-        ChargeControlsModel(limit, amps, button, enabled)
+        // A sleeping car's open port is taken as stopped; an awake one waits for its reading.
+        val button = if (asleep) ChargeButton.START else chargeButton(charge)
+        val limit =
+            charge.charge_limit_soc?.let { current ->
+                val range = chargeLimitRange(charge)
+                ChargeStepperModel(
+                    key = ActuationKey.CHARGE_LIMIT,
+                    label = R.string.charge_controls_limit,
+                    valueFormat = R.string.charge_controls_percent,
+                    current = current,
+                    range = range,
+                    enabled = enabled,
+                    decreaseLabel = R.string.charge_controls_limit_decrease,
+                    increaseLabel = R.string.charge_controls_limit_increase,
+                    step = { value, delta -> nextChargeLimit(value, delta, range) },
+                    set = actions.setLimit,
+                )
+            }
+        val amps =
+            charge.charge_current_request?.takeIf { it > 0 }?.let { current ->
+                val max = maxOf(current, charge.charge_current_request_max ?: current)
+                ChargeStepperModel(
+                    key = ActuationKey.CHARGING_AMPS,
+                    label = R.string.charge_controls_current,
+                    valueFormat = R.string.charge_controls_amps,
+                    current = current,
+                    range = minOf(MIN_CHARGING_AMPS, max)..max,
+                    enabled = enabled && charge.fast_charger_present != true,
+                    decreaseLabel = R.string.charge_controls_current_decrease,
+                    increaseLabel = R.string.charge_controls_current_increase,
+                    step = { value, delta -> nextChargingAmps(value, delta, max) },
+                    set = actions.setAmps,
+                )
+            }
+        val hasContent = limit != null || amps != null || button != ChargeButton.NONE
+        if (hasContent) ChargeControlsModel(limit, amps, button, enabled) else null
     }
-}
 
 /** The limit row before the first reading: same shape, no value and no action. */
 private fun unknownChargeLimit() =
