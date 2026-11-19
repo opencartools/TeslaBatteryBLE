@@ -149,7 +149,7 @@ internal fun ParkedProjectionLine(
             val high = beam.second.roundToInt()
             HintText(
                 text = stringResource(R.string.history_parked_range, low, high),
-                hint = stringResource(R.string.history_parked_range_hint, low, high),
+                hint = stringResource(R.string.history_parked_range_hint),
                 color = color,
                 style = style,
             )

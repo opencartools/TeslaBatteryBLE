@@ -44,8 +44,8 @@ What the app does today, in detail. The short version is in the [README](../READ
   lines project the charge completion and the parked drain a round figure ahead
   (3h, 12h, 3 days, a week for the 30d range; stretches where the odometer moved, or the car was in gear, are left out).
   The parked line follows the power-down rate: the quiet stretches with nobody in the car, Sentry and climate off, an
-  hour or more apart. Without two of those it is left out; with three or more its band shows how much faster the drain
-  could be. Those stretches are shaded gray behind the chart, and a stretch wide enough carries a parking sign that
+  hour or more apart. Without two of those it is left out; with three or more its band shows the estimation uncertainty.
+  Those stretches are shaded gray behind the chart, and a stretch wide enough carries a parking sign that
   explains the power down on a tap (a stretch too narrow for its sign shows a dot instead, while another sign is on
   screen); so the rate can be seen against the gaps it came from. Both
   are fitted on the rated range once the scale is learned, so they read in
