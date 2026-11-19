@@ -34,6 +34,28 @@ class ChargeControlsSnapshots {
         }
 
     @Test
+    fun chargeControlsCardPortOpenAsleep() =
+        paparazzi.snapCard("charge-controls-card_port-open-asleep") {
+            ChargeControlsCard(
+                model = model(charge = null, portOpen = true, asleep = true),
+                actuating = emptySet(),
+                failure = null,
+                actions = actions,
+            )
+        }
+
+    @Test
+    fun chargeControlsCardDisconnected() =
+        paparazzi.snapCard("charge-controls-card_disconnected") {
+            ChargeControlsCard(
+                model = model(charge = charge(charging), enabled = false),
+                actuating = emptySet(),
+                failure = null,
+                actions = actions,
+            )
+        }
+
+    @Test
     fun chargeControlsCardFailure() =
         paparazzi.snapCard("charge-controls-card_refused") {
             ChargeControlsCard(
@@ -178,7 +200,9 @@ class ChargeControlsSnapshots {
     private fun model(
         charge: ChargeState?,
         portOpen: Boolean = false,
-    ): ChargeControlsModel = checkNotNull(chargeControlsModel(charge, actions, portOpen))
+        enabled: Boolean = true,
+        asleep: Boolean = false,
+    ): ChargeControlsModel = checkNotNull(chargeControlsModel(charge, actions, portOpen, enabled, asleep))
 
     private companion object {
         const val NOW = 1_760_000_000_000L

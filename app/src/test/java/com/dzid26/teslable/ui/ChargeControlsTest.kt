@@ -54,15 +54,27 @@ class ChargeControlsTest {
     @Test
     fun `the controls show unplugged and on a fast charger`() {
         val unplugged =
-            chargeControlsModel(charge(state = ChargeState.ChargingState(Disconnected = Void())), actions, portOpen = false)
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Disconnected = Void())),
+                actions,
+                portOpen = false,
+                enabled = true,
+                asleep = false,
+            )
         assertNotNull(unplugged)
         assertEquals(true, unplugged?.limit?.enabled)
         val fast =
-            chargeControlsModel(charge(state = ChargeState.ChargingState(Charging = Void()), fast = true), actions, portOpen = false)
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Charging = Void()), fast = true),
+                actions,
+                portOpen = false,
+                enabled = true,
+                asleep = false,
+            )
         assertNotNull(fast)
         assertEquals(true, fast?.limit?.enabled)
         assertEquals(false, fast?.amps?.enabled)
-        assertNull(chargeControlsModel(null, actions, portOpen = false))
+        assertNull(chargeControlsModel(null, actions, portOpen = false, enabled = true, asleep = false))
     }
 
     @Test
@@ -72,6 +84,8 @@ class ChargeControlsTest {
                 charge(state = ChargeState.ChargingState(Stopped = Void()), amps = 3, maxAmps = 32),
                 actions,
                 portOpen = false,
+                enabled = true,
+                asleep = false,
             )
         val amps = slow?.amps
         assertNotNull(amps)
@@ -82,21 +96,86 @@ class ChargeControlsTest {
     }
 
     @Test
-    fun `an open charge port shows the card and a start button`() {
-        assertNull(chargeControlsModel(null, actions, portOpen = false))
-        val noState = chargeControlsModel(null, actions, portOpen = true)
+    fun `a held card disables its controls while the link is down`() {
+        val model = chargeControlsModel(charge(), actions, portOpen = false, enabled = false, asleep = false)
+        assertNotNull(model)
+        assertEquals(false, model?.enabled)
+        assertEquals(false, model?.limit?.enabled)
+        assertEquals(false, model?.amps?.enabled)
+    }
+
+    @Test
+    fun `an awake car with an open port waits for its first reading`() {
+        assertNull(chargeControlsModel(null, actions, portOpen = false, enabled = true, asleep = false))
+        val noState = chargeControlsModel(null, actions, portOpen = true, enabled = true, asleep = false)
+        assertNotNull(noState)
+        assertEquals(ChargeButton.NONE, noState?.button)
+        assertEquals(true, noState?.reading)
+        // The rows keep their place while the first reading is on its way; only the values are missing.
+        assertNotNull(noState?.limit)
+        assertNull(noState?.limit?.current)
+        assertEquals(false, noState?.limit?.enabled)
+        assertNotNull(noState?.amps)
+        assertNull(noState?.amps?.current)
+        assertEquals(false, noState?.amps?.enabled)
+        val unplugged =
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Disconnected = Void())),
+                actions,
+                portOpen = true,
+                enabled = true,
+                asleep = false,
+            )
+        assertEquals(ChargeButton.NONE, unplugged?.button)
+        assertEquals(false, unplugged?.reading)
+        val complete =
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Complete = Void())),
+                actions,
+                portOpen = true,
+                enabled = true,
+                asleep = false,
+            )
+        assertEquals(ChargeButton.NONE, complete?.button)
+        val charging =
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Charging = Void())),
+                actions,
+                portOpen = true,
+                enabled = true,
+                asleep = false,
+            )
+        assertEquals(ChargeButton.STOP, charging?.button)
+        assertEquals(false, charging?.reading)
+    }
+
+    @Test
+    fun `a sleeping car with an open port assumes charging stopped`() {
+        val noState = chargeControlsModel(null, actions, portOpen = true, enabled = true, asleep = true)
         assertNotNull(noState)
         assertEquals(ChargeButton.START, noState?.button)
-        val unplugged =
-            chargeControlsModel(charge(state = ChargeState.ChargingState(Disconnected = Void())), actions, portOpen = true)
-        assertEquals(ChargeButton.START, unplugged?.button)
-        // Port open and not actively charging offers Start, so Complete is promoted too.
-        val complete =
-            chargeControlsModel(charge(state = ChargeState.ChargingState(Complete = Void())), actions, portOpen = true)
-        assertEquals(ChargeButton.START, complete?.button)
+        assertEquals(false, noState?.reading)
+        assertNotNull(noState?.limit)
+        assertNull(noState?.limit?.current)
         val charging =
-            chargeControlsModel(charge(state = ChargeState.ChargingState(Charging = Void())), actions, portOpen = true)
-        assertEquals(ChargeButton.STOP, charging?.button)
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Charging = Void())),
+                actions,
+                portOpen = true,
+                enabled = true,
+                asleep = true,
+            )
+        assertEquals(ChargeButton.START, charging?.button)
+        // A closed port keeps the reported state: sleep alone does not invent a start.
+        val closed =
+            chargeControlsModel(
+                charge(state = ChargeState.ChargingState(Charging = Void())),
+                actions,
+                portOpen = false,
+                enabled = true,
+                asleep = true,
+            )
+        assertEquals(ChargeButton.STOP, closed?.button)
     }
 
     @Test

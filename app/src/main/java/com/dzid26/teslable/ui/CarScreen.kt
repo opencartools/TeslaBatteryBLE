@@ -397,15 +397,20 @@ internal fun CarScreen(
                     // The port door is the only pre-read signal; only a fully open door counts.
                     val portOpen =
                         isPortOpen(connection?.status?.closureStatuses?.chargePort, charge?.charge_port_door_open)
+                    // The card keeps the held reading through a short disconnection, like the hero.
+                    val connected = connection?.phase == ConnectionPhase.READY
+                    // A sleeping car is taken to have stopped charging, so an open port offers Start until a read says otherwise.
+                    val asleep = connection?.status?.asleep == true
                     val chargeModel =
-                        if (paired &&
-                            vehicle?.hasSessionVin == true &&
-                            connection?.phase == ConnectionPhase.READY
-                        ) {
-                            chargeControlsModel(charge, chargeActions, portOpen)
+                        if (paired && vehicle?.hasSessionVin == true) {
+                            chargeControlsModel(charge, chargeActions, portOpen, connected, asleep)
                         } else {
                             null
                         }
+                    // An open port is the first signal of a new session; read once to replace a stale state.
+                    LaunchedEffect(portOpen) {
+                        if (portOpen) onRefresh()
+                    }
                     ChargeControlsSection(
                         state =
                             ChargeControlsState(

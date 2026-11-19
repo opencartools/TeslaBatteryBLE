@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
@@ -64,7 +66,7 @@ internal fun ChargeControlsCard(
             }
             model.limit?.let { ChargeStepperRow(it, failure) }
             model.amps?.let { ChargeStepperRow(it, failure) }
-            ChargeButtonRow(model.button, actuating, actions)
+            ChargeButtonRow(model.button, model.enabled, model.reading, actuating, actions)
             ChargeFailureLine(failure)
         }
     }
@@ -125,7 +127,7 @@ private fun StepperLabel(
 @Composable
 private fun StepperControls(
     model: ChargeStepperModel,
-    shown: Int,
+    shown: Int?,
     onStep: (Int) -> Unit,
     modifier: Modifier = Modifier,
     arrangement: Arrangement.Horizontal = Arrangement.Start,
@@ -134,8 +136,8 @@ private fun StepperControls(
     val increaseLabel = stringResource(model.increaseLabel)
     Row(modifier = modifier, horizontalArrangement = arrangement, verticalAlignment = Alignment.CenterVertically) {
         IconButton(
-            onClick = { onStep(model.step(shown, -1)) },
-            enabled = model.enabled && shown > model.range.first,
+            onClick = { if (shown != null) onStep(model.step(shown, -1)) },
+            enabled = model.enabled && shown != null && shown > model.range.first,
         ) {
             Text(
                 text = "\u2212",
@@ -148,15 +150,16 @@ private fun StepperControls(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = stringResource(model.valueFormat, shown),
+                text = if (shown != null) stringResource(model.valueFormat, shown) else stringResource(R.string.charge_controls_unknown),
+                color = if (shown == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
             )
         }
         IconButton(
-            onClick = { onStep(model.step(shown, 1)) },
-            enabled = model.enabled && shown < model.range.last,
+            onClick = { if (shown != null) onStep(model.step(shown, 1)) },
+            enabled = model.enabled && shown != null && shown < model.range.last,
         ) {
             Text(
                 text = "+",
@@ -170,13 +173,28 @@ private fun StepperControls(
 @Composable
 private fun ChargeButtonRow(
     button: ChargeButton,
+    enabled: Boolean,
+    reading: Boolean,
     actuating: Set<ActuationKey>,
     actions: ChargeControlActions,
 ) {
+    if (reading) {
+        FilledTonalButton(
+            onClick = {},
+            enabled = false,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            BusySpinner(size = 16.dp)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.charge_controls_reading))
+        }
+        return
+    }
     when (button) {
         ChargeButton.START ->
             ControlButton(
                 start = true,
+                enabled = enabled,
                 pending = ActuationKey.CHARGE_START in actuating,
                 onClick = actions.start,
             )
@@ -184,6 +202,7 @@ private fun ChargeButtonRow(
         ChargeButton.STOP ->
             ControlButton(
                 start = false,
+                enabled = enabled,
                 pending = ActuationKey.CHARGE_STOP in actuating,
                 onClick = actions.stop,
             )
@@ -206,12 +225,13 @@ private fun ChargeFailureLine(failure: ActuationKey?) {
 @Composable
 private fun ControlButton(
     start: Boolean,
+    enabled: Boolean,
     pending: Boolean,
     onClick: () -> Unit,
 ) {
     FilledTonalButton(
         onClick = onClick,
-        enabled = !pending,
+        enabled = enabled && !pending,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(stringResource(if (start) R.string.charge_controls_start else R.string.charge_controls_stop))
