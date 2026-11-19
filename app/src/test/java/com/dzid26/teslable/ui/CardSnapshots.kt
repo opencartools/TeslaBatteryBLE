@@ -47,6 +47,7 @@ import com.dzid26.teslable.core.history.ParkedSpan
 import com.dzid26.teslable.core.history.ProjectionContext
 import com.dzid26.teslable.core.history.RestKind
 import com.dzid26.teslable.core.history.RestStats
+import com.dzid26.teslable.core.history.STATUS_CHANGE_MAX_GAP_MILLIS
 import com.dzid26.teslable.core.history.SleepDrop
 import com.dzid26.teslable.core.units.DistanceUnit
 import com.dzid26.teslable.core.units.EfficiencyUnit
@@ -478,7 +479,7 @@ class CardSnapshots {
             HistoryCard(
                 samples = parkedSamples,
                 drives = parkedSamples.map { parkedDrive(it) },
-                view = HistoryView(nowMillis = NOW),
+                view = HistoryView(nowMillis = NOW, range = HistoryRange.DAY),
             )
         }
     }
@@ -512,28 +513,27 @@ class CardSnapshots {
 
     @Test
     fun historyCardParkedDrainRange() {
-        // A slow parked drain (about 1.6 %/day) read on the rated range: a fitted scale turns
-        // the level steps into sub-percent readings, so the line is smooth and the beam is thin.
+        // A slow parked drain (about 1.6 %/day) read on the rated range every two hours: a fitted
+        // scale turns the level steps into sub-percent readings, so the line is smooth and the band is under a point.
         snapCard("history-card_parked-drain-range") {
             HistoryCard(
-                samples = rangeParkedSamples,
-                drives = rangeParkedSamples.map { parkedDrive(it) },
-                view = HistoryView(nowMillis = NOW),
+                samples = rangePowerDownSamples,
+                drives = rangePowerDownSamples.map { parkedDrive(it) },
+                view = HistoryView(nowMillis = NOW, range = HistoryRange.DAY),
             )
         }
     }
 
     @Test
-    fun historyCardParkedSleep() {
-        // Three short attended bursts (a read every 20 min, about 1 %/h) with the car locked and alone
-        // between them (no unlocked or present status inside a gap): the line follows the sleep rate, the text
-        // adds the mixed rate, and the beam reaches down to the mixed line.
-        snapCard("history-card_parked-sleep") {
+    fun historyCardParkedPowerDown() {
+        // Three short attended bursts (a read every 20 min) with the car locked and alone
+        // between them: the long gaps are the power-down pairs, so the line shows; the band is under a point.
+        snapCard("history-card_parked-power-down") {
             HistoryCard(
-                samples = sleepParkedSamples,
-                drives = sleepParkedSamples.map { parkedDrive(it) },
-                context = ProjectionContext(activity = sleepActivity),
-                view = HistoryView(nowMillis = NOW),
+                samples = powerDownSamples,
+                drives = powerDownSamples.map { parkedDrive(it) },
+                context = ProjectionContext(activity = powerDownActivity),
+                view = HistoryView(nowMillis = NOW, range = HistoryRange.DAY),
             )
         }
     }
@@ -799,7 +799,7 @@ class CardSnapshots {
     companion object {
         internal const val NOW = 1_760_000_000_000L
         internal const val MINUTE = 60_000L
-        private const val HOUR = 3_600_000L
+        internal const val HOUR = 3_600_000L
         internal const val FRESH_MINUTES = 1L
         private const val ASLEEP_MINUTES = 3L
         private const val STALE_MINUTES = 12L
@@ -809,7 +809,7 @@ class CardSnapshots {
         private const val LIVE_RANGE_MILES = 212.5f
         private const val STORED_RANGE_MILES = 245.5f
         private const val ADDRESS = "AA:BB:CC:DD:EE:01"
-        private const val BLE_NAME = "S1f094173C"
+        internal const val BLE_NAME = "S1f094173C"
 
         internal fun liveConnection(
             readAt: Long? = null,
@@ -875,7 +875,7 @@ class CardSnapshots {
             odometerInHundredthsOfAMile = odometer,
         )
 
-        private fun projectionSample(
+        internal fun projectionSample(
             minutesAgo: Long,
             percent: Int,
             charging: Boolean,
@@ -916,17 +916,17 @@ class CardSnapshots {
                 rangeSample(1500L + (47 - step) * 60L, 68.0 + (85.0 - 68.0) * (47 - step) / 47.0)
             }
 
-        // Awake bursts at these minutes ago (three reads each), asleep in between.
-        private val sleepBursts = listOf(1260L, 800L, 300L, 0L)
+        // Awake bursts at these minutes ago (three reads each), power-down in between.
+        private val powerDownBursts = listOf(1260L, 800L, 300L, 0L)
 
         // The level after each read, walking forward in time: an awake pair (20 min) loses
-        // 0.3 points, a pair across a sleeping gap loses 0.1 whatever its length.
-        private val sleepParkedSamples: List<BatterySample> =
+        // 0.3 points, a pair across a power-down gap loses 0.1 whatever its length.
+        private val powerDownSamples: List<BatterySample> =
             run {
                 var soc = 68.0
                 val reads =
-                    sleepBursts.flatMapIndexed { burst, start ->
-                        if (burst == sleepBursts.lastIndex) listOf(start) else listOf(start, start - 20, start - 40)
+                    powerDownBursts.flatMapIndexed { burst, start ->
+                        if (burst == powerDownBursts.lastIndex) listOf(start) else listOf(start, start - 20, start - 40)
                     }
                 // The earlier driving gives the scale fit its level steps.
                 rangeDrivenSamples +
@@ -936,20 +936,27 @@ class CardSnapshots {
                     }
             }
 
-        // The climate runs mid-way through each awake burst and stays off in the gaps. The gaps are the sleep
-        // the dashed line follows.
-        private val sleepActivity =
-            sleepBursts.dropLast(1).flatMap { from ->
-                listOf(from - 10, from - 30).map {
+        // The climate runs during each awake burst and is off in the gaps; the reading is
+        // past STATUS_CHANGE_MAX_GAP_MILLIS, so the carried-in state does not reach the gap.
+        private val powerDownActivity =
+            powerDownBursts.dropLast(1).flatMap { from ->
+                listOf(from - (STATUS_CHANGE_MAX_GAP_MILLIS / MINUTE + 4)).map {
                     ActivitySample(NOW - it * MINUTE, BLE_NAME, ActivityKind.CLIMATE, on = true)
                 }
             }
 
-        // 21 h parked, 68 -> 66.6 % (about 1.6 %/day), a read every 20 min.
+        // 21 h parked, 68 -> 66.6 % (about 1.6 %/day), a read every 20 min: no power-down pair.
         private val rangeParkedSamples =
             rangeDrivenSamples +
                 (0..63).map { step ->
                     rangeSample((63 - step) * 20L, 66.6 + (68.0 - 66.6) * (63 - step) / 63.0)
+                }
+
+        // The same drain with a read every two hours: ten power-down pairs, a line and a band.
+        private val rangePowerDownSamples =
+            rangeDrivenSamples +
+                (0..10).map { step ->
+                    rangeSample((10 - step) * 120L, 66.6 + (68.0 - 66.6) * (10 - step) / 10.0)
                 }
 
         // Then a charge from 67 -> ~73 % over the last 4 h, a read every 10 min, supply 218-243 V.

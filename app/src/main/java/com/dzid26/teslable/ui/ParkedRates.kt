@@ -6,23 +6,21 @@ import com.dzid26.teslable.core.history.DischargeProjection
 import java.util.Locale
 import kotlin.math.roundToInt
 
-/** The parked drain rates as shown, percent per day with one decimal. */
+/** The parked drain rate as shown, percent per day with one decimal. */
 internal class ParkedRates(
-    /** The rate the line follows: deep sleep when the car has slept enough to tell, else the mixed one. */
+    /** The power-down rate the line follows. */
     val main: String?,
-    /** True when [main] is the deep-sleep rate. */
-    val asleep: Boolean,
 )
 
 /**
- * The label for a parked projection's rate: only the deep-sleep rate when the car
- * has slept enough to tell, else the mixed one. A rate above zero but under half
- * a tenth has no figure (the caller says "under 0.1") instead of a misleading "0.0".
+ * The label for a parked projection's rate: the power-down rate. A rate above
+ * zero but under half a tenth has no figure (the caller says "under 0.1")
+ * instead of a misleading "0.0".
  */
 internal fun parkedRates(
     projection: DischargeProjection,
     locale: Locale,
-): ParkedRates = ParkedRates(perDay(projection.percentPerHour, locale), projection.mixedPercentPerHour != null)
+): ParkedRates = ParkedRates(perDay(projection.percentPerHour, locale))
 
 /** How far ahead a projection looks, as a whole number of hours or days. */
 internal class ParkedHorizon(

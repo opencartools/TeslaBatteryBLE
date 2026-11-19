@@ -61,17 +61,13 @@ internal fun dischargeProjected(
     val from = TimePoint(target.from.timestampMillis, target.fromSoc)
     val end = TimePoint(target.projectedAtMillis, target.projectedSoc)
     val spec = projectionSpec(SeriesKind.DISCHARGE_PROJECTION, from, end, window)
-    val low = target.lowSoc
-    val high = target.highSoc
     val beam =
-        if (low != null && high != null) {
+        target.beam?.let { (low, high) ->
             Beam(
                 xs = listOf(from, end, end).map { window.hours(it.millis) },
                 ys = listOf(from.percent, low, high).map { it.toDouble() },
                 color = color.copy(alpha = if (muted) DISCHARGE_BEAM_MUTED_ALPHA else DISCHARGE_BEAM_ALPHA),
             )
-        } else {
-            null
         }
     return Projected(spec, beam)
 }

@@ -126,3 +126,9 @@ Tesla charging, a second car, two days of seeded history, version `0.5.0`).
 - **Version string.** `DemoScreenFixtures.VERSION_NAME` is a constant, not
   `BuildConfig.VERSION_NAME`, which names the commit (`git describe`) and would
   make Settings differ on every commit; bump it by hand at release.
+
+## Update (2026-11-15): the snapshot set grew
+
+The suite now covers every card and screen state (three images
+each), not only the initial 48. The workflow comment no longer pins a total;
+the 48 above is the initial decision, not the current count.

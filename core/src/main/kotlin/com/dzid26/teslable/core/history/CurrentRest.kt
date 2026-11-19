@@ -95,7 +95,7 @@ private fun restNow(
         } else {
             null
         }
-    val poweredDownSince = idleFirst?.let { readAt(samples[it]) }?.takeIf { nowMillis - it >= MIN_SLEEP_PAIR_MILLIS }
+    val poweredDownSince = idleFirst?.let { readAt(samples[it]) }?.takeIf { nowMillis - it >= MIN_POWER_DOWN_GAP_MILLIS }
     return poweredDownSince?.let { CurrentRest(RestKind.POWERED_DOWN, it) } ?: CurrentRest(RestKind.PARKED, readAt(samples[first]))
 }
 
