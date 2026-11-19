@@ -10,7 +10,7 @@ class ChartViewportTest {
     @Test
     fun spreadingTheFingersZoomsInAroundThem() {
         // Fingers in the middle of the whole chart spread to twice their distance: half the chart, centred.
-        val (start, end) = panZoom(0.0, 1.0, from = 0.5, to = 0.5, scale = 2.0)
+        val (start, end) = panZoom(0.0..1.0, from = 0.5, to = 0.5, scale = 2.0)
         assertEquals(0.25, start, EPS)
         assertEquals(0.75, end, EPS)
     }
@@ -18,35 +18,35 @@ class ChartViewportTest {
     @Test
     fun thePointUnderTheFingersStaysUnderThem() {
         // Zooming in at a quarter of the way across keeps that point a quarter of the way across.
-        val (start, end) = panZoom(0.0, 1.0, from = 0.25, to = 0.25, scale = 4.0)
+        val (start, end) = panZoom(0.0..1.0, from = 0.25, to = 0.25, scale = 4.0)
         assertEquals(0.25, start + 0.25 * (end - start), EPS)
     }
 
     @Test
     fun movingTheFingersTogetherPans() {
         // Half the chart on screen; the fingers move a tenth of the view to the right, so the view moves left.
-        val (start, end) = panZoom(0.4, 0.9, from = 0.5, to = 0.6, scale = 1.0)
+        val (start, end) = panZoom(0.4..0.9, from = 0.5, to = 0.6, scale = 1.0)
         assertEquals(0.35, start, EPS)
         assertEquals(0.85, end, EPS)
     }
 
     @Test
     fun theViewStaysInsideTheChart() {
-        val (start, end) = panZoom(0.0, 0.5, from = 0.5, to = 0.9, scale = 1.0)
+        val (start, end) = panZoom(0.0..0.5, from = 0.5, to = 0.9, scale = 1.0)
         assertEquals(0.0, start, EPS)
         assertEquals(0.5, end, EPS)
     }
 
     @Test
     fun pinchingOutStopsAtTheWholeChart() {
-        val (start, end) = panZoom(0.2, 0.4, from = 0.5, to = 0.5, scale = 0.01)
+        val (start, end) = panZoom(0.2..0.4, from = 0.5, to = 0.5, scale = 0.01)
         assertEquals(0.0, start, EPS)
         assertEquals(1.0, end, EPS)
     }
 
     @Test
     fun zoomingInStopsAtTheNarrowestView() {
-        val (start, end) = panZoom(0.0, 1.0, from = 0.5, to = 0.5, scale = 1000.0)
+        val (start, end) = panZoom(0.0..1.0, from = 0.5, to = 0.5, scale = 1000.0)
         assertEquals(MIN_VIEW_SPAN, end - start, EPS)
     }
 
@@ -128,5 +128,17 @@ class ChartViewportTest {
         viewport.zoomBetween(350f, 850f)
         assertEquals(0.4, viewport.start, 1e-6)
         assertEquals(0.6, viewport.end, 1e-6)
+    }
+
+    @Test
+    fun aViewportStopsAtItsOwnMinimum() {
+        val viewport =
+            ChartViewport(minSpan = 0.01).apply {
+                layerLeft = 0f
+                layerWidth = 100f
+            }
+        // Keep spreading the fingers: the view shrinks by a factor of four each step until it stops at its minimum.
+        repeat(10) { viewport.transform(previousX = 50f, x = 50f, previousSpan = 10f, span = 40f, minFingerSpan = 8f) }
+        assertEquals(0.01, viewport.end - viewport.start, 1e-9)
     }
 }

@@ -14,7 +14,7 @@ import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.ChargeProjection
 import com.dzid26.teslable.core.history.DischargeProjection
 import com.dzid26.teslable.core.history.FullRangeScale
-import com.dzid26.teslable.core.history.PowerDownGap
+import com.dzid26.teslable.core.history.TimeSpan
 import com.dzid26.teslable.core.history.soc
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.Zoom
@@ -37,14 +37,16 @@ import kotlin.math.roundToLong
 /** What a series of the battery chart draws; the line provider maps each kind to its look. */
 internal enum class SeriesKind { MEASURED, MEASURED_CHARGING, DOTS, DOTS_CHARGING, CHARGE_PROJECTION, DISCHARGE_PROJECTION }
 
-/** What the chart plots: the readings, the projections and the scale that turns them into percent. */
+/** What the chart plots: the readings, the projections, the scale that turns them into percent, and the shaded bands. */
 internal data class ChartData(
     val samples: List<BatterySample>,
     val charge: ChargeProjection?,
     val discharge: DischargeProjection?,
     val scale: FullRangeScale?,
-    // The quiet stretches the parked rate is fitted from, shaded behind the plot.
-    val powerDown: List<PowerDownGap> = emptyList(),
+    // The stretches each kind shades behind the plot, in the kind's paint order (parked first).
+    val bands: Map<BandKind, List<TimeSpan>> = emptyMap(),
+    // The parts of each kind's bands the log lost: striped rather than shaded flat.
+    val unseen: Map<BandKind, List<TimeSpan>> = emptyMap(),
 )
 
 /** The time window and how its times are written. */
@@ -111,7 +113,7 @@ internal fun BatteryChart(
         remember(axis.windowStart / MILLIS_PER_MINUTE, axis.windowEnd / MILLIS_PER_MINUTE) { Window(axis.windowStart, axis.windowEnd) }
 
     val shape =
-        remember(samples, charge, data.discharge, scale, data.powerDown, window, lineColor) {
+        remember(samples, charge, data.discharge, scale, data.bands, data.unseen, window, lineColor) {
             batteryShape(data, window, lineColor, chargingChartColor)
         }
     val lines = rememberBatteryLines(lineColor, chargingChartColor, parkedMuted = charge != null)
@@ -297,11 +299,21 @@ internal fun batteryShape(
         specs = (measuredSpecs(samples, xs, ys) + projections.map { it.spec }).map { it.normalized() },
         beams = projections.mapNotNull { it.beam },
         bands =
-            data.powerDown.mapNotNull { span ->
-                // Clamped to the window: a span that reaches past its edge is cut there, and one off it draws nothing.
-                val start = window.hours(span.startMillis)
-                val end = window.hours(span.endMillis)
-                if (end > start) Band(start, end, BandKind.PARKED) else null
+            BandKind.entries.flatMap { kind ->
+                data.bands[kind].orEmpty().mapNotNull { span ->
+                    // Clamped to the window: a span that reaches past its edge is cut there, and one off it draws nothing.
+                    val start = window.hours(span.startMillis)
+                    val end = window.hours(span.endMillis)
+                    if (end <= start) return@mapNotNull null
+                    // The band owns its holes, so the hatch can never land on another kind's band.
+                    val holes =
+                        data.unseen[kind].orEmpty().mapNotNull { hole ->
+                            val holeStart = window.hours(hole.startMillis).coerceIn(start, end)
+                            val holeEnd = window.hours(hole.endMillis).coerceIn(start, end)
+                            if (holeEnd > holeStart) holeStart..holeEnd else null
+                        }
+                    Band(start, end, kind, holes)
+                }
             },
         yMin = yMin.toDouble(),
         yMax = yMax.toDouble(),

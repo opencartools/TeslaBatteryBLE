@@ -46,17 +46,6 @@ data class DischargeProjection(
 }
 
 /**
- * One stretch the car spent powering down: a quiet parked gap of an hour or more between two
- * reads, one of the pairs the parked drain rate is fitted from. [startMillis] and [endMillis]
- * are the reads at its ends, so a gap covers exactly the stretch the rate counts. This is the
- * time bounds alone; [ParkedSpan] carries them with the drop across the stretch.
- */
-data class PowerDownGap(
-    val startMillis: Long,
-    val endMillis: Long,
-)
-
-/**
  * Projects the parked drain: the power-down rate in the selected range is
  * carried half the range forward, matching the chart's expanded x-axis.
  *
@@ -153,7 +142,7 @@ fun powerDownGaps(
     drives: List<DriveSample>,
     rangeMillis: Long,
     context: ProjectionContext = ProjectionContext(),
-): List<PowerDownGap> = windowedPowerDown(samples, drives, rangeMillis, context)?.gaps.orEmpty()
+): List<TimeSpan> = windowedPowerDown(samples, drives, rangeMillis, context)?.gaps.orEmpty()
 
 /**
  * The power-down span over the range, from the newest read back: the one window and drive filter
@@ -198,7 +187,7 @@ private class PowerDownSpan(
     /** The rounding variance of the summed drop: two readings for every pair. */
     val roundingVariance: Double = 0.0,
     /** One stretch per run of consecutive quiet pairs: the seams between them are not breaks. */
-    val gaps: List<PowerDownGap> = emptyList(),
+    val gaps: List<TimeSpan> = emptyList(),
 ) {
     /** The drain rate of the power-down pairs, percent per millisecond; null with too few of them. */
     val ratePerMilli: Double? get() = if (pairs >= MIN_POWER_DOWN_PAIRS && millis > 0L) drop / millis else null
@@ -218,7 +207,7 @@ private fun powerDownSpan(
     val drops = mutableListOf<Double>()
     val spans = mutableListOf<Long>()
     val quiet = mutableListOf<Boolean>()
-    val quietPairs = mutableListOf<PowerDownGap>()
+    val quietPairs = mutableListOf<TimeSpan>()
     val readings = driveReadingsAt(samples, drives)
     for (index in 1 until samples.size) {
         val a = samples[index - 1]
@@ -230,7 +219,7 @@ private fun powerDownSpan(
             drops += (a.soc(scale) - b.soc(scale)).toDouble()
             spans += b.timestampMillis - a.timestampMillis
             quiet += isQuiet
-            if (isQuiet) quietPairs += PowerDownGap(a.timestampMillis, b.timestampMillis)
+            if (isQuiet) quietPairs += TimeSpan(a.timestampMillis, b.timestampMillis)
         }
     }
     val resolution = readingResolution(scale)
@@ -257,12 +246,12 @@ private fun powerDownSpan(
  * [this] gaps with each run of consecutive ones joined into one: two quiet pairs that meet at a
  * read are one stretch, not two bands with a seam between them.
  */
-private fun List<PowerDownGap>.merged(): List<PowerDownGap> {
-    val merged = mutableListOf<PowerDownGap>()
+private fun List<TimeSpan>.merged(): List<TimeSpan> {
+    val merged = mutableListOf<TimeSpan>()
     for (gap in this) {
         val last = merged.lastOrNull()
         if (last != null && last.endMillis >= gap.startMillis) {
-            merged[merged.lastIndex] = PowerDownGap(last.startMillis, maxOf(last.endMillis, gap.endMillis))
+            merged[merged.lastIndex] = TimeSpan(last.startMillis, maxOf(last.endMillis, gap.endMillis))
         } else {
             merged += gap
         }

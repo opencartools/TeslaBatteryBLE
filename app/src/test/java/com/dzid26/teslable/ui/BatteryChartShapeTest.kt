@@ -5,7 +5,7 @@ package com.dzid26.teslable.ui
 import androidx.compose.ui.graphics.Color
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.ChargeProjection
-import com.dzid26.teslable.core.history.PowerDownGap
+import com.dzid26.teslable.core.history.TimeSpan
 import com.dzid26.teslable.protocol.ChargingStateKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -126,7 +126,7 @@ class BatteryChartShapeTest {
     }
 
     @Test
-    fun powerDownBandsAreClippedToTheWindow() {
+    fun bandsAreClippedToTheWindow() {
         val shape =
             batteryShape(
                 ChartData(
@@ -134,20 +134,66 @@ class BatteryChartShapeTest {
                     charge = null,
                     discharge = null,
                     scale = null,
-                    powerDown =
-                        listOf(
-                            // Straddles the window's start: only the part on it is drawn.
-                            PowerDownGap(-hour, 2 * hour),
-                            PowerDownGap(3 * hour, 4 * hour),
-                            // Wholly before it: nothing to draw.
-                            PowerDownGap(-3 * hour, -2 * hour),
+                    bands =
+                        mapOf(
+                            BandKind.PARKED to
+                                listOf(
+                                    // Straddles the window's start: only the part on it is drawn.
+                                    TimeSpan(-hour, 2 * hour),
+                                    TimeSpan(3 * hour, 4 * hour),
+                                    // Wholly before it: nothing to draw.
+                                    TimeSpan(-3 * hour, -2 * hour),
+                                ),
+                            BandKind.ASLEEP to listOf(TimeSpan(hour, 3 * hour)),
                         ),
                 ),
                 Window(0L, 5 * hour),
                 Color.Blue,
                 Color.Green,
             )
-        assertEquals(listOf(0.0 to 2.0, 3.0 to 4.0), shape.bands.map { it.startHours to it.endHours })
+        assertEquals(
+            listOf(
+                0.0 to 2.0 to BandKind.PARKED,
+                3.0 to 4.0 to BandKind.PARKED,
+                1.0 to 3.0 to BandKind.ASLEEP,
+            ),
+            shape.bands.map { (it.startHours to it.endHours) to it.kind },
+        )
+    }
+
+    @Test
+    fun unseenStretchesAreAttachedToTheirBand() {
+        val shape =
+            batteryShape(
+                ChartData(
+                    samples = listOf(sample(0.0, 80), sample(1.0, 79)),
+                    charge = null,
+                    discharge = null,
+                    scale = null,
+                    bands = mapOf(BandKind.ASLEEP to listOf(TimeSpan(0, 3 * hour))),
+                    unseen =
+                        mapOf(
+                            BandKind.ASLEEP to
+                                listOf(
+                                    // Straddles the band's start: only the part inside the band is striped.
+                                    TimeSpan(-hour, hour),
+                                    TimeSpan(2 * hour, 3 * hour),
+                                    // Wholly past the window: nothing to draw.
+                                    TimeSpan(6 * hour, 7 * hour),
+                                ),
+                        ),
+                ),
+                Window(0L, 5 * hour),
+                Color.Blue,
+                Color.Green,
+            )
+        assertEquals(
+            listOf(0.0 to 1.0, 2.0 to 3.0),
+            shape.bands
+                .single { it.kind == BandKind.ASLEEP }
+                .unseen
+                .map { it.start to it.endInclusive },
+        )
     }
 
     @Test

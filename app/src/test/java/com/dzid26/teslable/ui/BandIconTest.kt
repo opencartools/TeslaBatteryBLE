@@ -9,16 +9,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BandIconTest {
-    private val style = IconStyle(sizePx = 16f, insetPx = 6f, airPx = 2f, minSizePx = 10f)
+    private val style = IconStyle(sizePx = 16f, insetPx = 6f, airPx = 2f, minSizePx = 8f)
 
     /** Ten px per hour, over a view that holds the whole chart. */
     private fun canvasX(hours: Double): Float = (hours * 10).toFloat()
 
-    private fun iconOf(
-        band: Band,
+    private fun iconsOf(
+        vararg bands: Band,
         visible: ClosedFloatingPointRange<Double> = 0.0..100.0,
         canvasX: (Double) -> Float = ::canvasX,
-    ): BandIcon? = bandIcons(listOf(band), visible, canvasX, top = 10f, style = style).singleOrNull()
+    ): List<BandIcon> = bandIcons(bands.toList(), visible, canvasX, IconEdges(top = 10f, bottom = 110f), style)
+
+    private fun iconOf(band: Band): BandIcon? = iconsOf(band).singleOrNull()
 
     @Test
     fun aBandTooNarrowForEvenASmallIconGetsNone() {
@@ -27,35 +29,68 @@ class BandIconTest {
     }
 
     @Test
-    fun aWideBandCentresItsIconUnderTheTop() {
-        // Four hours is forty px, so the sign is full size: centred at 30 px, sixteen px square, six px down.
-        assertEquals(BandIcon(BandKind.PARKED, left = 22f, top = 10f, right = 38f, bottom = 26f), iconOf(Band(1.0, 5.0, BandKind.PARKED)))
+    fun aWideParkedBandSitsAtTheBottom() {
+        // Four hours is forty px, so the sign is full size: centred at 30 px, sixteen px square, above the bottom.
+        assertEquals(BandIcon(BandKind.PARKED, left = 22f, top = 94f, right = 38f, bottom = 110f), iconOf(Band(1.0, 5.0, BandKind.PARKED)))
+    }
+
+    @Test
+    fun aWideSleepBandSitsAtTheTop() {
+        assertEquals(BandIcon(BandKind.ASLEEP, left = 22f, top = 10f, right = 38f, bottom = 26f), iconOf(Band(1.0, 5.0, BandKind.ASLEEP)))
+        assertEquals(BandIcon(BandKind.CLIMATE, left = 22f, top = 10f, right = 38f, bottom = 26f), iconOf(Band(1.0, 5.0, BandKind.CLIMATE)))
+    }
+
+    @Test
+    fun aBridgedSleepPutsItsMarkOnTheWitnessedPart() {
+        // Sleep 0..10 with a hole 3..6: the wider witnessed part is 6..10, so the moon sits at 8, not over the hole.
+        assertEquals(
+            BandIcon(BandKind.ASLEEP, left = 72f, top = 10f, right = 88f, bottom = 26f),
+            iconOf(Band(0.0, 10.0, BandKind.ASLEEP, unseen = listOf(3.0..6.0))),
+        )
+    }
+
+    @Test
+    fun aClimateRunInsideASleepHoleKeepsItsMarkAside() {
+        // The sleep mark moves to its 6..10 stretch; the climate mark stays at 3..6's centre, so the top pair is apart.
+        val icons =
+            iconsOf(
+                Band(0.0, 10.0, BandKind.ASLEEP, unseen = listOf(3.0..6.0)),
+                Band(3.0, 6.0, BandKind.CLIMATE),
+            )
+        assertEquals(listOf(72f, 37f), icons.map { it.left })
     }
 
     @Test
     fun aNarrowBandGetsASmallerSign() {
         // Sixteen px of band leaves twelve px of sign after two px of air each side, still centred.
-        assertEquals(BandIcon(BandKind.PARKED, left = 2f, top = 10f, right = 14f, bottom = 22f), iconOf(Band(0.0, 1.6, BandKind.PARKED)))
+        assertEquals(BandIcon(BandKind.ASLEEP, left = 2f, top = 10f, right = 14f, bottom = 22f), iconOf(Band(0.0, 1.6, BandKind.ASLEEP)))
     }
 
     @Test
     fun aBandWiderThanTheZoomedViewKeepsItsIconInsideTheView() {
         // The band runs from 2 h to 20 h, the view shows 2 h to 8 h: centre on what is visible (5 h),
         // not on the hidden 11 h, which would land the icon past the plot's right edge.
-        val icon = iconOf(Band(2.0, 20.0, BandKind.PARKED), visible = 2.0..8.0)
-        assertEquals(BandIcon(BandKind.PARKED, left = 42f, top = 10f, right = 58f, bottom = 26f), icon)
+        val icon = iconsOf(Band(2.0, 20.0, BandKind.ASLEEP), visible = 2.0..8.0).single()
+        assertEquals(BandIcon(BandKind.ASLEEP, left = 42f, top = 10f, right = 58f, bottom = 26f), icon)
     }
 
     @Test
     fun aBandWhollyOutsideTheZoomedViewGetsNone() {
-        assertEquals(null, iconOf(Band(0.0, 4.0, BandKind.PARKED), visible = 10.0..20.0))
+        assertEquals(emptyList<BandIcon>(), iconsOf(Band(0.0, 4.0, BandKind.PARKED), visible = 10.0..20.0))
     }
 
     @Test
     fun aRightToLeftChartDrawsTheSameIcon() {
         // x runs from the right edge: the band's px land reversed, the icon does not.
-        val icon = iconOf(Band(1.0, 5.0, BandKind.PARKED), canvasX = { 100f - canvasX(it) })
-        assertEquals(BandIcon(BandKind.PARKED, left = 62f, top = 10f, right = 78f, bottom = 26f), icon)
+        val icon = iconsOf(Band(1.0, 5.0, BandKind.ASLEEP), canvasX = { 100f - canvasX(it) }).single()
+        assertEquals(BandIcon(BandKind.ASLEEP, left = 62f, top = 10f, right = 78f, bottom = 26f), icon)
+    }
+
+    @Test
+    fun theTwoSlotsKeepOverlappingKindsApart() {
+        // A sleep inside a parked stretch: both marks are drawn, one at the bottom and one at the top.
+        val icons = iconsOf(Band(0.0, 10.0, BandKind.PARKED), Band(2.0, 8.0, BandKind.ASLEEP))
+        assertEquals(listOf(94f, 10f), icons.map { it.top })
     }
 
     @Test

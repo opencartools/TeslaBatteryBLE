@@ -45,9 +45,11 @@ What the app does today, in detail. The short version is in the [README](../READ
   (3h, 12h, 3 days, a week for the 30d range; stretches where the odometer moved, or the car was in gear, are left out).
   The parked line follows the power-down rate: the quiet stretches with nobody in the car, Sentry and climate off, an
   hour or more apart. Without two of those it is left out; with three or more its band shows the estimation uncertainty.
-  Those stretches are shaded gray behind the chart, and a stretch wide enough carries a parking sign that
-  explains the power down on a tap (a stretch too narrow for its sign shows a dot instead, while another sign is on
-  screen); so the rate can be seen against the gaps it came from. Both
+  Those stretches are shaded gray behind the chart with a parking sign at the bottom of each; a sleep the status log
+  saw is shaded indigo with a moon at the top, and a climate run amber with a snowflake at the top. A sleep the log
+  lost in the middle and found asleep again is one band, striped where the phone was out of touch. A stretch wide
+  enough carries the mark that explains it on a tap, a narrower one a smaller mark; so the rate can be seen against
+  the gaps it came from. Both
   are fitted on the rated range once the scale is learned, so they read in
   fractions of a percent, and each carries a faint beam for how far the fit could
   be off (for a charge also the supply-voltage swings seen in the session).
