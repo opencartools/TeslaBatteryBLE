@@ -12,6 +12,12 @@ data class CapacityEstimate(
     val socDeltaPercent: Float,
 )
 
+/**
+ * Below this swing the estimator refuses to compute a capacity: a small top-up
+ * carries a couple of rated miles of counter resolution, which pins nothing.
+ */
+const val MIN_SWING_PERCENT = 5f
+
 object EnergyDeltaEstimator {
     fun estimate(
         energyAddedKwh: Float,
@@ -20,7 +26,7 @@ object EnergyDeltaEstimator {
     ): CapacityEstimate? {
         if (!isValidInputs(energyAddedKwh, socStartPercent, socEndPercent)) return null
         val delta = socEndPercent - socStartPercent
-        if (delta < 5f) return null
+        if (delta < MIN_SWING_PERCENT) return null
         val usableCapacity = energyAddedKwh / (delta / 100f)
         return CapacityEstimate(usableCapacity, delta)
     }
