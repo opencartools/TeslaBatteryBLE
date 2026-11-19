@@ -78,7 +78,7 @@ internal fun ChargeControlsSection(
         delay(QUIET_FAILURE_MS)
         quietFailure = null
     }
-    // The card went away (unpaired, no VIN, link down): its line goes with it.
+    // The card went away (unpaired, no VIN, or unplugged): its line goes with it. A short link drop keeps a plugged card.
     LaunchedEffect(state.model == null) {
         if (state.model == null) quietFailure = null
     }
