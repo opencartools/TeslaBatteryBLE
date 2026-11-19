@@ -122,8 +122,8 @@ internal fun TipText(
 /**
  * The parked projection as one line of value-and-unit pieces: "Parked · projected
  * 64–66% in 12 h · 0.4%/day": the worst and best case (a single value when they
- * round together), how far ahead, and the rate. The range and the rate carry the
- * hints; the line wraps only when the screen is too narrow for it.
+ * round together), how far ahead, and the rate. The rate carries the hint; the
+ * line wraps only when the screen is too narrow for it.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -147,9 +147,8 @@ internal fun ParkedProjectionLine(
         if (beam != null) {
             val low = beam.first.roundToInt()
             val high = beam.second.roundToInt()
-            HintText(
+            Text(
                 text = stringResource(R.string.history_parked_range, low, high),
-                hint = stringResource(R.string.history_parked_range_hint),
                 color = color,
                 style = style,
             )
