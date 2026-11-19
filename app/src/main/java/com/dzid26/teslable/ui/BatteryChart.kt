@@ -14,7 +14,7 @@ import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.ChargeProjection
 import com.dzid26.teslable.core.history.DischargeProjection
 import com.dzid26.teslable.core.history.FullRangeScale
-import com.dzid26.teslable.core.history.PowerDownGap
+import com.dzid26.teslable.core.history.TimeSpan
 import com.dzid26.teslable.core.history.soc
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.Zoom
@@ -37,14 +37,16 @@ import kotlin.math.roundToLong
 /** What a series of the battery chart draws; the line provider maps each kind to its look. */
 internal enum class SeriesKind { MEASURED, MEASURED_CHARGING, DOTS, DOTS_CHARGING, CHARGE_PROJECTION, DISCHARGE_PROJECTION }
 
-/** What the chart plots: the readings, the projections and the scale that turns them into percent. */
+/** What the chart plots: the readings, the projections, the scale that turns them into percent, and the shaded bands. */
 internal data class ChartData(
     val samples: List<BatterySample>,
     val charge: ChargeProjection?,
     val discharge: DischargeProjection?,
     val scale: FullRangeScale?,
-    // The quiet stretches the parked rate is fitted from, shaded behind the plot.
-    val powerDown: List<PowerDownGap> = emptyList(),
+    // The stretches each kind shades behind the plot, in the kind's paint order (parked first).
+    val bands: Map<BandKind, List<TimeSpan>> = emptyMap(),
+    // The parts of [bands] the log lost: striped rather than shaded flat.
+    val unseen: List<TimeSpan> = emptyList(),
 )
 
 /** The time window and how its times are written. */
@@ -111,12 +113,12 @@ internal fun BatteryChart(
         remember(axis.windowStart / MILLIS_PER_MINUTE, axis.windowEnd / MILLIS_PER_MINUTE) { Window(axis.windowStart, axis.windowEnd) }
 
     val shape =
-        remember(samples, charge, data.discharge, scale, data.powerDown, window, lineColor) {
+        remember(samples, charge, data.discharge, scale, data.bands, data.unseen, window, lineColor) {
             batteryShape(data, window, lineColor, chargingChartColor)
         }
     val lines = rememberBatteryLines(lineColor, chargingChartColor, parkedMuted = charge != null)
     val icons = remember { BandIcons() }
-    val historyBands = rememberHistoryBands(shape.bands, icons)
+    val historyBands = rememberHistoryBands(shape.bands, shape.unseen, icons)
     val timeFormatter = rememberTimeFormatter(window, axis.showDate, axis.is24Hour)
     val view = remember(shape, window.spanHours, viewport.start, viewport.end) { shape.view(window.spanHours, viewport) }
     val xStep = (view.maxX - view.minX) / X_LABEL_STEPS
@@ -228,6 +230,8 @@ internal class BatteryShape(
     val specs: List<SeriesSpec>,
     val beams: List<Beam>,
     val bands: List<Band>,
+    /** The stretches inside [bands] the log lost, in hours since the window start, clipped to the window. */
+    val unseen: List<ClosedFloatingPointRange<Double>>,
     val yMin: Double,
     val yMax: Double,
 ) {
@@ -249,7 +253,7 @@ internal class BatteryShape(
         val ys = if (viewport.isFull) emptyList() else specs.flatMap { it.ysAround(shown) }
         if (ys.isEmpty()) return BatteryView(shown.start, shown.endInclusive, range, gridlines)
         val (low, high) = roundedBounds(ys.min().toFloat(), ys.max().toFloat())
-        val fitted = BatteryShape(specs, beams, bands, low.toDouble(), high.toDouble())
+        val fitted = BatteryShape(specs, beams, bands, unseen, low.toDouble(), high.toDouble())
         return BatteryView(shown.start, shown.endInclusive, fitted.range, fitted.gridlines)
     }
 }
@@ -297,11 +301,19 @@ internal fun batteryShape(
         specs = (measuredSpecs(samples, xs, ys) + projections.map { it.spec }).map { it.normalized() },
         beams = projections.mapNotNull { it.beam },
         bands =
-            data.powerDown.mapNotNull { span ->
-                // Clamped to the window: a span that reaches past its edge is cut there, and one off it draws nothing.
+            BandKind.entries.flatMap { kind ->
+                data.bands[kind].orEmpty().mapNotNull { span ->
+                    // Clamped to the window: a span that reaches past its edge is cut there, and one off it draws nothing.
+                    val start = window.hours(span.startMillis)
+                    val end = window.hours(span.endMillis)
+                    if (end > start) Band(start, end, kind) else null
+                }
+            },
+        unseen =
+            data.unseen.mapNotNull { span ->
                 val start = window.hours(span.startMillis)
                 val end = window.hours(span.endMillis)
-                if (end > start) Band(start, end, BandKind.PARKED) else null
+                if (end > start) start..end else null
             },
         yMin = yMin.toDouble(),
         yMax = yMax.toDouble(),

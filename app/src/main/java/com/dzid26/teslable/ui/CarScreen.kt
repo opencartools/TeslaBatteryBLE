@@ -91,6 +91,7 @@ import com.dzid26.teslable.core.health.chargeSessionOpen
 import com.dzid26.teslable.core.health.chargeSessions
 import com.dzid26.teslable.core.health.lastFinishedChargeStats
 import com.dzid26.teslable.core.health.priceForCharge
+import com.dzid26.teslable.core.history.ActivityKind
 import com.dzid26.teslable.core.history.ActivitySample
 import com.dzid26.teslable.core.history.BatterySample
 import com.dzid26.teslable.core.history.ChargeProjection
@@ -99,19 +100,21 @@ import com.dzid26.teslable.core.history.DischargeProjection
 import com.dzid26.teslable.core.history.DriveSample
 import com.dzid26.teslable.core.history.FullRangeScale
 import com.dzid26.teslable.core.history.HistoryRange
-import com.dzid26.teslable.core.history.PowerDownGap
 import com.dzid26.teslable.core.history.ProjectionContext
 import com.dzid26.teslable.core.history.RouteSample
 import com.dzid26.teslable.core.history.StatusSample
 import com.dzid26.teslable.core.history.TENTHS_PER_PERCENT
+import com.dzid26.teslable.core.history.TimeSpan
 import com.dzid26.teslable.core.history.Trip
 import com.dzid26.teslable.core.history.activeRoute
+import com.dzid26.teslable.core.history.bridgedSleepSpans
 import com.dzid26.teslable.core.history.chargeProjection
 import com.dzid26.teslable.core.history.compactDuration
 import com.dzid26.teslable.core.history.currentRest
 import com.dzid26.teslable.core.history.dischargeProjection
 import com.dzid26.teslable.core.history.fromTime
 import com.dzid26.teslable.core.history.markingLive
+import com.dzid26.teslable.core.history.parkedActivitySpans
 import com.dzid26.teslable.core.history.powerDownGaps
 import com.dzid26.teslable.core.history.projectionHorizonMillis
 import com.dzid26.teslable.core.history.restStats
@@ -993,7 +996,7 @@ internal fun TimeHistory(
 ) {
     var range by memory.range
     // A new range starts unzoomed; a tap on the range already chosen zooms back out.
-    val viewport = rememberChartViewport(range)
+    val viewport = rememberChartViewport(minViewSpan(range), range)
     val now = nowMillis
     // Fitted off the main thread: the stats, the projection and the chart all read it. The car screen's own fit of
     // the same samples is cached, so this one is usually a lookup.
@@ -1072,7 +1075,7 @@ private fun TimeChart(
             now
         }
     BatteryChart(
-        data = ChartData(visible, charge, discharge, scale, figures.powerDown),
+        data = ChartData(visible, charge, discharge, scale, figures.stretches.bands, figures.stretches.unseen),
         axis =
             TimeAxis(
                 windowStart = range.durationMillis?.let { now - it } ?: visible.first().timestampMillis,
@@ -1097,6 +1100,12 @@ private fun TimeChart(
     }
 }
 
+/** What the chart shades behind the plot: each kind's bands, and the parts of them the log lost. */
+internal data class ShadedStretches(
+    val bands: Map<BandKind, List<TimeSpan>>,
+    val unseen: List<TimeSpan> = emptyList(),
+)
+
 /** What the battery history card shows, derived from the whole log for one range and moment. */
 internal class BatteryHistoryFigures(
     val visible: List<BatterySample>,
@@ -1104,8 +1113,8 @@ internal class BatteryHistoryFigures(
     val baseMillis: Long,
     val charge: ChargeProjection?,
     val discharge: DischargeProjection?,
-    /** The quiet stretches the parked rate is fitted from, shaded behind the chart. */
-    val powerDown: List<PowerDownGap>,
+    /** The bands the chart shades, and the parts of them the log lost. */
+    val stretches: ShadedStretches,
     val lastCharge: ChargeStats?,
 )
 
@@ -1122,14 +1131,29 @@ private fun batteryHistoryFigures(
             ?: ((visible.lastOrNull()?.timestampMillis ?: 0L) - (visible.firstOrNull()?.timestampMillis ?: 0L)).coerceAtLeast(1L)
     // Projections are derived from every sample, not just the visible window, so a run that started before the
     // selected range still projects. Parked drain: the drive samples' odometer marks the stretches the car moved;
-    // shown next to the charge projection too, where the battery heads if unplugged now.
+    // shown next to the charge projection too, where the battery heads if unplugged now. The bands are read from
+    // the same logs, and the chart clips them to its window.
     val projections = visible.isNotEmpty()
+    val sleeps = if (projections) bridgedSleepSpans(context.statuses) else emptyList()
     return BatteryHistoryFigures(
         visible = visible,
         baseMillis = baseMillis,
         charge = if (projections) chargeProjection(samples, scale = context.scale) else null,
         discharge = if (projections) dischargeProjection(samples, drives, baseMillis, nowMillis, context) else null,
-        powerDown = if (projections) powerDownGaps(samples, drives, baseMillis, context) else emptyList(),
+        stretches =
+            if (projections) {
+                ShadedStretches(
+                    bands =
+                        buildMap {
+                            put(BandKind.PARKED, powerDownGaps(samples, drives, baseMillis, context))
+                            put(BandKind.ASLEEP, sleeps.map { TimeSpan(it.startMillis, it.endMillis) })
+                            put(BandKind.CLIMATE, parkedActivitySpans(context.activity, ActivityKind.CLIMATE, drives))
+                        },
+                    unseen = sleeps.flatMap { it.unseen },
+                )
+            } else {
+                ShadedStretches(emptyMap())
+            },
         lastCharge = lastFinishedChargeStats(samples, nowMillis),
     )
 }

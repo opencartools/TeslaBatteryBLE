@@ -150,6 +150,8 @@
     <string name="history_days">%1$dd</string>
     <string name="history_parked_rate">%1$s%%/day</string>
     <string name="history_parked_rate_tiny" formatted="false">&lt;0.1%/day</string>
+    <string name="history_asleep_band_hint">Car asleep: the car\'s status said asleep through this stretch, independent of the battery readings. Stripes are where the phone lost touch with the car.</string>
+    <string name="history_climate_band_hint">Climate on while parked: the cabin climate ran through this stretch.</string>
     <string name="history_hint_description">%1$s. %2$s</string>
     <string name="history_range_6h">6h</string>
     <string name="history_range_24h">24h</string>
@@ -162,7 +164,7 @@
     <string name="health_full_range_hint" formatted="false">Rated range from 100% down to 0%. The car still holds about 3kWh (the buffer) below 0%, so this range does not include it.</string>
     <string name="health_soh_hint">Full range divided by the new-car rated range. To match the degradation your CAN tool shows, adjust the rated range in Edit car (the pencil).</string>
     <string name="history_parked_rate_hint_power_down">Parked drain (dashed line) - the rate over the stretches the car sat parked with nobody in it and Sentry and climate off, an hour or more apart - most likely sleeping in between.</string>
-    <string name="history_power_down_sign_hint">Power down: the car sat parked with nobody in it and Sentry and climate off, an hour or more between reads.</string>
+    <string name="history_power_down_sign_hint">Power down: the car sat parked with nobody in it, Sentry and climate off.</string>
     <string name="read_blocked_asleep">The car is asleep. Waking it.</string>
     <string name="read_blocked_needs_vin">Enter the car\'s VIN first.</string>
     <string name="read_blocked_no_session">No data session yet. Asking the car now.</string>
