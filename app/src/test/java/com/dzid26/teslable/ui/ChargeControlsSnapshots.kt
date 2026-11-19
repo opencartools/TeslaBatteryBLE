@@ -124,6 +124,19 @@ class ChargeControlsSnapshots {
     }
 
     @Test
+    fun chargeControlsCardPortOpenLargeFont() {
+        paparazzi.unsafeUpdateConfig(
+            deviceConfig = DeviceConfig.NEXUS_5.copy(fontScale = 1.5f),
+            renderingMode = SessionParams.RenderingMode.SHRINK,
+        )
+        paparazzi.snapshot("charge-controls-card_port-open_large-font") {
+            CardFrame(darkTheme = false) {
+                ChargeControlsCard(model = model(charge = null, portOpen = true), actuating = emptySet(), failure = null, actions = actions)
+            }
+        }
+    }
+
+    @Test
     fun screenCarDetailUnplugged() {
         paparazzi.snapFullScreen("screen-car-detail_unplugged") {
             CarScreen(
