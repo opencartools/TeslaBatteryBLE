@@ -33,6 +33,16 @@ data class DeepSleep(
 }
 
 /**
+ * A stretch the car slept through, and the parts of it the status log did not witness: holes the car was asleep on
+ * both sides of. [unseen] is empty for a sleep the log followed throughout.
+ */
+data class SleepSpan(
+    val startMillis: Long,
+    val endMillis: Long,
+    val unseen: List<TimeSpan> = emptyList(),
+)
+
+/**
  * The longest of [deepSleeps]. Ties go to the later sleep.
  *
  * @see deepSleeps for the parameters.
@@ -69,36 +79,100 @@ fun deepSleeps(
     scale: FullRangeScale? = null,
 ): List<DeepSleep> {
     val parkedDrives = drives.filter { it.odometerInHundredthsOfAMile != null }
-    return asleepRuns(statuses)
-        .filter { it.durationMillis >= MIN_SLEEP_SPAN_MILLIS }
-        .map { it.copy(drop = dropAround(it, samples, parkedDrives, scale)) }
+    return asleepSpans(statuses).map { span ->
+        DeepSleep(span.startMillis, span.endMillis, dropAround(span, samples, parkedDrives, scale))
+    }
 }
 
-/** The unbroken runs of asleep readings in [statuses], each ended by the awake reading that follows it when one does. */
-private fun asleepRuns(statuses: List<StatusSample>): List<DeepSleep> {
-    val runs = mutableListOf<DeepSleep>()
-    var first: StatusSample? = null
-    var last: StatusSample? = null
+/**
+ * Every stretch the status log says the car was asleep: an unbroken run of asleep readings, ended by the awake
+ * reading that follows it when one comes within a heartbeat. A hole in the log (the phone out of range or
+ * reconnecting) ends the run at the last asleep reading: the car may have woken unseen. A run shorter than
+ * [MIN_SLEEP_SPAN_MILLIS] is not a sleep. [bridgedSleepSpans] joins the runs across such holes for the chart.
+ *
+ * @param statuses the vehicle's status log, oldest first.
+ */
+fun asleepSpans(statuses: List<StatusSample>): List<TimeSpan> =
+    sleepRuns(statuses, bridgeHoles = false)
+        .filter { it.endMillis - it.startMillis >= MIN_SLEEP_SPAN_MILLIS }
+        .map { TimeSpan(it.startMillis, it.endMillis) }
+
+/**
+ * The stretches the car slept through, with holes in the log joined when the car was asleep on both sides: the chart
+ * shows one sleep rather than a row of fragments. Each joined hole is reported in [SleepSpan.unseen]. An awake
+ * reading ends a stretch wherever it comes, so a hole followed by a wake is not joined. There is no cap on a hole's
+ * length: the unseen stretch is marked in the band, not hidden. A stretch shorter than [MIN_SLEEP_SPAN_MILLIS] is
+ * not a sleep.
+ *
+ * The stats card keeps to [asleepSpans]: a drain rate needs a sleep the log followed throughout.
+ *
+ * @param statuses the vehicle's status log, oldest first.
+ */
+fun bridgedSleepSpans(statuses: List<StatusSample>): List<SleepSpan> =
+    sleepRuns(statuses, bridgeHoles = true).filter { it.endMillis - it.startMillis >= MIN_SLEEP_SPAN_MILLIS }
+
+/**
+ * The runs of asleep readings in [statuses], each ended by the awake reading that follows it when one does. With
+ * [bridgeHoles] a hole that resumes asleep continues the run, and the hole is listed in its [SleepSpan.unseen].
+ */
+private fun sleepRuns(
+    statuses: List<StatusSample>,
+    bridgeHoles: Boolean,
+): List<SleepSpan> {
+    val runs = mutableListOf<SleepSpan>()
+    var first: Long? = null
+    var lastAsleep = 0L
+    val unseen = mutableListOf<TimeSpan>()
     for (status in statuses) {
-        val held = last
-        if (first != null && held != null) {
-            val adjacent = status.timestampMillis - held.timestampMillis <= STATUS_CHANGE_MAX_GAP_MILLIS
-            if (status.asleep && adjacent) {
-                last = status
+        val start = first
+        if (start != null) {
+            val gap = status.timestampMillis - lastAsleep
+            if (status.asleep) {
+                when {
+                    gap <= STATUS_CHANGE_MAX_GAP_MILLIS -> lastAsleep = status.timestampMillis
+                    bridgeHoles -> {
+                        unseen.addHole(lastAsleep, status.timestampMillis)
+                        lastAsleep = status.timestampMillis
+                    }
+                    else -> {
+                        runs += SleepSpan(start, lastAsleep, unseen.toList())
+                        first = status.timestampMillis
+                        lastAsleep = status.timestampMillis
+                        unseen.clear()
+                    }
+                }
                 continue
             }
-            runs += DeepSleep(first.timestampMillis, if (adjacent) status.timestampMillis else held.timestampMillis)
+            val end = if (gap <= STATUS_CHANGE_MAX_GAP_MILLIS) status.timestampMillis else lastAsleep
+            runs += SleepSpan(start, end, unseen.toList())
+            first = null
+            unseen.clear()
         }
-        first = status.takeIf { it.asleep }
-        last = first
+        if (status.asleep) {
+            first = status.timestampMillis
+            lastAsleep = status.timestampMillis
+            unseen.clear()
+        }
     }
-    val tail = last
-    if (first != null && tail != null) runs += DeepSleep(first.timestampMillis, tail.timestampMillis)
+    first?.let { runs += SleepSpan(it, lastAsleep, unseen.toList()) }
     return runs
 }
 
+/** Adds a hole, joining it to the previous one when the log's next reading continued the same silence. */
+private fun MutableList<TimeSpan>.addHole(
+    from: Long,
+    to: Long,
+) {
+    val last = lastOrNull()
+    if (last != null && last.endMillis == from) {
+        this[lastIndex] = TimeSpan(last.startMillis, to)
+    } else {
+        add(TimeSpan(from, to))
+    }
+}
+
 private fun dropAround(
-    sleep: DeepSleep,
+    sleep: TimeSpan,
     samples: List<BatterySample>,
     parkedDrives: List<DriveSample>,
     scale: FullRangeScale?,

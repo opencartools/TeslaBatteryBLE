@@ -7,7 +7,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.Paparazzi
+import com.dzid26.teslable.core.history.ActivityKind
+import com.dzid26.teslable.core.history.ActivitySample
 import com.dzid26.teslable.core.history.HistoryRange
+import com.dzid26.teslable.core.history.ProjectionContext
+import com.dzid26.teslable.core.history.StatusSample
+import com.dzid26.teslable.ui.CardSnapshots.Companion.BLE_NAME
 import com.dzid26.teslable.ui.CardSnapshots.Companion.NOW
 import com.dzid26.teslable.ui.CardSnapshots.Companion.ODOMETER
 import com.dzid26.teslable.ui.CardSnapshots.Companion.historySample
@@ -70,6 +75,20 @@ class HistoryBandSnapshots {
     }
 
     @Test
+    fun historyCardBandsKinds() {
+        // A sleep inside the parked stretch, then a climate run that makes the second stretch not quiet:
+        // gray under an indigo moon, and amber under a snowflake.
+        paparazzi.snapCard("history-card_bands-kinds") {
+            HistoryCard(
+                samples = kindSamples,
+                drives = kindSamples.map { parkedDrive(it) },
+                context = ProjectionContext(statuses = kindStatuses, activity = kindActivity),
+                view = HistoryView(nowMillis = NOW),
+            )
+        }
+    }
+
+    @Test
     fun bandIconBubble() {
         // The explanation bubble, seeded with the sign rect a draw would record: a snapshot cannot tap.
         paparazzi.snapCard("band-icon_bubble") {
@@ -124,4 +143,42 @@ class HistoryBandSnapshots {
             ODOMETER + 300,
             ODOMETER + 300,
         )
+
+    // Two five-hour parked gaps, the first quiet, the second kept busy by the climate.
+    private val kindSamples =
+        listOf(
+            historySample(10, 72),
+            historySample(5, 71),
+            historySample(0, 70),
+        )
+
+    // Asleep from nine hours ago to six, with an hour and a half the log missed in the middle: the band is bridged
+    // across it and the unseen stretch is striped.
+    private val kindStatuses =
+        buildList {
+            var minutesAgo = 9 * 60L
+            while (minutesAgo >= 8 * 60L + 30) {
+                add(StatusSample(NOW - minutesAgo * MINUTE, BLE_NAME, asleep = true, userPresent = false, locked = true))
+                minutesAgo -= 10
+            }
+            minutesAgo = 7 * 60L
+            while (minutesAgo >= 6 * 60L) {
+                add(StatusSample(NOW - minutesAgo * MINUTE, BLE_NAME, asleep = true, userPresent = false, locked = true))
+                minutesAgo -= 10
+            }
+            add(StatusSample(NOW - (6 * 60L - 10) * MINUTE, BLE_NAME, asleep = false, userPresent = false, locked = true))
+        }
+
+    // The climate ran for two hours inside the second gap, a reading every ten minutes.
+    private val kindActivity =
+        buildList {
+            var minutesAgo = 4 * 60L
+            while (minutesAgo > 2 * 60L) {
+                add(ActivitySample(NOW - minutesAgo * MINUTE, BLE_NAME, ActivityKind.CLIMATE, on = true))
+                minutesAgo -= 10
+            }
+            add(ActivitySample(NOW - 2 * 60L * MINUTE, BLE_NAME, ActivityKind.CLIMATE, on = false))
+        }
 }
+
+private const val MINUTE = 60_000L

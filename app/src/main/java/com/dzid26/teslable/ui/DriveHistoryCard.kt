@@ -66,7 +66,7 @@ internal fun DistanceHistory(
 ) {
     var window by memory.window
     // A new window starts unzoomed; a tap on the window already chosen zooms back out.
-    val viewport = rememberChartViewport(window)
+    val viewport = rememberChartViewport(MIN_VIEW_SPAN, window)
     val unit = LocalDistanceUnit.current
     val pricePerKwh = LocalPricePerKwh.current
     // Up to 20k samples: matched off the main thread, and only when the data or the window changes. The card shows once

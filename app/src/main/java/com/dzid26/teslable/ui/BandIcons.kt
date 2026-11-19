@@ -9,15 +9,31 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import com.dzid26.teslable.R
 
-/** What a shaded stretch means: the glyph its icon carries, and the explanation the icon opens. */
+/** Where a kind's mark sits in the plot: the top or the bottom, so overlapping bands keep both marks apart. */
+internal enum class BandSlot { TOP, BOTTOM }
+
+/** Sleep reads as night, climate as amber; both are fixed, like the parking sign's blue. */
+internal val ASLEEP_TINT = Color(0xFF5C6BC0)
+internal val CLIMATE_TINT = Color(0xFFFFB300)
+private val PARKING_BLUE = Color(0xFF1565C0)
+
+/** What a shaded stretch means: the mark its icon draws, its tile's tint, and the explanation the icon opens. */
 internal enum class BandKind(
-    val glyph: String,
+    val slot: BandSlot,
+    val tile: Color,
     @param:StringRes val hint: Int,
 ) {
-    /** The parked drain's power-down stretches. */
-    PARKED("P", R.string.history_power_down_sign_hint),
+    /** The parked drain's power-down stretches: a parking sign at the bottom. */
+    PARKED(BandSlot.BOTTOM, PARKING_BLUE, R.string.history_power_down_sign_hint),
+
+    /** Stretches the status log says the car was asleep: a moon at the top. */
+    ASLEEP(BandSlot.TOP, ASLEEP_TINT, R.string.history_asleep_band_hint),
+
+    /** Stretches the cabin climate ran: a snowflake at the top. */
+    CLIMATE(BandSlot.TOP, CLIMATE_TINT, R.string.history_climate_band_hint),
 }
 
 /** A stretch of the plot to shade, in hours since the window start, and the kind that names it. */
@@ -71,18 +87,25 @@ internal class BandIcons {
     ): BandIcon? = icons.firstOrNull { it.touches(position, slop) }
 }
 
+/** The plot's top and bottom edges, px: where the two kinds of slot put their marks. */
+internal data class IconEdges(
+    val top: Float,
+    val bottom: Float,
+)
+
 /**
- * [bands] as icons: one per kind, on the part of the band that is on screen, centred under the
- * plot's top [top]. A band narrower than the full icon scales it down to fit, with [IconStyle.airPx]
- * of clearance each side, down to [IconStyle.minSizePx]; a band too narrow for even that is left
- * plain. The band is cut to [visible] first, so a stretch wider than the view keeps its icon on the
- * plot instead of centring it on the hidden part.
+ * [bands] as icons: one per kind, on the part of the band that is on screen, at its kind's slot —
+ * under [edges]' top for the top slot, above its bottom for the bottom one. A band narrower than the
+ * full icon scales it down to fit, with [IconStyle.airPx] of clearance each side, down to
+ * [IconStyle.minSizePx]; a band too narrow for even that is left plain. The band is cut to [visible]
+ * first, so a stretch wider than the view keeps its icon on the plot instead of centring it on the
+ * hidden part.
  */
 internal fun bandIcons(
     bands: List<Band>,
     visible: ClosedFloatingPointRange<Double>,
     canvasX: (Double) -> Float,
-    top: Float,
+    edges: IconEdges,
     style: IconStyle,
 ): List<BandIcon> =
     bands.mapNotNull { band ->
@@ -93,5 +116,6 @@ internal fun bandIcons(
         val size = minOf(style.sizePx, right - left - 2 * style.airPx)
         if (size < style.minSizePx) return@mapNotNull null
         val iconLeft = (left + right) / 2 - size / 2
-        BandIcon(band.kind, iconLeft, top, iconLeft + size, top + size)
+        val iconTop = if (band.kind.slot == BandSlot.TOP) edges.top else edges.bottom - size
+        BandIcon(band.kind, iconLeft, iconTop, iconLeft + size, iconTop + size)
     }

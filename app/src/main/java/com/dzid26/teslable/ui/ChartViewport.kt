@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.withSave
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEvent
+import com.dzid26.teslable.core.history.HistoryRange
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.decoration.Decoration
 import kotlin.math.abs
@@ -27,6 +28,8 @@ import kotlin.math.abs
 internal class ChartViewport(
     start: Double = 0.0,
     end: Double = 1.0,
+    /** The narrowest view this chart allows, as a fraction of the whole range: a month may zoom deeper than a day. */
+    val minSpan: Double = MIN_VIEW_SPAN,
 ) {
     var start by mutableDoubleStateOf(start)
         private set
@@ -44,7 +47,7 @@ internal class ChartViewport(
         val span = end - start
         val from = start + minOf(viewFraction(a), viewFraction(b)).coerceIn(0.0, 1.0) * span
         val to = start + maxOf(viewFraction(a), viewFraction(b)).coerceIn(0.0, 1.0) * span
-        val width = (to - from).coerceAtLeast(MIN_VIEW_SPAN)
+        val width = (to - from).coerceAtLeast(minSpan)
         val newStart = (from + (to - from - width) / 2).coerceIn(0.0, 1.0 - width)
         start = newStart
         end = newStart + width
@@ -87,7 +90,7 @@ internal class ChartViewport(
     ) {
         if (layerWidth <= 0f) return
         val scale = if (previousSpan >= minFingerSpan && span >= minFingerSpan) span / previousSpan else 1f
-        val (newStart, newEnd) = panZoom(start, end, viewFraction(previousX), viewFraction(x), scale.toDouble())
+        val (newStart, newEnd) = panZoom(start..end, viewFraction(previousX), viewFraction(x), scale.toDouble(), minSpan)
         start = newStart
         end = newEnd
     }
@@ -102,18 +105,18 @@ internal class ChartViewport(
 /**
  * The view [start] to [end] (fractions of the full range) after a two-finger step: the full-range point at [from]
  * across the view lands at [to], and the view's width shrinks by [scale] (above 1 zooms in). The width stays between
- * [MIN_VIEW_SPAN] and the whole chart, and the view stays inside it.
+ * [minSpan] and the whole chart, and the view stays inside it.
  */
 internal fun panZoom(
-    start: Double,
-    end: Double,
+    view: ClosedFloatingPointRange<Double>,
     from: Double,
     to: Double,
     scale: Double,
+    minSpan: Double = MIN_VIEW_SPAN,
 ): Pair<Double, Double> {
-    val span = end - start
-    val anchor = start + from * span
-    val newSpan = (span / scale).coerceIn(MIN_VIEW_SPAN, 1.0)
+    val span = view.endInclusive - view.start
+    val anchor = view.start + from * span
+    val newSpan = (span / scale).coerceIn(minSpan, 1.0)
     val newStart = (anchor - to * newSpan).coerceIn(0.0, 1.0 - newSpan)
     return newStart to newStart + newSpan
 }
@@ -146,12 +149,17 @@ internal suspend fun AwaitPointerEventScope.followPinch(
 
 /** Keeps the zoom across a rotation, like the cursor; the plotting area is measured again on the next draw. */
 internal val ChartViewportSaver =
-    Saver<ChartViewport, DoubleArray>(save = { doubleArrayOf(it.start, it.end) }, restore = { ChartViewport(it[0], it[1]) })
+    Saver<ChartViewport, DoubleArray>(
+        save = { doubleArrayOf(it.start, it.end, it.minSpan) },
+        restore = { ChartViewport(it[0], it[1], it[2]) },
+    )
 
 /** A viewport that a change of any of [keys] (the range or window) resets, and that survives a rotation. */
 @Composable
-internal fun rememberChartViewport(vararg keys: Any?): ChartViewport =
-    rememberSaveable(*keys, saver = ChartViewportSaver) { ChartViewport() }
+internal fun rememberChartViewport(
+    minSpan: Double = MIN_VIEW_SPAN,
+    vararg keys: Any?,
+): ChartViewport = rememberSaveable(*keys, minSpan, saver = ChartViewportSaver) { ChartViewport(minSpan = minSpan) }
 
 /** Keeps [viewport]'s idea of the plotting area current, so a finger's px maps onto the chart. Draws nothing. */
 internal class ViewportTracker(
@@ -203,5 +211,11 @@ internal fun List<Double>.insertionPoint(
     return low
 }
 
+/** The narrowest view a history range allows: the usual fiftieth of the chart, but never less than an hour. */
+internal fun minViewSpan(range: HistoryRange): Double =
+    range.durationMillis?.let { (HOUR_MILLIS / it).coerceAtMost(MIN_VIEW_SPAN) } ?: MIN_VIEW_SPAN
+
 /** The narrowest view, as a fraction of the whole chart: a fiftieth, so a week still zooms to a few hours. */
 internal const val MIN_VIEW_SPAN = 0.02
+
+private const val HOUR_MILLIS = 3_600_000.0
