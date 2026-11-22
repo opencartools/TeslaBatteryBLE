@@ -22,9 +22,9 @@ class ChargeControlsSnapshots {
         }
 
     @Test
-    fun chargeControlsCardUnplugged() =
-        paparazzi.snapCard("charge-controls-card_unplugged") {
-            ChargeControlsCard(model = model(charge(unplugged)), actuating = emptySet(), failure = null, actions = actions)
+    fun chargeControlsCardPluggedComplete() =
+        paparazzi.snapCard("charge-controls-card_plugged-complete") {
+            ChargeControlsCard(model = model(charge(complete)), actuating = emptySet(), failure = null, actions = actions)
         }
 
     @Test
@@ -34,10 +34,32 @@ class ChargeControlsSnapshots {
         }
 
     @Test
+    fun chargeControlsCardPortOpenAsleep() =
+        paparazzi.snapCard("charge-controls-card_port-open-asleep") {
+            ChargeControlsCard(
+                model = model(charge = null, portOpen = true, asleep = true),
+                actuating = emptySet(),
+                failure = null,
+                actions = actions,
+            )
+        }
+
+    @Test
+    fun chargeControlsCardDisconnected() =
+        paparazzi.snapCard("charge-controls-card_disconnected") {
+            ChargeControlsCard(
+                model = model(charge = charge(charging), enabled = false),
+                actuating = emptySet(),
+                failure = null,
+                actions = actions,
+            )
+        }
+
+    @Test
     fun chargeControlsCardFailure() =
         paparazzi.snapCard("charge-controls-card_refused") {
             ChargeControlsCard(
-                model = model(charge(unplugged)),
+                model = model(charge(complete)),
                 actuating = emptySet(),
                 failure = ActuationKey.CHARGE_LIMIT,
                 actions = actions,
@@ -97,6 +119,19 @@ class ChargeControlsSnapshots {
         paparazzi.snapshot("charge-controls-card_large-font") {
             CardFrame(darkTheme = false) {
                 ChargeControlsCard(model = model(charge(charging)), actuating = emptySet(), failure = null, actions = actions)
+            }
+        }
+    }
+
+    @Test
+    fun chargeControlsCardPortOpenLargeFont() {
+        paparazzi.unsafeUpdateConfig(
+            deviceConfig = DeviceConfig.NEXUS_5.copy(fontScale = 1.5f),
+            renderingMode = SessionParams.RenderingMode.SHRINK,
+        )
+        paparazzi.snapshot("charge-controls-card_port-open_large-font") {
+            CardFrame(darkTheme = false) {
+                ChargeControlsCard(model = model(charge = null, portOpen = true), actuating = emptySet(), failure = null, actions = actions)
             }
         }
     }
@@ -177,14 +212,16 @@ class ChargeControlsSnapshots {
 
     private fun model(
         charge: ChargeState?,
-        portOpen: Boolean = false,
-    ): ChargeControlsModel = checkNotNull(chargeControlsModel(charge, actions, portOpen))
+        portOpen: Boolean = true,
+        enabled: Boolean = true,
+        asleep: Boolean = false,
+    ): ChargeControlsModel = checkNotNull(chargeControlsModel(charge, actions, portOpen, enabled, asleep))
 
     private companion object {
         const val NOW = 1_760_000_000_000L
 
         val charging = ChargeState.ChargingState(Charging = Void())
-        val unplugged = ChargeState.ChargingState(Disconnected = Void())
+        val complete = ChargeState.ChargingState(Complete = Void())
         val stopped = ChargeState.ChargingState(Stopped = Void())
         val actions = ChargeControlActions(setLimit = {}, setAmps = {}, start = {}, stop = {})
     }

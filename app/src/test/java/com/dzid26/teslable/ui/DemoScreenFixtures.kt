@@ -82,6 +82,7 @@ internal object DemoScreenFixtures {
             battery_range = LIVE_PERCENT * RATED_MILES_PER_PERCENT,
             battery_level = LIVE_PERCENT,
             usable_battery_level = LIVE_PERCENT,
+            charge_port_door_open = true,
         )
 
     private val driving =

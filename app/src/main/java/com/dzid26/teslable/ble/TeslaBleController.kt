@@ -1965,8 +1965,11 @@ class TeslaBleController(
 
             val status = runCatching { TeslaVcsec.parseStatusResponse(message) }.getOrNull()
             if (status != null) {
+                val previous = _state.value.connections[address]?.status
+                // An asleep car omits the closures; keep the last ones it reported.
+                val liveStatus = status.withLastKnownClosures(previous)
                 // Arms, or ends, the open-closure alert; the link drop it fires on comes later.
-                closureAlert.onStatus(bleName, status)
+                closureAlert.onStatus(bleName, liveStatus)
                 // VCSEC replies carry no time: the phone's clock at receipt is
                 // the status log's timeline (ADR-0008).
                 val rssi = latestRssi(address)
@@ -1978,8 +1981,7 @@ class TeslaBleController(
                     wakeRetry.cancel()
                     handler.removeCallbacks(wakeRefresh)
                 }
-                val previous = _state.value.connections[address]?.status
-                updateConnection(address) { it.copy(status = status) }
+                updateConnection(address) { it.copy(status = liveStatus) }
                 if (previous?.locked != status.locked ||
                     previous.asleep != status.asleep ||
                     previous.userPresent != status.userPresent
