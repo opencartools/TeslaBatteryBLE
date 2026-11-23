@@ -360,12 +360,6 @@ class InfotainmentPollPolicy {
         /** A start/stop confirmation holds automatic reads at most this long. */
         const val READ_HOLD_MS = 15_000L
 
-        /**
-         * How long the car takes to fall asleep after the last Infotainment request: 89.7 s measured on
-         * 2026-11-12 (ADR-0009), rounded up to the whole 90 s a read has to clear.
-         */
-        const val SLEEP_AFTER_READ_MS = 90_000L
-
         /** Slack over [SLEEP_AFTER_READ_MS], so a read that lands a moment late still finds the car asleep. */
         const val IDLE_SAFETY_MARGIN_MS = 30_000L
 
@@ -391,3 +385,10 @@ class InfotainmentPollPolicy {
         const val DUE_SLACK_MS = 1_000L
     }
 }
+
+/**
+ * How long the car takes to fall asleep after the last Infotainment request: 89.7 s measured on
+ * 2026-11-12 (ADR-0009), rounded up to the whole 90 s a read has to clear. Shared with the sleep
+ * statistics, where a run of asleep readings at least this long is a deep sleep.
+ */
+const val SLEEP_AFTER_READ_MS = 90_000L

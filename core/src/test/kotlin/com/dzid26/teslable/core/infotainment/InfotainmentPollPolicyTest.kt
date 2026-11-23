@@ -401,8 +401,8 @@ class InfotainmentPollPolicyTest {
     /** The measured 89.7 s rounded up, with a margin: a read due sooner than this could catch a car that would have slept. */
     @Test
     fun theSafetyIntervalClearsTheMeasuredSleepLatency() {
-        assertEquals(SAFETY, InfotainmentPollPolicy.SLEEP_AFTER_READ_MS + InfotainmentPollPolicy.IDLE_SAFETY_MARGIN_MS)
-        assertTrue(InfotainmentPollPolicy.SLEEP_AFTER_READ_MS >= 90_000L, "89.7 s measured, 90 s rounded up")
+        assertEquals(SAFETY, SLEEP_AFTER_READ_MS + InfotainmentPollPolicy.IDLE_SAFETY_MARGIN_MS)
+        assertTrue(SLEEP_AFTER_READ_MS >= 90_000L, "89.7 s measured, 90 s rounded up")
     }
 
     @Test

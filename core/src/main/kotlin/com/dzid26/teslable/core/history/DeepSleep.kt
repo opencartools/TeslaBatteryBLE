@@ -2,6 +2,8 @@
 
 package com.dzid26.teslable.core.history
 
+import com.dzid26.teslable.core.infotainment.SLEEP_AFTER_READ_MS
+
 /**
  * What the battery lost while parked around a sleep: from [fromPercent] to [toPercent] over [spanMillis], between
  * the two reads that bracket it. With [ceiling] the reads lie far from the sleep, so the span holds awake time too
@@ -130,8 +132,11 @@ private fun firstReadAtOrAfter(
 
 internal fun readAt(sample: BatterySample): Long = sample.readAtMillis ?: sample.timestampMillis
 
-/** Less sleep than this is too short to tell from a pause between reads; a shorter drain span is too noisy to extrapolate. */
-internal const val MIN_SLEEP_SPAN_MILLIS = 10 * 60_000L
+/**
+ * The shortest run counted as a deep sleep: the 90 s the car takes to fall asleep once its last request
+ * is done ([SLEEP_AFTER_READ_MS]), so a shorter flicker of the asleep flag is left out.
+ */
+internal const val MIN_SLEEP_SPAN_MILLIS = SLEEP_AFTER_READ_MS
 
 /** A battery read this close to either end of a sleep stands for the level it started and ended at. */
 private const val DROP_SLACK_MILLIS = 30 * 60_000L

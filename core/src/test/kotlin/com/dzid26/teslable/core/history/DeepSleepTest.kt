@@ -31,6 +31,18 @@ class DeepSleepTest {
         locked = true,
     )
 
+    /** A status [seconds] after the log's start, for runs too short to round to a whole number of minutes. */
+    private fun statusAtSeconds(
+        seconds: Long,
+        asleep: Boolean = true,
+    ) = StatusSample(
+        timestampMillis = seconds * 1_000L,
+        vehicleId = "",
+        asleep = asleep,
+        userPresent = false,
+        locked = true,
+    )
+
     /** Asleep readings every ten minutes from [from] to [to], then an awake one [to] + 5 when [wake] is set. */
     private fun asleepFor(
         from: Long,
@@ -82,8 +94,14 @@ class DeepSleepTest {
     }
 
     @Test
-    fun `a run shorter than the projection minimum does not count`() {
-        assertNull(longestDeepSleep(emptyList(), emptyList(), listOf(status(0), status(5), status(6, asleep = false))))
+    fun `a run shorter than the sleep latency does not count`() {
+        assertNull(longestDeepSleep(emptyList(), emptyList(), listOf(status(0), statusAtSeconds(60, asleep = false))))
+    }
+
+    @Test
+    fun `a run as long as the sleep latency counts`() {
+        val statuses = listOf(status(0), statusAtSeconds(90, asleep = false))
+        assertEquals(90_000L, assertNotNull(longestDeepSleep(emptyList(), emptyList(), statuses)).durationMillis)
     }
 
     @Test

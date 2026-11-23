@@ -253,7 +253,7 @@
     <string name="drive_rough_note">Fewer stats and coarser steps until the car\'s full range is learned.</string>
     <string name="duration_ago">%1$s ago</string>
     <string name="stats_charging_now">Charging</string>
-    <string name="stats_deep_sleep_hint">Asleep the whole time - only when watched by the phone at least every 1min.</string>
+    <string name="stats_deep_sleep_hint">Asleep the whole time - only when watched by the phone at least every 1.5min.</string>
     <string name="stats_deep_sleep_term">deep sleep</string>
     <string name="stats_drain_ceiling">\u2264%1$s</string>
     <string name="stats_drain_extrapolated" formatted="false">%1$s*</string>
