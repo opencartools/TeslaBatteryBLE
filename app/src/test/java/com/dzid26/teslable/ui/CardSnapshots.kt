@@ -1058,7 +1058,6 @@ class CardSnapshots {
                 sohPercent = 89f,
                 capacityKwh = 57.2f,
                 ratedKwhPerMile = 0.2736f,
-                capacitySwingPercent = null,
                 fullRangeMiles = 262.4f,
                 fullRangeSteps = 42,
                 confidence = HealthConfidence.MEDIUM,
