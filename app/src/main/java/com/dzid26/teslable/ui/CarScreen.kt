@@ -5,7 +5,9 @@ import android.content.Context
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,7 +55,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -66,6 +70,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.dzid26.teslable.EnergyPriceStore
 import com.dzid26.teslable.R
@@ -616,6 +621,7 @@ internal fun HeroCard(
                     stateText = display.stateText,
                     connection = connection,
                     nowMillis = nowMillis,
+                    chargeLimit = chargeLimitFor(charge, lastKnown),
                 )
                 Spacer(Modifier.height(8.dp))
                 // The session's kWh and cost stay up top while it runs; once it ends they move to the history card's Last charge line.
@@ -715,6 +721,7 @@ private fun SocBlock(
     stateText: String,
     connection: TeslaConnection?,
     nowMillis: Long,
+    chargeLimit: Int?,
 ) {
     if (reading == null) {
         Text(text = stateText, style = MaterialTheme.typography.headlineSmall)
@@ -745,16 +752,64 @@ private fun SocBlock(
     )
     // Drawn for a stored reading too, in the muted color, so the card keeps its height when the car goes away.
     Spacer(Modifier.height(8.dp))
-    LinearProgressIndicator(
-        progress = { reading.value / 100f },
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp)),
-        color = color,
-    )
+    SocBar(percent = reading.value, limit = chargeLimit, color = color)
 }
+
+/**
+ * The stock linear progress with its stop dot moved to the charge limit when there is one. Without
+ * a limit the same continuous bar has no dot.
+ */
+@Composable
+internal fun SocBar(
+    percent: Int,
+    limit: Int?,
+    color: Color,
+) {
+    val track =
+        lerp(
+            MaterialTheme.colorScheme.secondaryContainer,
+            MaterialTheme.colorScheme.onSecondaryContainer,
+            TRACK_DARKEN,
+        )
+    val dot = MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(SOC_BAR_HEIGHT)
+            .clip(RoundedCornerShape(SOC_BAR_RADIUS))
+            .background(track),
+    ) {
+        LinearProgressIndicator(
+            progress = { (percent / SOC_PERCENT_FULL).coerceIn(0f, 1f) },
+            modifier = Modifier.fillMaxSize(),
+            color = color,
+            trackColor = Color.Transparent,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+        )
+        if (limit != null) {
+            Canvas(Modifier.fillMaxSize()) {
+                val radius = SOC_BAR_DOT.toPx() / 2f
+                val fraction = (limit / SOC_PERCENT_FULL).coerceIn(0f, 1f)
+                val startEdge = if (layoutDirection == LayoutDirection.Rtl) 1f - fraction else fraction
+                val x = (size.width * startEdge).coerceIn(radius, size.width - radius)
+                drawCircle(dot, radius = radius, center = Offset(x, size.height / 2f))
+            }
+        }
+    }
+}
+
+private val SOC_BAR_HEIGHT = 8.dp
+private val SOC_BAR_RADIUS = 4.dp
+private val SOC_BAR_DOT = 4.dp
+private const val SOC_PERCENT_FULL = 100f
+private const val TRACK_DARKEN = 0.16f
+
+/** The live charge limit, or the last stored reading's limit when the live charge is gone. */
+private fun chargeLimitFor(
+    charge: ChargeState?,
+    lastKnown: BatterySample?,
+): Int? = charge?.charge_limit_soc ?: lastKnown?.chargeLimit
 
 /** The percentage with its age, and under it, left-aligned, a battery icon with the range. */
 @Composable

@@ -165,6 +165,37 @@ class ChargeControlsSnapshots {
     }
 
     @Test
+    fun screenCarDetailNoLiveCharge() {
+        paparazzi.snapFullScreen("screen-car-detail_no-live-charge") {
+            CarScreen(
+                state =
+                    DemoScreenFixtures.carState(NOW).let { state ->
+                        state.copy(connections = state.connections.mapValues { it.value.copy(charge = null) })
+                    },
+                vehicle = DemoScreenFixtures.vehicle,
+                advert = DemoScreenFixtures.carAdvert,
+                address = DemoScreenFixtures.DEMO_ADDRESS,
+                history = DemoScreenFixtures.history(NOW),
+                driveHistory = DemoScreenFixtures.drives(NOW),
+                statusHistory = emptyList(),
+                onBack = {},
+                onEdit = {},
+                onAddVin = {},
+                onPair = {},
+                onRefresh = {},
+                onOpenSettings = {},
+                onToggleTracking = {},
+                onSetChargeLimit = {},
+                onSetChargingAmps = {},
+                onStartCharging = {},
+                onStopCharging = {},
+                onActionFeedbackShown = {},
+                nowMillis = NOW,
+            )
+        }
+    }
+
+    @Test
     fun screenCarDetailFastCharging() {
         paparazzi.snapFullScreen("screen-car-detail_fast-charging") {
             CarScreen(
