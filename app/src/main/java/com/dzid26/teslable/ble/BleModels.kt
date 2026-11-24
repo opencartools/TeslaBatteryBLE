@@ -429,13 +429,6 @@ fun asleepForMillis(
     durations: StatusDurations?,
 ): Long? = durations?.takeIf { status != null && it.asleep == status.asleep }?.asleepForMillis
 
-/**
- * The car's latest status, keeping the last reported closures when a status omits them. An asleep
- * car reports only lock, sleep and presence; the last closures still describe the car.
- */
-internal fun VehicleStatus.withLastKnownClosures(previous: VehicleStatus?): VehicleStatus =
-    if (closureStatuses != null) this else copy(closureStatuses = previous?.closureStatuses)
-
 private fun withDuration(
     label: String,
     millis: Long?,
