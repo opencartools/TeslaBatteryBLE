@@ -84,3 +84,59 @@ fun List<ActivitySample>.thinned(): List<ActivitySample> {
 
 /** Kept readings of one state are at most this far apart: under the 16 minutes a reading may stand for a gap. */
 private const val ACTIVITY_KEEP_MILLIS = 10 * 60_000L
+
+/**
+ * The stretches [kind] ran while the car stayed put: [activitySpans] without the runs a drive reading shows the car
+ * moving through (in gear, or with a speed). A climate that runs on a drive is the trip's, not the parked car's.
+ *
+ * @param activity the vehicle's Sentry and climate readings, oldest first.
+ * @param drives the same vehicle's drive samples, oldest first.
+ */
+fun parkedActivitySpans(
+    activity: List<ActivitySample>,
+    kind: ActivityKind,
+    drives: List<DriveSample>,
+): List<TimeSpan> {
+    val moving = drives.filter { it.inGear || (it.speed ?: 0) > 0 }
+    return activitySpans(activity, kind).filter { span -> moving.none { it.timestampMillis in span.startMillis..span.endMillis } }
+}
+
+/**
+ * The stretches [kind] was running: each unbroken run of on readings, ended by the off reading that follows it when
+ * one comes within a heartbeat. A hole in the log (the phone out of range) ends the run at its last on reading, since
+ * the car may have stopped unseen. Readings of the other kind are ignored.
+ *
+ * @param activity the vehicle's Sentry and climate readings, oldest first.
+ */
+fun activitySpans(
+    activity: List<ActivitySample>,
+    kind: ActivityKind,
+): List<TimeSpan> {
+    val spans = mutableListOf<TimeSpan>()
+    var start: Long? = null
+    var lastOn = 0L
+    for (reading in activity) {
+        if (reading.kind != kind) continue
+        val open = start
+        when {
+            reading.on && open == null -> {
+                start = reading.timestampMillis
+                lastOn = reading.timestampMillis
+            }
+            reading.on && reading.timestampMillis - lastOn <= STATUS_CHANGE_MAX_GAP_MILLIS -> lastOn = reading.timestampMillis
+            reading.on -> {
+                // The log went quiet for longer than a heartbeat: the run ended unseen, and this reading starts another.
+                if (open != null) spans += TimeSpan(open, lastOn)
+                start = reading.timestampMillis
+                lastOn = reading.timestampMillis
+            }
+            open != null -> {
+                val adjacent = reading.timestampMillis - lastOn <= STATUS_CHANGE_MAX_GAP_MILLIS
+                spans += TimeSpan(open, if (adjacent) reading.timestampMillis else lastOn)
+                start = null
+            }
+        }
+    }
+    start?.let { spans += TimeSpan(it, lastOn) }
+    return spans.filter { it.endMillis > it.startMillis }
+}

@@ -9,15 +9,34 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import com.dzid26.teslable.R
 
-/** What a shaded stretch means: the glyph its icon carries, and the explanation the icon opens. */
+/** Where a kind's mark sits in the plot: the top or the bottom, so overlapping bands keep both marks apart. */
+internal enum class BandSlot { TOP, BOTTOM }
+
+/** Sleep reads as night, climate as amber; both are fixed, like the parking sign's blue. */
+internal val ASLEEP_TINT = Color(0xFF5C6BC0)
+internal val CLIMATE_TINT = Color(0xFFFFB300)
+private val PARKING_BLUE = Color(0xFF1565C0)
+
+/**
+ * What a shaded stretch means: the mark its icon draws, its tile's tint, and the explanation the icon opens.
+ * Declaration order is the paint order: a later kind covers an earlier one.
+ */
 internal enum class BandKind(
-    val glyph: String,
+    val slot: BandSlot,
+    val tile: Color,
     @param:StringRes val hint: Int,
 ) {
-    /** The parked drain's power-down stretches. */
-    PARKED("P", R.string.history_power_down_sign_hint),
+    /** The parked drain's power-down stretches: a parking sign at the bottom. */
+    PARKED(BandSlot.BOTTOM, PARKING_BLUE, R.string.history_power_down_sign_hint),
+
+    /** Stretches the status log says the car was asleep: a moon at the top. */
+    ASLEEP(BandSlot.TOP, ASLEEP_TINT, R.string.history_asleep_band_hint),
+
+    /** Stretches the cabin climate ran: a snowflake at the top. */
+    CLIMATE(BandSlot.TOP, CLIMATE_TINT, R.string.history_climate_band_hint),
 }
 
 /** A stretch of the plot to shade, in hours since the window start, and the kind that names it. */
@@ -25,7 +44,28 @@ internal data class Band(
     val startHours: Double,
     val endHours: Double,
     val kind: BandKind,
-)
+    /** The parts of this band the log lost, in the band's hours; drawn as stripes. */
+    val unseen: List<ClosedFloatingPointRange<Double>> = emptyList(),
+) {
+    /** The parts of the band in [from]..[to] the log witnessed, with the unseen holes cut out. */
+    fun witnessedIn(
+        from: Double,
+        to: Double,
+    ): List<ClosedFloatingPointRange<Double>> {
+        val parts = mutableListOf<ClosedFloatingPointRange<Double>>()
+        var start = from
+        unseen.forEach { hole ->
+            val holeStart = maxOf(hole.start, from)
+            val holeEnd = minOf(hole.endInclusive, to)
+            if (holeEnd > holeStart) {
+                if (holeStart > start) parts += start..holeStart
+                start = maxOf(start, holeEnd)
+            }
+        }
+        if (to > start) parts += start..to
+        return parts
+    }
+}
 
 /** How big a band's icon is, how far under the plot's top it sits, and the air and floor it scales between, px. */
 internal data class IconStyle(
@@ -71,27 +111,40 @@ internal class BandIcons {
     ): BandIcon? = icons.firstOrNull { it.touches(position, slop) }
 }
 
+/** The plot's top and bottom edges, px: where the two kinds of slot put their marks. */
+internal data class IconEdges(
+    val top: Float,
+    val bottom: Float,
+)
+
 /**
- * [bands] as icons: one per kind, on the part of the band that is on screen, centred under the
- * plot's top [top]. A band narrower than the full icon scales it down to fit, with [IconStyle.airPx]
- * of clearance each side, down to [IconStyle.minSizePx]; a band too narrow for even that is left
- * plain. The band is cut to [visible] first, so a stretch wider than the view keeps its icon on the
- * plot instead of centring it on the hidden part.
+ * [bands] as icons: one per kind, on the part of the band that is on screen, at its kind's slot —
+ * under [edges]' top for the top slot, above its bottom for the bottom one. The mark sits on the
+ * widest stretch of the band the log witnessed, so a bridged sleep's mark avoids its striped hole.
+ * A band narrower than the full icon scales it down to fit, with [IconStyle.airPx] of clearance each
+ * side, down to [IconStyle.minSizePx]; a band too narrow for even that is left plain. The band is
+ * cut to [visible] first, so a stretch wider than the view keeps its icon on the plot instead of
+ * centring it on the hidden part.
  */
 internal fun bandIcons(
     bands: List<Band>,
     visible: ClosedFloatingPointRange<Double>,
     canvasX: (Double) -> Float,
-    top: Float,
+    edges: IconEdges,
     style: IconStyle,
 ): List<BandIcon> =
     bands.mapNotNull { band ->
-        val start = canvasX(band.startHours.coerceIn(visible.start, visible.endInclusive))
-        val end = canvasX(band.endHours.coerceIn(visible.start, visible.endInclusive))
+        val from = band.startHours.coerceIn(visible.start, visible.endInclusive)
+        val to = band.endHours.coerceIn(visible.start, visible.endInclusive)
+        val shown = if (to > from) band.witnessedIn(from, to).maxByOrNull { it.endInclusive - it.start } else null
+        if (shown == null) return@mapNotNull null
+        val start = canvasX(shown.start)
+        val end = canvasX(shown.endInclusive)
         val left = minOf(start, end)
         val right = maxOf(start, end)
         val size = minOf(style.sizePx, right - left - 2 * style.airPx)
         if (size < style.minSizePx) return@mapNotNull null
         val iconLeft = (left + right) / 2 - size / 2
-        BandIcon(band.kind, iconLeft, top, iconLeft + size, top + size)
+        val iconTop = if (band.kind.slot == BandSlot.TOP) edges.top else edges.bottom - size
+        BandIcon(band.kind, iconLeft, iconTop, iconLeft + size, iconTop + size)
     }
